@@ -38,12 +38,24 @@ describe("Bridge", () => {
     return { bridge };
   };
 
-  it("must work", async () => {
+  it("init contract and check validators", async () => {
     const { bridge } = await loadFixture(prepareAll);
-    console.log(await bridge.retuenValidators());
+    console.log(await bridge.returnValidators());
+    console.log((await bridge.returnValidators()).length);
   });
 
   it("add new validator", async () => {
     const [newValidator] = await ethers.getSigners();
+    const { bridge } = await loadFixture(prepareAll);
+    await bridge.addNewValidator(newValidator.address);
+    console.log((await bridge.returnValidators()).length);
+  });
+
+  it("lock nft", async () => {
+
+  });
+
+  it("unlock nft", async () => {
+
   });
 });
