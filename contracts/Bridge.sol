@@ -35,7 +35,7 @@ contract Bridge is ERC721Holder {
         uint256 tokenId,
         IERC721Metadata erc721Contract,
         uint256 chainNonce
-    ) external payable {
+    ) external {
         emit Lock(to, tokenId, address(erc721Contract), chainNonce);
         erc721Contract.safeTransferFrom(msg.sender, address(this), tokenId);
     }
@@ -44,7 +44,7 @@ contract Bridge is ERC721Holder {
         address to,
         uint256 tokenId,
         IERC721 contractAddr
-    ) external {
+    ) external payable {
         emit UnLock(to, tokenId, address(contractAddr));
         contractAddr.safeTransferFrom(address(this), to, tokenId);
     }
