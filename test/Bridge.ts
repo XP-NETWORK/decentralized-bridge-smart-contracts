@@ -37,8 +37,6 @@ describe("Bridge", () => {
     const Bridge = await ethers.getContractFactory("Bridge");
     const bridge = await Bridge.deploy(arrayOfValidators);
     await bridge.waitForDeployment();
-    console.log(bridge.target);
-
     return { bridge };
   };
 
@@ -49,6 +47,7 @@ describe("Bridge", () => {
       "nft",
       "https://ipfs.io/ipfs/QmNgSudWimtho9aE6v49CfkoV3dmJFXLLLB2XwVopZ2Hp6"
     );
+    nft.waitForDeployment();
     const [user1, user2, user3] = await ethers.getSigners();
     return { nft, user1, user2, user3 };
   };
@@ -75,21 +74,21 @@ describe("Bridge", () => {
   });
 
   it("lock nft", async () => {
-    const { nft, user1 } = await loadFixture(deployNFTerc721Contract);
     const { bridge } = await loadFixture(prepareAll);
-
-    let contractAddress = await nft.getAddress();
-    console.log(contractAddress);
+    const { nft, user1 } = await loadFixture(deployNFTerc721Contract);
 
     let nftWait = await nft.mint(user1.address);
     nftWait.wait();
+    let contractAddress = await nft.getAddress();
 
     let waitProve = await nft
       .connect(user1)
       .approve(bridge.getAddress(), BigInt("0"));
     waitProve.wait();
 
-    await bridge.connect(user1).lock("0x000", user1.address, BigInt(0), "ETH");
+    let alex = await bridge
+      .connect(user1)
+      .lock(contractAddress, user1.address, BigInt(0), "ETH");
   });
 
   it("unlock nft", async () => {});

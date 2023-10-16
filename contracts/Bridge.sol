@@ -3,11 +3,12 @@ pragma solidity >=0.8.19 <0.9.0;
 
 import "hardhat/console.sol";
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-contract Bridge is ERC721Holder {
+contract Bridge is ERC721Holder, ERC1155Holder {
     address[] public validators;
     uint256 private txFees = 0x0;
 
@@ -42,20 +43,20 @@ contract Bridge is ERC721Holder {
         string memory chainName
     ) external payable {
         txFees += msg.value;
-        console.log("txFees" );
-        // emit Lock(
-        //     to,
-        //     tokenId,
-        //     address(erc721Contract),
-        //     chainName,
-        //     erc721Contract.tokenURI(tokenId),
-        //     msg.value
-        // );
-        erc721Contract.safeTransferFrom(msg.sender, address(this), tokenId);
-
+        emit Lock(
+            to,
+            tokenId,
+            address(erc721Contract),
+            chainName,
+            erc721Contract.tokenURI(tokenId),
+            msg.value
+        );
+        erc721Contract.safeTransferFrom(
+            address(msg.sender),
+            address(this),
+            tokenId
+        );
     }
-
-
 
     function unLock(
         address to,
