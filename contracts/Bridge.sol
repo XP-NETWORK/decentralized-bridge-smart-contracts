@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.19 <0.9.0;
 
+import "hardhat/console.sol";
+
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 
 contract Bridge is ERC721Holder {
     address[] public validators;
+    uint256 private txFees = 0x0;
 
     event AddNewValidator(address _validator);
     event Lock(
         string to,
         uint256 tokenId,
         address contractAddr,
-        uint256 chainNonce
+        string chainName,
+        string tokenData,
+        uint256 txFees
     );
     event UnLock(address to, uint256 tokenId, address contractAddr);
 
@@ -31,14 +36,26 @@ contract Bridge is ERC721Holder {
     }
 
     function lock(
+        IERC721Metadata erc721Contract,
         string memory to,
         uint256 tokenId,
-        IERC721Metadata erc721Contract,
-        uint256 chainNonce
-    ) external {
-        emit Lock(to, tokenId, address(erc721Contract), chainNonce);
+        string memory chainName
+    ) external payable {
+        txFees += msg.value;
+        console.log("txFees" );
+        // emit Lock(
+        //     to,
+        //     tokenId,
+        //     address(erc721Contract),
+        //     chainName,
+        //     erc721Contract.tokenURI(tokenId),
+        //     msg.value
+        // );
         erc721Contract.safeTransferFrom(msg.sender, address(this), tokenId);
+
     }
+
+
 
     function unLock(
         address to,
@@ -47,5 +64,10 @@ contract Bridge is ERC721Holder {
     ) external payable {
         emit UnLock(to, tokenId, address(contractAddr));
         contractAddr.safeTransferFrom(address(this), to, tokenId);
+    }
+
+    modifier requireFees() {
+        require(msg.value > 0, "Tx Fees is required!");
+        _;
     }
 }

@@ -2,6 +2,7 @@ import {
   time,
   loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { use } from "chai";
 
 import { ethers } from "hardhat";
 
@@ -35,6 +36,9 @@ describe("Bridge", () => {
     ];
     const Bridge = await ethers.getContractFactory("Bridge");
     const bridge = await Bridge.deploy(arrayOfValidators);
+    await bridge.waitForDeployment();
+    console.log(bridge.target);
+
     return { bridge };
   };
 
@@ -74,13 +78,18 @@ describe("Bridge", () => {
     const { nft, user1 } = await loadFixture(deployNFTerc721Contract);
     const { bridge } = await loadFixture(prepareAll);
 
-    await nft.mint(user1.address);
+    let contractAddress = await nft.getAddress();
+    console.log(contractAddress);
 
-    await nft.connect(user1).approve(bridge.getAddress(), BigInt("0"));
+    let nftWait = await nft.mint(user1.address);
+    nftWait.wait();
 
-    await bridge
+    let waitProve = await nft
       .connect(user1)
-      .lock(user1.address, BigInt("0"), nft, BigInt(5));
+      .approve(bridge.getAddress(), BigInt("0"));
+    waitProve.wait();
+
+    await bridge.connect(user1).lock("0x000", user1.address, BigInt(0), "ETH");
   });
 
   it("unlock nft", async () => {});
