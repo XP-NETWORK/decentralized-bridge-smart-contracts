@@ -38,6 +38,11 @@ describe("Bridge", () => {
     return { bridge };
   };
 
+  const mintNft = async (address: string) => {
+    const Bridge = await ethers.getContractFactory("Bridge");
+
+  }
+
   it("init contract and check validators", async () => {
     const { bridge } = await loadFixture(prepareAll);
     console.log(await bridge.returnValidators());
