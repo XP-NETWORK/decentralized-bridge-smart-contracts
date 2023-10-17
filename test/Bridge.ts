@@ -78,18 +78,66 @@ describe("Bridge", () => {
     const { nft, user1 } = await loadFixture(deployNFTerc721Contract);
 
     let nftWait = await nft.mint(user1.address);
-    nftWait.wait();
+    await nftWait.wait();
     let contractAddress = await nft.getAddress();
-
     let waitProve = await nft
       .connect(user1)
       .approve(bridge.getAddress(), BigInt("0"));
-    waitProve.wait();
+    await waitProve.wait();
 
-    let alex = await bridge
+    let waitTransfer = await bridge
       .connect(user1)
       .lock(contractAddress, user1.address, BigInt(0), "ETH");
+    await waitTransfer.wait();
+    console.log(
+      { contractAddress },
+      "new owner: ",
+      await nft.ownerOf("0"),
+      "user1: ",
+      user1.address,
+      "bridge adress: ",
+      await bridge.getAddress()
+    );
   });
 
-  it("unlock nft", async () => {});
+  it("unlock nft", async () => {
+    const { bridge } = await loadFixture(prepareAll);
+    const { nft, user1 } = await loadFixture(deployNFTerc721Contract);
+
+    let nftWait = await nft.mint(user1.address);
+    await nftWait.wait();
+    let contractAddress = await nft.getAddress();
+    let waitProve = await nft
+      .connect(user1)
+      .approve(bridge.getAddress(), BigInt("0"));
+    await waitProve.wait();
+
+    let waitTransfer = await bridge
+      .connect(user1)
+      .lock(contractAddress, user1.address, BigInt(0), "ETH");
+    await waitTransfer.wait();
+    console.log(
+      { contractAddress },
+      "new owner: ",
+      await nft.ownerOf("0"),
+      "user1: ",
+      user1.address,
+      "bridge adress: ",
+      await bridge.getAddress()
+    );
+    let waitUnlock = await bridge
+      .connect(user1)
+      .unLock(user1.address, BigInt(0), contractAddress);
+
+    await waitUnlock.wait();
+    console.log(
+      { contractAddress },
+      "new owner: ",
+      await nft.ownerOf("0"),
+      "user1: ",
+      user1.address,
+      "bridge adress: ",
+      await bridge.getAddress()
+    );
+  });
 });

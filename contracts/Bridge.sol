@@ -62,7 +62,7 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         address to,
         uint256 tokenId,
         IERC721 contractAddr
-    ) external payable {
+    ) external payable requireFees {
         emit UnLock(to, tokenId, address(contractAddr));
         contractAddr.safeTransferFrom(address(this), to, tokenId);
     }
@@ -70,5 +70,11 @@ contract Bridge is ERC721Holder, ERC1155Holder {
     modifier requireFees() {
         require(msg.value > 0, "Tx Fees is required!");
         _;
+    }
+
+    function claimFee(address payable receiver) external {
+        uint256 sendAmt = txFees;
+        txFees = 0;
+        receiver.transfer(sendAmt);
     }
 }
