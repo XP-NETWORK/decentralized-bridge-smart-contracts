@@ -7,10 +7,20 @@ import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract Bridge is ERC721Holder, ERC1155Holder {
+    using ECDSA for bytes32;
+
+    struct Signature {
+        bytes32 messageHash;
+        bytes signature;
+    }
+
     address[] public validators;
     uint256 private txFees = 0x0;
+    mapping(string => bool) private tx_ids;
+    mapping(address => Signature) public userSignatures;
 
     event AddNewValidator(address _validator);
     event Lock(
@@ -90,4 +100,34 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         txFees = 0;
         receiver.transfer(sendAmt);
     }
+
+    function storeSignature(
+        bytes32 _messageHash,
+        bytes memory _signature
+    ) public {
+        userSignatures[msg.sender] = Signature(_messageHash, _signature);
+    }
+
+    function verifySignature(
+        bytes32 _messageHash,
+        bytes memory _signature,
+        address _signer
+    ) public pure returns (bool) {
+        address signer = _messageHash.recover(_signature);
+        return signer == _signer;
+    }
+
+
+        function executeAction(bytes32 _messageHash, bytes memory _signature) public {
+        require(validators.length > 0, "No validators registered.");
+        uint256 validSignatureCount = 0;
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            if (isValidatorSignature(validators[i], _signature, _messageHash)) {
+                validSignatureCount++;
+            }
+        }
+
+        require(validSignatureCount * 3 >= validators.length * 2, "Not enough valid signatures.");
+
 }
