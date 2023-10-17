@@ -62,7 +62,7 @@ describe("Bridge", () => {
     const [newValidator] = await ethers.getSigners();
     const { bridge } = await loadFixture(prepareAll);
     await bridge.addNewValidator(newValidator.address);
-    console.log(await bridge.isValidator.length);
+    // console.log(await bridge.returnValidators().length);
   });
 
   it("mint nft", async () => {

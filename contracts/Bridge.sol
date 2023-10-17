@@ -32,7 +32,7 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         string to_chain_nft_address,
         string to_chain_user_address,
         string meta_data,
-        string unique_action_id_from_contract,
+        string uniuqeIdentifier,
         uint256 txFees
     );
 
@@ -60,7 +60,7 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         string memory to_chain_nft_address,
         string memory to_chain_user_address,
         string memory meta_data,
-        string memory unique_action_id_from_contract
+        string memory uniuqeIdentifier
     ) external payable requireFees {
         txFees += msg.value;
         emit Lock(
@@ -72,7 +72,7 @@ contract Bridge is ERC721Holder, ERC1155Holder {
             to_chain_nft_address,
             to_chain_user_address,
             meta_data,
-            unique_action_id_from_contract,
+            uniuqeIdentifier,
             msg.value
         );
         from_chain_nft_address.safeTransferFrom(
