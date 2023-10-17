@@ -14,11 +14,15 @@ contract Bridge is ERC721Holder, ERC1155Holder {
 
     event AddNewValidator(address _validator);
     event Lock(
-        string to,
-        uint256 tokenId,
-        address contractAddr,
-        string chainName,
-        string tokenData,
+        uint256 nft_token_id,
+        string from_chain,
+        address from_chain_user_address,
+        address from_chain_nft_address,
+        string to_chain,
+        string to_chain_nft_address,
+        string to_chain_user_address,
+        string meta_data,
+        string unique_action_id_from_contract,
         uint256 txFees
     );
     event UnLock(address to, uint256 tokenId, address contractAddr);
@@ -37,24 +41,33 @@ contract Bridge is ERC721Holder, ERC1155Holder {
     }
 
     function lock(
-        IERC721Metadata erc721Contract,
-        string memory to,
-        uint256 tokenId,
-        string memory chainName
-    ) external payable {
+        uint256 nft_token_id,
+        string memory from_chain,
+        address from_chain_user_address,
+        IERC721Metadata from_chain_nft_address,
+        string memory to_chain,
+        string memory to_chain_nft_address,
+        string memory to_chain_user_address,
+        string memory meta_data,
+        string memory unique_action_id_from_contract
+    ) external payable requireFees {
         txFees += msg.value;
         emit Lock(
-            to,
-            tokenId,
-            address(erc721Contract),
-            chainName,
-            erc721Contract.tokenURI(tokenId),
+            nft_token_id,
+            from_chain,
+            from_chain_user_address,
+            address(from_chain_nft_address),
+            to_chain,
+            to_chain_nft_address,
+            to_chain_user_address,
+            meta_data,
+            unique_action_id_from_contract,
             msg.value
         );
-        erc721Contract.safeTransferFrom(
+        from_chain_nft_address.safeTransferFrom(
             address(msg.sender),
             address(this),
-            tokenId
+            nft_token_id
         );
     }
 

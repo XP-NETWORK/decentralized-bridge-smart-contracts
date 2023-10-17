@@ -87,7 +87,17 @@ describe("Bridge", () => {
 
     let waitTransfer = await bridge
       .connect(user1)
-      .lock(contractAddress, user1.address, BigInt(0), "ETH");
+      .lock(
+        BigInt(0),
+        "ETH",
+        user1.address,
+        contractAddress,
+        "BSC",
+        contractAddress.toString(),
+        user1.address,
+        "https://ipfs.io/ipfs/QmNgSudWimtho9aE6v49CfkoV3dmJFXLLLB2XwVopZ2Hp6",
+        "123"
+      );
     await waitTransfer.wait();
     console.log(
       { contractAddress },
@@ -114,7 +124,17 @@ describe("Bridge", () => {
 
     let waitTransfer = await bridge
       .connect(user1)
-      .lock(contractAddress, user1.address, BigInt(0), "ETH");
+      .lock(
+        BigInt(0),
+        "ETH",
+        user1.address,
+        contractAddress,
+        "BSC",
+        contractAddress.toString(),
+        user1.address,
+        "https://ipfs.io/ipfs/QmNgSudWimtho9aE6v49CfkoV3dmJFXLLLB2XwVopZ2Hp6",
+        "123"
+      );
     await waitTransfer.wait();
     console.log(
       { contractAddress },
