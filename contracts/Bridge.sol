@@ -17,7 +17,7 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         bytes signature;
     }
 
-    address[] public validators;
+    address[] public validator;
     uint256 private txFees = 0x0;
     mapping(string => bool) private tx_ids;
     mapping(address => Signature) public userSignatures;
@@ -35,19 +35,20 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         string unique_action_id_from_contract,
         uint256 txFees
     );
+
     event UnLock(address to, uint256 tokenId, address contractAddr);
 
     constructor(address[] memory _validators) {
-        validators = _validators;
+        validator = _validators;
     }
 
     function returnValidators() public view returns (address[] memory) {
-        return validators;
+        return validator;
     }
 
     function addNewValidator(address _validator) public {
         emit AddNewValidator(address(_validator));
-        validators.push(_validator);
+        return validator.push(_validator);
     }
 
     function lock(
@@ -117,17 +118,52 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         return signer == _signer;
     }
 
-
-        function executeAction(bytes32 _messageHash, bytes memory _signature) public {
-        require(validators.length > 0, "No validators registered.");
+    function executeAction(
+        bytes32 _messageHash,
+        bytes memory _signature
+    ) public {
+        require(validator.length > 0, "No validators registered.");
         uint256 validSignatureCount = 0;
 
-        for (uint256 i = 0; i < validators.length; i++) {
-            if (isValidatorSignature(validators[i], _signature, _messageHash)) {
+        for (uint256 i = 0; i < validator.length; i++) {
+            if (isValidatorSignature(validator[i], _signature, _messageHash)) {
                 validSignatureCount++;
             }
         }
 
-        require(validSignatureCount * 3 >= validators.length * 2, "Not enough valid signatures.");
+        require(
+            validSignatureCount * 3 >= validator.length * 2,
+            "Not enough valid signatures."
+        );
+    }
 
+    function isValidatorSignature(
+        address _validator,
+        bytes memory _signature,
+        bytes32 _messageHash
+    ) internal view returns (bool) {
+        require(checkIfValidatorExists(_validator), "Not a validator.");
+
+        // Verify the signature using ECDSA
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(
+            _messageHash
+        );
+        address recoveredAddress = ECDSA.recover(
+            ethSignedMessageHash,
+            _signature
+        );
+
+        return recoveredAddress == _validator;
+    }
+
+    function checkIfValidatorExists(
+        address _validator
+    ) internal view returns (bool) {
+        for (uint256 i = 0; i < validator.length; i++) {
+            if (validator[i] == _validator) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
