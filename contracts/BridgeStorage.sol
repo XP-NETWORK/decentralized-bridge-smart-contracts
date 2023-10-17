@@ -12,6 +12,7 @@ struct NftTransferDetails {
     string sourceNftContractAddress;
     string metadata;
     string transactionHash;
+    uint256 count;
     string nftType;
 }
 
