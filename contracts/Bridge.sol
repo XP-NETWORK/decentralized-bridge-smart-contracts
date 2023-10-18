@@ -13,11 +13,9 @@ contract Bridge is ERC721Holder, ERC1155Holder {
     using ECDSA for bytes32;
 
     mapping(address => bool) public validators;
-    mapping(bytes32 => uint8) public signatureCount;
-
+    mapping(string => address) public signerAddress;
     uint256 private txFees = 0x0;
-    mapping(string => bool) private tx_ids;
-    uint8 public requiredConfirmations = 2;
+    uint256 private validatorsConfirmCount = 0;
 
     event AddNewValidator(address _validator);
     event Lock(
@@ -55,35 +53,53 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         string memory to_chain_nft_address,
         string memory to_chain_user_address,
         string memory meta_data,
-        string memory uniuqeIdentifier
+        string memory uniuqeIdentifier,
+        bytes32 hash,
+        bytes memory sig
     ) external payable requireFees {
-        txFees += msg.value;
-        emit Lock(
-            nft_token_id,
-            from_chain,
-            from_chain_user_address,
-            address(from_chain_nft_address),
-            to_chain,
-            to_chain_nft_address,
-            to_chain_user_address,
-            meta_data,
-            uniuqeIdentifier,
-            msg.value
+        require(
+            confirmSignature(hash, sig),
+            "validator signature is not valid!"
         );
-        from_chain_nft_address.safeTransferFrom(
-            address(msg.sender),
-            address(this),
-            nft_token_id
-        );
+        if (validatorsConfirmCount >= 7) {
+            txFees += msg.value;
+            emit Lock(
+                nft_token_id,
+                from_chain,
+                from_chain_user_address,
+                address(from_chain_nft_address),
+                to_chain,
+                to_chain_nft_address,
+                to_chain_user_address,
+                meta_data,
+                uniuqeIdentifier,
+                msg.value
+            );
+            from_chain_nft_address.safeTransferFrom(
+                address(msg.sender),
+                address(this),
+                nft_token_id
+            );
+            validatorsConfirmCount = 0;
+        }
     }
 
     function unLock(
         address to,
         uint256 tokenId,
-        IERC721 contractAddr
+        IERC721 contractAddr,
+        bytes32 hash,
+        bytes memory sig
     ) external payable requireFees {
-        emit UnLock(to, tokenId, address(contractAddr));
-        contractAddr.safeTransferFrom(address(this), to, tokenId);
+        require(
+            confirmSignature(hash, sig),
+            "validator signature is not valid!"
+        );
+        if (validatorsConfirmCount >= 7) {
+            emit UnLock(to, tokenId, address(contractAddr));
+            contractAddr.safeTransferFrom(address(this), to, tokenId);
+            validatorsConfirmCount = 0;
+        }
     }
 
     modifier requireFees() {
@@ -97,33 +113,12 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         receiver.transfer(sendAmt);
     }
 
-    function validatorSignature(bytes32 hash, bytes memory sig) external {
-        require(validators[msg.sender], "Not a valid validator");
-        require(!hasConfirmed(hash, msg.sender), "Signature already confirmed");
-
-        address signer = ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig);
-        require(validators[signer], "Not a valid validator");
-
-        bytes32 sigHash = keccak256(abi.encodePacked(hash, msg.sender));
-        signatureCount[sigHash]++;
-
-        require(signatureCount[sigHash] * 3 >= 11 * 2, "Not enough valid");
-        if (signatureCount[sigHash] * 3 >= 11 * 2) {
-            resetSignatureCount(hash, msg.sender);
-        }
-    }
-
-    function hasConfirmed(
+    function confirmSignature(
         bytes32 hash,
-        address validator
-    ) internal view returns (bool) {
-        bytes32 sigHash = keccak256(abi.encodePacked(hash, validator));
-        return signatureCount[sigHash] > 0;
-    }
-
-    function resetSignatureCount(bytes32 hash, address validator) internal {
-        bytes32 sigHash = keccak256(
-            abi.encodePacked(hash, validators[msg.sender])
-        );
+        bytes memory sig
+    ) internal returns (bool) {
+        validatorsConfirmCount += 1;
+        return
+            validators[ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig)];
     }
 }
