@@ -4,20 +4,29 @@ pragma solidity >=0.8.19 <0.9.0;
 import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
-import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "./NftStorageERC721.sol";
 
-contract Bridge is ERC721Holder, ERC1155Holder {
+contract Bridge {
     using ECDSA for bytes32;
 
-    mapping(address => bool) public validators;
-    mapping(bytes32 => uint8) public signatureCount;
+    // struct Voter {
+    //     uint weight; // weight is accumulated by delegation
+    //     bool voted; // if true, that person already voted
+    //     address delegate; // person delegated to
+    //     uint vote; // index of the voted proposal
+    // }
 
+    mapping(address => bool) public validators;
+    // key nftAddress => destination NftStorage721
+    mapping(address => address) public DuplicateMapping;
+    // key nftAddress => source NftStorage721
+    mapping(address => address) public OriginalMapping;
+
+    address[] public addressList;
     uint256 private txFees = 0x0;
-    mapping(string => bool) private tx_ids;
-    uint8 public requiredConfirmations = 2;
+    string public sourceChain = "";
 
     event AddNewValidator(address _validator);
     event Lock(
@@ -32,18 +41,31 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         string uniuqeIdentifier,
         uint256 txFees
     );
-
     event UnLock(address to, uint256 tokenId, address contractAddr);
 
-    constructor(address[] memory _validators) {
+    constructor(address[] memory _validators, string memory sourceChainSymbol) {
+        sourceChain = sourceChainSymbol;
         for (uint256 i = 0; i < _validators.length; i++) {
             validators[_validators[i]] = true;
+            addressList.push(_validators[i]);
         }
     }
 
-    function addNewValidator(address _validator) public {
-        emit AddNewValidator(address(_validator));
-        validators[_validator] = true;
+    function addNewValidator(address _validator, bytes[] memory sigs) public {
+        uint256 percentage = 0;
+        for (uint256 i = 0; i < sigs.length; i++) {
+            address signer = recover(hashSwap(_validator), sigs[i]);
+            console.log("I am a console log!");
+            if (validators[signer]) {
+                console.log("I am a console log2222!");
+                percentage += 1;
+            }
+        }
+        if (percentage >= (addressList.length * 2) / 3) {
+            emit AddNewValidator(address(_validator));
+            validators[_validator] = true;
+            addressList.push(_validator);
+        }
     }
 
     function lock(
@@ -58,6 +80,29 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         string memory uniuqeIdentifier
     ) external payable requireFees {
         txFees += msg.value;
+        // Check if its in the duplicated or not.
+        // if (DuplicateMapping[address(from_chain_nft_address)] == address(0)) {
+        //     // Not exists in duplicate
+        // }
+        if (DuplicateMapping[address(from_chain_nft_address)] != address(0)) {
+            // Exists in duplicate
+        }
+
+        // Check if its in the Original or not.
+        if (OriginalMapping[address(from_chain_nft_address)] == address(0)) {
+            // Not exists in Source
+            NftStorageERC721 newStorageContract = new NftStorageERC721();
+            newStorageContract.depositToken(
+                address(from_chain_nft_address),
+                nft_token_id
+            );
+            OriginalMapping[address(from_chain_nft_address)] = address(
+                newStorageContract
+            );
+        }
+        if (OriginalMapping[address(from_chain_nft_address)] != address(0)) {
+            // Exists in Source
+        }
         emit Lock(
             nft_token_id,
             from_chain,
@@ -97,33 +142,44 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         receiver.transfer(sendAmt);
     }
 
-    function validatorSignature(bytes32 hash, bytes memory sig) external {
-        require(validators[msg.sender], "Not a valid validator");
-        require(!hasConfirmed(hash, msg.sender), "Signature already confirmed");
-
-        address signer = ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig);
-        require(validators[signer], "Not a valid validator");
-
-        bytes32 sigHash = keccak256(abi.encodePacked(hash, msg.sender));
-        signatureCount[sigHash]++;
-
-        require(signatureCount[sigHash] * 3 >= 11 * 2, "Not enough valid");
-        if (signatureCount[sigHash] * 3 >= 11 * 2) {
-            resetSignatureCount(hash, msg.sender);
-        }
+    function hashSwap(address _validator) private pure returns (bytes32) {
+        return keccak256(abi.encode(_validator));
     }
 
-    function hasConfirmed(
+    function recover(
         bytes32 hash,
-        address validator
-    ) internal view returns (bool) {
-        bytes32 sigHash = keccak256(abi.encodePacked(hash, validator));
-        return signatureCount[sigHash] > 0;
+        bytes memory sig
+    ) private pure returns (address) {
+        return ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig);
     }
 
-    function resetSignatureCount(bytes32 hash, address validator) internal {
-        bytes32 sigHash = keccak256(
-            abi.encodePacked(hash, validators[msg.sender])
-        );
-    }
+    // function validatorSignature(bytes32 hash, bytes memory sig) external {
+    //     require(validators[msg.sender], "Not a valid validator");
+    //     require(!hasConfirmed(hash, msg.sender), "Signature already confirmed");
+
+    //     address signer = ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig);
+    //     require(validators[signer], "Not a valid validator");
+
+    //     bytes32 sigHash = keccak256(abi.encodePacked(hash, msg.sender));
+    //     signatureCount[sigHash]++;
+
+    //     require(signatureCount[sigHash] * 3 >= 11 * 2, "Not enough valid");
+    //     if (signatureCount[sigHash] * 3 >= 11 * 2) {
+    //         resetSignatureCount(hash, msg.sender);
+    //     }
+    // }
+
+    // function hasConfirmed(
+    //     bytes32 hash,
+    //     address validator
+    // ) internal view returns (bool) {
+    //     bytes32 sigHash = keccak256(abi.encodePacked(hash, validator));
+    //     return signatureCount[sigHash] > 0;
+    // }
+
+    // function resetSignatureCount(bytes32 hash, address validator) internal {
+    //     bytes32 sigHash = keccak256(
+    //         abi.encodePacked(hash, validators[msg.sender])
+    //     );
+    // }
 }
