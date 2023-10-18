@@ -117,8 +117,13 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         bytes32 hash,
         bytes memory sig
     ) internal returns (bool) {
-        validatorsConfirmCount += 1;
-        return
-            validators[ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig)];
+        if (
+            validators[ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig)]
+        ) {
+            validatorsConfirmCount += 1;
+            return true;
+        } else {
+            return false;
+        }
     }
 }
