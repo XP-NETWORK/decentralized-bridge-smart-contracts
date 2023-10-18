@@ -13,9 +13,11 @@ contract Bridge is ERC721Holder, ERC1155Holder {
     using ECDSA for bytes32;
 
     mapping(address => bool) public validators;
+    mapping(bytes32 => uint8) public signatureCount;
 
     uint256 private txFees = 0x0;
     mapping(string => bool) private tx_ids;
+    uint8 public requiredConfirmations = 2;
 
     event AddNewValidator(address _validator);
     event Lock(
@@ -95,10 +97,33 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         receiver.transfer(sendAmt);
     }
 
-    function validatorSignature(
+    function validatorSignature(bytes32 hash, bytes memory sig) external {
+        require(validators[msg.sender], "Not a valid validator");
+        require(!hasConfirmed(hash, msg.sender), "Signature already confirmed");
+
+        address signer = ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig);
+        require(validators[signer], "Not a valid validator");
+
+        bytes32 sigHash = keccak256(abi.encodePacked(hash, msg.sender));
+        signatureCount[sigHash]++;
+
+        require(signatureCount[sigHash] * 3 >= 11 * 2, "Not enough valid");
+        if (signatureCount[sigHash] * 3 >= 11 * 2) {
+            resetSignatureCount(hash, msg.sender);
+        }
+    }
+
+    function hasConfirmed(
         bytes32 hash,
-        bytes memory sig
-    ) external returns (address) {
-        return ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig);
+        address validator
+    ) internal view returns (bool) {
+        bytes32 sigHash = keccak256(abi.encodePacked(hash, validator));
+        return signatureCount[sigHash] > 0;
+    }
+
+    function resetSignatureCount(bytes32 hash, address validator) internal {
+        bytes32 sigHash = keccak256(
+            abi.encodePacked(hash, validators[msg.sender])
+        );
     }
 }
