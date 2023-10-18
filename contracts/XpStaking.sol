@@ -36,10 +36,9 @@ contract XpStaking {
 
     /**
      * @dev Allows users to stake a specific amount of XP tokens.
-     * @param amount The amount of tokens to be staked.
      */
-    function stakeXP(uint256 amount) public {
-        require(amount == stakingAmount, "Staking amount must be equal to the predefined staking amount.");
+    function stakeXP() public {
+        require(stakingBalances[msg.sender] == 0, "You can only stake once");
 
         // Transfer the staking amount from the staker to this contract.
         xpToken.transferFrom(msg.sender, address(this), stakingAmount);
