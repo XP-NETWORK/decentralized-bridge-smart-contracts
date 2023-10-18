@@ -12,15 +12,10 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 contract Bridge is ERC721Holder, ERC1155Holder {
     using ECDSA for bytes32;
 
-    struct Signature {
-        bytes32 messageHash;
-        bytes signature;
-    }
+    mapping(address => bool) public validators;
 
-    address[] public validator;
     uint256 private txFees = 0x0;
     mapping(string => bool) private tx_ids;
-    mapping(address => Signature) public userSignatures;
 
     event AddNewValidator(address _validator);
     event Lock(
@@ -39,16 +34,14 @@ contract Bridge is ERC721Holder, ERC1155Holder {
     event UnLock(address to, uint256 tokenId, address contractAddr);
 
     constructor(address[] memory _validators) {
-        validator = _validators;
-    }
-
-    function returnValidators() public view returns (address[] memory) {
-        return validator;
+        for (uint256 i = 0; i < _validators.length; i++) {
+            validators[_validators[i]] = true;
+        }
     }
 
     function addNewValidator(address _validator) public {
         emit AddNewValidator(address(_validator));
-        return validator.push(_validator);
+        validators[_validator] = true;
     }
 
     function lock(
@@ -102,68 +95,10 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         receiver.transfer(sendAmt);
     }
 
-    function storeSignature(
-        bytes32 _messageHash,
-        bytes memory _signature
-    ) public {
-        userSignatures[msg.sender] = Signature(_messageHash, _signature);
-    }
-
-    function verifySignature(
-        bytes32 _messageHash,
-        bytes memory _signature,
-        address _signer
-    ) public pure returns (bool) {
-        address signer = _messageHash.recover(_signature);
-        return signer == _signer;
-    }
-
-    function executeAction(
-        bytes32 _messageHash,
-        bytes memory _signature
-    ) public {
-        require(validator.length > 0, "No validators registered.");
-        uint256 validSignatureCount = 0;
-
-        for (uint256 i = 0; i < validator.length; i++) {
-            if (isValidatorSignature(validator[i], _signature, _messageHash)) {
-                validSignatureCount++;
-            }
-        }
-
-        require(
-            validSignatureCount * 3 >= validator.length * 2,
-            "Not enough valid signatures."
-        );
-    }
-
-    function isValidatorSignature(
-        address _validator,
-        bytes memory _signature,
-        bytes32 _messageHash
-    ) internal view returns (bool) {
-        require(checkIfValidatorExists(_validator), "Not a validator.");
-
-        // Verify the signature using ECDSA
-        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(
-            _messageHash
-        );
-        address recoveredAddress = ECDSA.recover(
-            ethSignedMessageHash,
-            _signature
-        );
-
-        return recoveredAddress == _validator;
-    }
-
-    function checkIfValidatorExists(
-        address _validator
-    ) internal view returns (bool) {
-        for (uint256 i = 0; i < validator.length; i++) {
-            if (validator[i] == _validator) {
-                return true;
-            }
-        }
-        return false;
+    function validatorSignature(
+        bytes32 hash,
+        bytes memory sig
+    ) external returns (address) {
+        return ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig);
     }
 }

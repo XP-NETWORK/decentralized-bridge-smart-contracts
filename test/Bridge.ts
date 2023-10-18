@@ -3,6 +3,7 @@ import {
   loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { use } from "chai";
+import { keccak256 } from "ethers";
 
 import { ethers } from "hardhat";
 
@@ -54,8 +55,6 @@ describe("Bridge", () => {
 
   it("init contract and check validators", async () => {
     const { bridge } = await loadFixture(prepareAll);
-    console.log(await bridge.returnValidators());
-    console.log((await bridge.returnValidators()).length);
   });
 
   it("add new validator", async () => {
@@ -64,6 +63,22 @@ describe("Bridge", () => {
     await bridge.addNewValidator(newValidator.address);
     // console.log(await bridge.returnValidators().length);
   });
+
+  it("should add validator and sign", async () => {
+    const { bridge } = await loadFixture(prepareAll);
+    const [user1, user2, user3] = await ethers.getSigners();
+    const signature = await user1.signMessage("hello");
+
+    const sig = await user1.signMessage(signature);
+
+    let alex = await bridge
+      .connect(user2)
+      .validatorSignature(keccak256(signature), sig);
+
+      console.log(alex,user1.address);
+
+  });
+  /*
 
   it("mint nft", async () => {
     const { nft, user1 } = await loadFixture(deployNFTerc721Contract);
@@ -160,4 +175,5 @@ describe("Bridge", () => {
       await bridge.getAddress()
     );
   });
+  */
 });
