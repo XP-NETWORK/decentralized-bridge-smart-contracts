@@ -49,8 +49,8 @@ describe("Bridge", () => {
       "https://ipfs.io/ipfs/QmNgSudWimtho9aE6v49CfkoV3dmJFXLLLB2XwVopZ2Hp6"
     );
     nft.waitForDeployment();
-    const [user1, user2, user3] = await ethers.getSigners();
-    return { nft, user1, user2, user3 };
+    const nftAddress = await nft.getAddress();
+    return { nft,nftAddress };
   };
 
   it("init contract and check validators", async () => {
@@ -64,10 +64,17 @@ describe("Bridge", () => {
     // console.log(await bridge.returnValidators().length);
   });
 
-  it("should add validator and sign", async () => {
+  it("should get validators signatures", async () => {
     const { bridge } = await loadFixture(prepareAll);
+    const { nft,nftAddress } = await loadFixture(deployNFTerc721Contract);
     const [user1, user2, user3] = await ethers.getSigners();
-    const signature = await user1.signMessage("hello");
+    const signature = await user1.signMessage(
+      JSON.stringify({
+        walletAddress: user2.address,
+        tokenId: "0",
+        nftContractAddress: nftAddress,
+      })
+    );
 
     const sig = await user1.signMessage(signature);
 
@@ -75,8 +82,7 @@ describe("Bridge", () => {
       .connect(user2)
       .validatorSignature(keccak256(signature), sig);
 
-      console.log(alex,user1.address);
-
+    console.log(alex, user1.address);
   });
   /*
 

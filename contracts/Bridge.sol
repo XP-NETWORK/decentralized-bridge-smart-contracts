@@ -13,9 +13,7 @@ contract Bridge is ERC721Holder, ERC1155Holder {
     using ECDSA for bytes32;
 
     mapping(address => bool) public validators;
-    mapping(string => address) public signerAddress;
     uint256 private txFees = 0x0;
-    uint256 private validatorsConfirmCount = 0;
 
     event AddNewValidator(address _validator);
     event Lock(
@@ -54,52 +52,46 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         string memory to_chain_user_address,
         string memory meta_data,
         string memory uniuqeIdentifier,
-        bytes32 hash,
-        bytes memory sig
+        bytes[] memory sig,
+        bytes32 hash
     ) external payable requireFees {
         require(
             confirmSignature(hash, sig),
             "validator signature is not valid!"
         );
-        if (validatorsConfirmCount >= 7) {
-            txFees += msg.value;
-            emit Lock(
-                nft_token_id,
-                from_chain,
-                from_chain_user_address,
-                address(from_chain_nft_address),
-                to_chain,
-                to_chain_nft_address,
-                to_chain_user_address,
-                meta_data,
-                uniuqeIdentifier,
-                msg.value
-            );
-            from_chain_nft_address.safeTransferFrom(
-                address(msg.sender),
-                address(this),
-                nft_token_id
-            );
-            validatorsConfirmCount = 0;
-        }
+        txFees += msg.value;
+        emit Lock(
+            nft_token_id,
+            from_chain,
+            from_chain_user_address,
+            address(from_chain_nft_address),
+            to_chain,
+            to_chain_nft_address,
+            to_chain_user_address,
+            meta_data,
+            uniuqeIdentifier,
+            msg.value
+        );
+        from_chain_nft_address.safeTransferFrom(
+            address(msg.sender),
+            address(this),
+            nft_token_id
+        );
     }
 
     function unLock(
         address to,
         uint256 tokenId,
         IERC721 contractAddr,
-        bytes32 hash,
-        bytes memory sig
+        bytes[] memory sig,
+        bytes32 hash
     ) external payable requireFees {
         require(
             confirmSignature(hash, sig),
             "validator signature is not valid!"
         );
-        if (validatorsConfirmCount >= 7) {
-            emit UnLock(to, tokenId, address(contractAddr));
-            contractAddr.safeTransferFrom(address(this), to, tokenId);
-            validatorsConfirmCount = 0;
-        }
+        emit UnLock(to, tokenId, address(contractAddr));
+        contractAddr.safeTransferFrom(address(this), to, tokenId);
     }
 
     modifier requireFees() {
@@ -115,15 +107,18 @@ contract Bridge is ERC721Holder, ERC1155Holder {
 
     function confirmSignature(
         bytes32 hash,
-        bytes memory sig
-    ) internal returns (bool) {
-        if (
-            validators[ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig)]
-        ) {
-            validatorsConfirmCount += 1;
-            return true;
-        } else {
-            return false;
+        bytes[] memory sig
+    ) internal view returns (bool) {
+        uint256 countSignatures = 0;
+        for (uint256 i = 0; i < sig.length; i++) {
+            if (
+                validators[
+                    ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig[i])
+                ]
+            ) {
+                countSignatures += 1;
+            }
         }
+        return countSignatures >= 7;
     }
 }
