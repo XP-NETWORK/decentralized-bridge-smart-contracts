@@ -2,7 +2,7 @@ import { ethers } from "hardhat";
 
 async function main() {
 
-    const erc20TokenAddress = '0xYourERC20TokenAddressHere';
+    const erc20TokenAddress = '0x61f00f09bA58F1613b05aE4f9AF9039fd8F959d0';
     const stakingAmount_ = '100';
     const stakingAmount = ethers.parseEther(stakingAmount_);
 
@@ -11,7 +11,7 @@ async function main() {
     await stakingContract.waitForDeployment();
 
     console.log(
-        `Staking contract deployed at ${stakingContract}`
+        `Staking contract deployed at ${stakingContract.target}`
     );
 }
 
