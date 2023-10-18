@@ -14,6 +14,7 @@ contract Bridge is ERC721Holder, ERC1155Holder {
 
     mapping(address => bool) public validators;
     uint256 private txFees = 0x0;
+    uint256 public countValidators = 0;
 
     event AddNewValidator(address _validator);
     event Lock(
@@ -34,12 +35,14 @@ contract Bridge is ERC721Holder, ERC1155Holder {
     constructor(address[] memory _validators) {
         for (uint256 i = 0; i < _validators.length; i++) {
             validators[_validators[i]] = true;
+            countValidators += 1;
         }
     }
 
     function addNewValidator(address _validator) public {
         emit AddNewValidator(address(_validator));
         validators[_validator] = true;
+        countValidators += 1;
     }
 
     function lock(
@@ -119,6 +122,8 @@ contract Bridge is ERC721Holder, ERC1155Holder {
                 countSignatures += 1;
             }
         }
-        return countSignatures >= 7;
+
+        uint256 requiredConfirmations = (2 * countValidators) / 3 + 1;
+        return countSignatures >= requiredConfirmations;
     }
 }
