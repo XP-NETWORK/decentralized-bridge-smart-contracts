@@ -19,14 +19,13 @@ contract Bridge is ERC721Holder, ERC1155Holder {
     event AddNewValidator(address _validator);
     event Lock(
         uint256 nft_token_id,
-        string from_chain,
+        uint256 chainId,
         address from_chain_user_address,
         address from_chain_nft_address,
         string to_chain,
         string to_chain_nft_address,
         string to_chain_user_address,
         string meta_data,
-        string uniuqeIdentifier,
         uint256 txFees
     );
 
@@ -39,7 +38,16 @@ contract Bridge is ERC721Holder, ERC1155Holder {
         }
     }
 
-    function addNewValidator(address _validator) public {
+    function addNewValidator(
+        address _validator,
+        bytes[] memory signature,
+        bytes32 hash
+    ) public {
+        require(!validators[_validator],"validator already exists!");
+        require(
+            confirmSignature(hash, signature),
+            "validator signature is not valid!"
+        );
         emit AddNewValidator(address(_validator));
         validators[_validator] = true;
         countValidators += 1;
@@ -47,32 +55,27 @@ contract Bridge is ERC721Holder, ERC1155Holder {
 
     function lock(
         uint256 nft_token_id,
-        string memory from_chain,
-        address from_chain_user_address,
         IERC721Metadata from_chain_nft_address,
         string memory to_chain,
         string memory to_chain_nft_address,
         string memory to_chain_user_address,
-        string memory meta_data,
-        string memory uniuqeIdentifier,
-        bytes[] memory sig,
+        bytes[] memory signature,
         bytes32 hash
     ) external payable requireFees {
         require(
-            confirmSignature(hash, sig),
+            confirmSignature(hash, signature),
             "validator signature is not valid!"
         );
         txFees += msg.value;
         emit Lock(
             nft_token_id,
-            from_chain,
-            from_chain_user_address,
+            block.chainid,
+            tx.origin,
             address(from_chain_nft_address),
             to_chain,
             to_chain_nft_address,
             to_chain_user_address,
-            meta_data,
-            uniuqeIdentifier,
+            from_chain_nft_address.tokenURI(nft_token_id),
             msg.value
         );
         from_chain_nft_address.safeTransferFrom(
