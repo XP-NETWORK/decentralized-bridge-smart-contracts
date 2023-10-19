@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity >=0.8.19 <0.9.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
 import "hardhat/console.sol";
 
@@ -7,41 +7,104 @@ import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./NftStorageERC721.sol";
+import "./NftStorageERC1155.sol";
+import "./NFTMinter721Contract.sol";
+import "./NFTMinter1155Contract.sol";
 
 contract Bridge {
     using ECDSA for bytes32;
 
-    // struct Voter {
-    //     uint weight; // weight is accumulated by delegation
-    //     bool voted; // if true, that person already voted
-    //     address delegate; // person delegated to
-    //     uint vote; // index of the voted proposal
-    // }
-
     mapping(address => bool) public validators;
-    // key nftAddress => destination NftStorage721
-    mapping(address => address) public DuplicateMapping;
-    // key nftAddress => source NftStorage721
-    mapping(address => address) public OriginalMapping;
+
+    uint256 validatorsCount = 0;
+
+    // originalCollectionAddress => destinationCollectionAddress
+    mapping(address => address) public originalToDuplicateMapping;
+
+    // destinationCollectionAddress => originalCollectionAddress
+    mapping(address => address) public duplicateToOriginalMapping;
+
+    // collectionAddress => source NftStorage721
+    mapping(address => address) public storageMapping721;
+
+    // collectionAddress => source NftStorage1155
+    mapping(address => address) public storageMapping1155;
 
     address[] public addressList;
     uint256 private txFees = 0x0;
     string public sourceChain = "";
 
     event AddNewValidator(address _validator);
-    event Lock(
-        uint256 nft_token_id,
-        string from_chain,
-        address from_chain_user_address,
-        address from_chain_nft_address,
-        string to_chain,
-        string to_chain_nft_address,
-        string to_chain_user_address,
-        string meta_data,
+
+    event Lock721(
+        uint256 nftTokenId,
+        string fromChain,
+        address fromChainUserAddress,
+        address collectionAddress,
+        string toChain,
+        string toChainNftAddress,
+        string toChainUserAddress,
+        string metaData,
         string uniuqeIdentifier,
         uint256 txFees
     );
-    event UnLock(address to, uint256 tokenId, address contractAddr);
+
+    event Lock1155(
+        uint256 nftTokenId,
+        string fromChain,
+        address fromChainUserAddress,
+        address collectionAddress,
+        string toChain,
+        string toChainNftAddress,
+        string toChainUserAddress,
+        string metaData,
+        string uniuqeIdentifier,
+        uint256 txFees,
+        uint256 amount
+    );
+
+    event UnLock721(address to, uint256 tokenId, address contractAddr);
+    event UnLock1155(
+        address to,
+        uint256 tokenId,
+        address contractAddr,
+        uint256 amount
+    );
+
+    event ClaimNFT721(
+        string sourceChain,
+        address sourceChainCollectionAddress,
+        address sourceUserAddress,
+        uint256 tokenId,
+        string destinationChain,
+        address destinationChainCollectionAddress,
+        string collectionName,
+        string symbol,
+        string baseTokenURI
+
+    );
+    event ClaimNFT1155(
+        string sourceChain,
+        address sourceChainCollectionAddress,
+        address sourceUserAddress,
+        uint256 tokenId,
+        string destinationChain,
+        address destinationChainCollectionAddress,
+        string collectionName,
+        string symbol,
+        string baseTokenURI,
+        uint256 tokenAmount
+    );
+
+    modifier requireFees() {
+        require(msg.value > 0, "Tx Fees is required!");
+        _;
+    }
+
+    modifier onlyValidator() {
+        require(false, "Failed to verify signature!");
+        _;
+    }
 
     constructor(address[] memory _validators, string memory sourceChainSymbol) {
         sourceChain = sourceChainSymbol;
@@ -51,7 +114,43 @@ contract Bridge {
         }
     }
 
-    function addNewValidator(address _validator, bytes[] memory sigs) public {
+    modifier verifyClaimSignature(
+        bytes[] memory signatures, 
+        string memory sourceChain,
+        address collectionAddress,
+        address sourceUserAddress,
+        uint256 tokenId,
+        string memory destinationChain,
+        address destinationChainCollectionAddress,
+        string memory collectionName,
+        string memory symbol
+    ) {
+        uint256 percentage = 0;
+        for (uint256 i = 0; i < signatures.length; i++) {
+            address signer = recover(keccak256(abi.encode(
+                sourceChain, 
+                collectionAddress, 
+                sourceUserAddress, 
+                tokenId, 
+                destinationChain, 
+                destinationChainCollectionAddress, 
+                collectionName, 
+                symbol
+            )), signatures[i]);
+            console.log("I am a console log!");
+            if (validators[signer]) {
+                console.log("I am a console log2222!");
+                percentage += 1;
+            }
+        }
+        require(
+            percentage >= (addressList.length * 2) / 3,
+            "Threshold not reached"
+        );
+        _;
+    }
+
+    function addValidator(address _validator, bytes[] memory sigs) public {
         uint256 percentage = 0;
         for (uint256 i = 0; i < sigs.length; i++) {
             address signer = recover(hashSwap(_validator), sigs[i]);
@@ -65,75 +164,380 @@ contract Bridge {
             emit AddNewValidator(address(_validator));
             validators[_validator] = true;
             addressList.push(_validator);
+            validatorsCount += 1;
         }
     }
 
-    function lock(
-        uint256 nft_token_id,
-        string memory from_chain,
-        address from_chain_user_address,
-        IERC721Metadata from_chain_nft_address,
-        string memory to_chain,
-        string memory to_chain_nft_address,
-        string memory to_chain_user_address,
-        string memory meta_data,
-        string memory uniuqeIdentifier
+    function lock721(
+        uint256 nftTokenId,
+        address fromChainUserAddress,
+        IERC721Metadata collectionAddress,
+        string memory toChain,
+        string memory toChainUserAddress,
+        string memory metaData,
     ) external payable requireFees {
         txFees += msg.value;
-        // Check if its in the duplicated or not.
-        // if (DuplicateMapping[address(from_chain_nft_address)] == address(0)) {
-        //     // Not exists in duplicate
-        // }
-        if (DuplicateMapping[address(from_chain_nft_address)] != address(0)) {
-            // Exists in duplicate
+        
+        // Check if storage contract exists or not
+        if (storageMapping721[address(collectionAddress)] == address(0)) {
+            // Storage contract does not exit
+            // Create Storage contract
+            // Update Storage mapping with
+            //          collectionAddress => newStorageContract
+            // Lock nftTokenId on newStorageContract
+            NftStorageERC721 newStorageContract = new NftStorageERC721(
+                address(collectionAddress)
+            );
+
+            storageMapping721[address(collectionAddress)] = address(
+                newStorageContract
+            );
+
+            newStorageContract.depositToken(nftTokenId);
+        } else {
+            // storageMapping721[address(collectionAddress)] != address(0)
+            // Storage contract exists
+            // Lock nftTokenId on nftStorageContract
+            address contractAddress = storageMapping721[
+                address(collectionAddress)
+            ];
+
+            NftStorageERC721 nftStorageContract = NftStorageERC721(
+                contractAddress
+            );
+
+            nftStorageContract.depositToken(nftTokenId);
         }
 
-        // Check if its in the Original or not.
-        if (OriginalMapping[address(from_chain_nft_address)] == address(0)) {
-            // Not exists in Source
-            NftStorageERC721 newStorageContract = new NftStorageERC721();
-            newStorageContract.depositToken(
-                address(from_chain_nft_address),
-                nft_token_id
+        // Check if collectionAddress is original or duplicate
+        address originalCollectionAddress = duplicateToOriginalMapping[
+            address(collectionAddress)
+        ];
+
+        if (originalCollectionAddress == address(0)) {
+            // if original i.e does not exist in duplicate mapping
+            // emit the collectionAddress we got as argument
+            emit Lock721(
+               nftTokenId,
+                fromChain,
+                fromChainUserAddress,
+                address(collectionAddress),
+                toChain,
+                toChainUserAddress,
+                metaData,
             );
-            OriginalMapping[address(from_chain_nft_address)] = address(
+        } else {
+            // if duplicate, emit original address
+            emit Lock721(
+                nftTokenId,
+                fromChain,
+                fromChainUserAddress,
+                address(originalCollectionAddress),
+                toChain,
+                toChainUserAddress,
+                metaData,
+            );
+        }
+    }
+
+    function lock1155(
+        uint256 nftTokenId,
+        string memory fromChain,
+        address fromChainUserAddress,
+        IERC1155MetadataURI collectionAddress,
+        string memory toChain,
+        string memory toChainUserAddress,
+        string memory metaData,
+        uint256 amountOfTokens
+    ) external payable requireFees {
+        txFees += msg.value;
+        // Check if its in the Original or not.
+        if (storageMapping1155[address(collectionAddress)] == address(0)) {
+            // Not exists in Source
+            NftStorageERC1155 newStorageContract = new NftStorageERC1155(
+                address(collectionAddress)
+            );
+
+            newStorageContract.depositToken(nftTokenId, amountOfTokens);
+
+            storageMapping1155[address(collectionAddress)] = address(
                 newStorageContract
             );
         }
-        if (OriginalMapping[address(from_chain_nft_address)] != address(0)) {
-            // Exists in Source
+
+        // if storage contract exists in mapping, lock/transfer token on the
+        // storage contract
+        if (storageMapping1155[address(collectionAddress)] != address(0)) {
+            address contractAddress = storageMapping1155[
+                address(collectionAddress)
+            ];
+
+            NftStorageERC1155 nftStorageContract = NftStorageERC1155(
+                contractAddress
+            );
+
+            nftStorageContract.depositToken(nftTokenId, amountOfTokens);
         }
-        emit Lock(
-            nft_token_id,
-            from_chain,
-            from_chain_user_address,
-            address(from_chain_nft_address),
-            to_chain,
-            to_chain_nft_address,
-            to_chain_user_address,
-            meta_data,
-            uniuqeIdentifier,
-            msg.value
-        );
-        from_chain_nft_address.safeTransferFrom(
-            address(msg.sender),
-            address(this),
-            nft_token_id
+
+          // Check if collectionAddress is original or duplicate
+        address originalCollectionAddress = duplicateToOriginalMapping[
+            address(collectionAddress)
+        ];
+
+        if (originalCollectionAddress == address(0)) {
+            // if original i.e does not exist in duplicate mapping
+            // emit the collectionAddress we got as argument
+            emit Lock1155(
+                nftTokenId,
+                fromChain,
+                fromChainUserAddress,
+                address(collectionAddress),
+                toChain,
+                toChainUserAddress,
+                metaData,
+                amountOfTokens
+            );
+        } else {
+            emit Lock1155(
+                nftTokenId,
+                fromChain,
+                fromChainUserAddress,
+                address(originalCollectionAddress),
+                toChain,
+                toChainUserAddress,
+                metaData,
+                amountOfTokens
+            );
+        }
+    }
+
+    function claimNFT721(
+        bytes[] memory signatures,
+
+        string memory sourceChain,
+        IERC721Metadata collectionAddress,
+        address sourceUserAddress,
+        uint256 tokenId,
+        string memory destinationChain,
+        address destinationChainCollectionAddress,
+        string memory collectionName,
+        string memory symbol,
+        string memory baseTokenURI,
+    ) external payable requireFees verifyClaimSignature(
+         signatures, 
+         sourceChain,
+         collectionAddress,
+         sourceUserAddress,
+         tokenId,
+         destinationChain,
+         destinationChainCollectionAddress,
+         collectionName,
+         symbol
+    ) {
+        address originalCollectionAddress = address(collectionAddress);
+
+        address duplicateCollectionAddress = originalToDuplicateMapping[
+            originalCollectionAddress
+        ];
+
+        address storageContract = storageMapping721[duplicateCollectionAddress];
+
+        // ===============================/ Is Duplicate && Has Storage /=======================
+        if (
+            duplicateCollectionAddress != address(0) &&
+            storageContract != address(0)
+        ) {
+            NFTMinter721Contract collecAddress = NFTMinter721Contract(
+                duplicateCollectionAddress
+            );
+
+            if (collecAddress.ownerOf(tokenId) == storageContract) {
+                // 0 for 721. The amount value is not used
+                unLock721(msg.sender, tokenId, storageContract);
+            } else {
+                collecAddress.mint(msg.sender, tokenId);
+            }
+        }
+        // ===============================/ Is Duplicate && No Storage /=======================
+        else if (
+            duplicateCollectionAddress != address(0) &&
+            storageContract == address(0)
+        ) {
+            NFTMinter721Contract nft721Collection = NFTMinter721Contract(
+                duplicateCollectionAddress
+            );
+            nft721Collection.mint(msg.sender, tokenId);
+        }
+        // ===============================/ Not Duplicate && No Storage /=======================
+        else if (
+            duplicateCollectionAddress == address(0) &&
+            storageContract == address(0)
+        ) {
+            NFTMinter721Contract newCollectionAddress = new NFTMinter721Contract(
+                    collectionName,
+                    symbol,
+                    baseTokenURI
+                );
+
+            // update duplicate mappings
+            originalToDuplicateMapping[originalCollectionAddress] = address(
+                newCollectionAddress
+            );
+            duplicateToOriginalMapping[
+                address(newCollectionAddress)
+            ] = originalCollectionAddress;
+            newCollectionAddress.mint(msg.sender, tokenId);
+        } else {
+            // TODO: remove after testing
+            require(false, "Invalid bridge state");
+        }
+
+        emit ClaimNFT721(
+            sourceChain,
+            collectionAddress,
+            sourceUserAddress,
+            tokenId,
+            destinationChain,
+            destinationChainCollectionAddress,
+            collectionName,
+            symbol,
+            baseTokenURI
         );
     }
 
-    function unLock(
+    function claimNFT1155(
+        bytes[] memory signatures,
+        IERC1155MetadataURI collectionAddress,
+        uint256 tokenId,
+        string memory collectionName,
+        string memory symbol,
+        string memory baseTokenURI,
+        uint256 tokenAmount,
+        address TODO_Dummy
+    ) external payable requireFees verifyClaimSignature(signatures, TODO_Dummy) {
+        address originalCollectionAddress = address(collectionAddress);
+
+        address duplicateCollectionAddress = originalToDuplicateMapping[
+            originalCollectionAddress
+        ];
+
+        address storageContract = storageMapping1155[
+            duplicateCollectionAddress
+        ];
+
+        // ===============================/ Is Duplicate && Has Storage /=======================
+        if (
+            duplicateCollectionAddress != address(0) &&
+            storageContract != address(0)
+        ) {
+            NFTMinter1155Contract collecAddress = NFTMinter1155Contract(
+                duplicateCollectionAddress
+            );
+
+            if (collecAddress.ownerOf(tokenId) == storageContract) {
+                unLock1155(msg.sender, tokenId, storageContract, tokenAmount);
+            } else {
+                collecAddress.mint(msg.sender, tokenId, tokenAmount, "");
+            }
+
+        }
+        // ===============================/ Is Duplicate && No Storage /=======================
+        else if (
+            duplicateCollectionAddress != address(0) &&
+            storageContract == address(0)
+        ) {
+            NFTMinter1155Contract nft1155Collection = NFTMinter1155Contract(
+                duplicateCollectionAddress
+            );
+            nft1155Collection.mint(msg.sender, tokenId, tokenAmount, "");
+
+        }
+        // ===============================/ Not Duplicate && No Storage /=======================
+        else if (
+            duplicateCollectionAddress == address(0) &&
+            storageContract == address(0)
+        ) {
+            NFTMinter1155Contract newCollectionAddress = new NFTMinter1155Contract(
+                    baseTokenURI
+                );
+
+            // update duplicate mappings
+            originalToDuplicateMapping[originalCollectionAddress] = address(
+                newCollectionAddress
+            );
+            duplicateToOriginalMapping[
+                address(newCollectionAddress)
+            ] = originalCollectionAddress;
+            newCollectionAddress.mint(msg.sender, tokenId, tokenAmount, "");
+
+        } else {
+            // TODO: remove after testing
+            require(false, "Invalid bridge state");
+        }
+
+        emit ClaimNFT1155(
+            sourceChain,
+            collectionAddress,
+            sourceUserAddress,
+            tokenId,
+            destinationChain,
+            destinationChainCollectionAddress,
+            collectionName,
+            symbol,
+            baseTokenURI,
+            tokenAmount
+        )
+    }
+
+    function unLock721(
         address to,
         uint256 tokenId,
-        IERC721 contractAddr
-    ) external payable requireFees {
-        emit UnLock(to, tokenId, address(contractAddr));
-        contractAddr.safeTransferFrom(address(this), to, tokenId);
+        address contractAddress
+    ) internal {
+        address nftStorageAddress721 = storageMapping721[
+            address(contractAddress)
+        ];
+
+        require(
+            nftStorageAddress721 != address(0),
+            "NFT Storage contract does not exist!"
+        );
+
+        // if storage contract exists in mapping, unlock token on the
+        // storage contract
+        NftStorageERC721 nftStorageContract = NftStorageERC721(
+            nftStorageAddress721
+        );
+
+        emit UnLock721(to, tokenId, address(contractAddress));
+
+        nftStorageContract.unlockToken(tokenId);
     }
 
-    modifier requireFees() {
-        require(msg.value > 0, "Tx Fees is required!");
-        _;
+    function unLock1155(
+        address to,
+        uint256 tokenId,
+        address contractAddress,
+        uint256 amountOfTokens
+    ) internal {
+        address nftStorageAddress1155 = storageMapping1155[
+            address(contractAddress)
+        ];
+
+        require(
+            nftStorageAddress1155 != address(0),
+            "NFT Storage contract does not exist!"
+        );
+
+        // if storage contract exists in mapping, unlock token on the
+        // storage contract
+        NftStorageERC1155 nftStorageContract = NftStorageERC1155(
+            nftStorageAddress1155
+        );
+
+        emit UnLock1155(to, tokenId, address(contractAddress), amountOfTokens);
+
+        nftStorageContract.unlockToken(tokenId, amountOfTokens);
     }
 
     function claimFee(address payable receiver) external {
