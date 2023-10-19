@@ -4,8 +4,12 @@ import { ethers } from "hardhat";
 
 async function main() {
 
-
-    const bridgeStorage = await ethers.deployContract("BridgeStorage");
+    const bootstrapValidator = "0xyouraddress"
+    const chainFees  = [
+        ["BSC", "100000000000000"],
+        ["ETH", "100000000000000"],
+    ] 
+    const bridgeStorage = await ethers.deployContract("BridgeStorage", [bootstrapValidator, chainFees]);
 
     await bridgeStorage.waitForDeployment();
 
