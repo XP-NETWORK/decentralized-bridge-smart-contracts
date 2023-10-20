@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract NFTMinter721Contract is ERC721, Ownable {
@@ -12,7 +11,7 @@ contract NFTMinter721Contract is ERC721, Ownable {
         string memory collectionName,
         string memory symbol,
         string memory baseTokenURI
-    ) ERC721(collectionName, symbol)   {
+    ) ERC721(collectionName, symbol) Ownable(msg.sender)  {
         _baseTokenURI = baseTokenURI;
     }
 

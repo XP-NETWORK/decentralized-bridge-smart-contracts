@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract NFTMinter1155Contract is ERC1155, Ownable {
     string private _baseTokenURI;
 
-    constructor(string memory baseTokenURI) ERC1155(baseTokenURI) {
+    constructor(string memory baseTokenURI) ERC1155(baseTokenURI) Ownable(msg.sender) {
         _baseTokenURI = baseTokenURI;
     }
 
