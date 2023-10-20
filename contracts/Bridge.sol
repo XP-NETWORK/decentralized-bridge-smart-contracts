@@ -29,11 +29,15 @@ contract Bridge {
     mapping(address => address) public duplicateToOriginalMapping;
 
     // collectionAddress => source NftStorage721
-    mapping(address => address) public storageMapping721;
-
+    mapping(address => address) public originalStorageMapping721;
     // collectionAddress => source NftStorage1155
-    mapping(address => address) public storageMapping1155;
-
+    mapping(address => address) public originalStorageMapping1155;
+    
+    // collectionAddress => source NftStorage721
+    mapping(address => address) public duplicateStorageMapping721;
+    // collectionAddress => source NftStorage1155
+    mapping(address => address) public duplicateStorageMapping1155;
+    
     address[] public addressList;
     uint256 private txFees = 0x0;
     string public chainSymbol = "";
@@ -154,49 +158,51 @@ contract Bridge {
         uint256 tokenId, // Unique ID for the NFT transfer
         string memory destinationChain, // Chain to where the NFT is being transferred
         string memory destinationUserAddress, // User's address in the destination chain
-        address sourceNftContractAddress // Address of the NFT contract in the source chain
-    ) external payable requireFees {
-        txFees += msg.value;
-
-        // Check if storage contract exists or not
-        if (
-            storageMapping721[address(sourceNftContractAddress)] == address(0)
-        ) {
-            // Storage contract does not exit
-            // Create Storage contract
-            // Update Storage mapping with
-            //          sourceNftContractAddress => newStorageContract
-            // Lock nftTokenId on newStorageContract
-            NftStorageERC721 newStorageContract = new NftStorageERC721(
-                address(sourceNftContractAddress)
-            );
-
-            storageMapping721[address(sourceNftContractAddress)] = address(
-                newStorageContract
-            );
-
-            newStorageContract.depositToken(tokenId);
-        } else {
-            // storageMapping721[address(sourceNftContractAddress)] != address(0)
-            // Storage contract exists
-            // Lock nftTokenId on nftStorageContract
-            address contractAddress = storageMapping721[
-                address(sourceNftContractAddress)
-            ];
-
-            NftStorageERC721 nftStorageContract = NftStorageERC721(
-                contractAddress
-            );
-
-            nftStorageContract.depositToken(tokenId);
-        }
-
+        IERC721 sourceNftContractAddress // Address of the NFT contract in the source chain
+    ) external {
         // Check if sourceNftContractAddress is original or duplicate
         address originalCollectionAddress = duplicateToOriginalMapping[
             address(sourceNftContractAddress)
         ];
 
-        if (originalCollectionAddress == address(0)) {
+        bool isOriginal = originalCollectionAddress == address(0);
+
+        if (isOriginal) {
+            bool hasOriginalStorage = originalStorageMapping721[address(sourceNftContractAddress)] != address(0);
+
+            if (hasOriginalStorage) {
+                // originalStorageMapping721[address(sourceNftContractAddress)] != address(0)
+                // Storage contract exists
+                // Lock nftTokenId on nftStorageContract
+                address storageAddress = originalStorageMapping721[
+                    address(sourceNftContractAddress)
+                ];
+
+                sourceNftContractAddress.safeTransferFrom(
+                    msg.sender,
+                    address(storageAddress),
+                    tokenId
+                );
+            } else {
+                // Storage contract does not exit
+                // Create Storage contract
+                // Update Storage mapping with
+                //          sourceNftContractAddress => newStorageContract
+                // Lock nftTokenId on newStorageContract
+                NftStorageERC721 newStorageContract = new NftStorageERC721(
+                    address(sourceNftContractAddress)
+                );
+
+                originalStorageMapping721[address(sourceNftContractAddress)] = address(
+                    newStorageContract
+                );
+                sourceNftContractAddress.safeTransferFrom(
+                    msg.sender,
+                    address(newStorageContract),
+                    tokenId
+                );
+            }
+            
             // if original i.e does not exist in duplicate mapping
             // emit the sourceNftContractAddress we got as argument
             emit Locked(
@@ -208,6 +214,40 @@ contract Bridge {
                 TYPEERC721
             );
         } else {
+            bool hasDuplicateStorage = duplicateStorageMapping721[address(sourceNftContractAddress)] != address(0);
+
+            if (hasDuplicateStorage) {
+                // originalStorageMapping721[address(sourceNftContractAddress)] != address(0)
+                // Storage contract exists
+                // Lock nftTokenId on nftStorageContract
+                address storageAddress = duplicateStorageMapping721[
+                    address(sourceNftContractAddress)
+                ];
+
+                sourceNftContractAddress.safeTransferFrom(
+                    msg.sender,
+                    address(storageAddress),
+                    tokenId
+                );
+            } else {
+                // Storage contract does not exit
+                // Create Storage contract
+                // Update Storage mapping with
+                //          sourceNftContractAddress => newStorageContract
+                // Lock nftTokenId on newStorageContract
+                NftStorageERC721 newStorageContract = new NftStorageERC721(
+                    address(sourceNftContractAddress)
+                );
+
+                duplicateStorageMapping721[address(sourceNftContractAddress)] = address(
+                    newStorageContract
+                );
+                sourceNftContractAddress.safeTransferFrom(
+                    msg.sender,
+                    address(newStorageContract),
+                    tokenId
+                );
+            }
             // if duplicate, emit original address
             emit Locked(
                 tokenId,
@@ -227,45 +267,49 @@ contract Bridge {
         address sourceNftContractAddress, // Address of the NFT contract in the source chain
         uint256 tokenAmount
     ) external payable requireFees {
-        txFees += msg.value;
-        // Check if its in the Original or not.
-        if (
-            storageMapping1155[address(sourceNftContractAddress)] == address(0)
-        ) {
-            // Not exists in Source
-            NftStorageERC1155 newStorageContract = new NftStorageERC1155(
-                address(sourceNftContractAddress)
-            );
-
-            newStorageContract.depositToken(tokenId, tokenAmount);
-
-            storageMapping1155[address(sourceNftContractAddress)] = address(
-                newStorageContract
-            );
-        }
-
-        // if storage contract exists in mapping, lock/transfer token on the
-        // storage contract
-        if (
-            storageMapping1155[address(sourceNftContractAddress)] != address(0)
-        ) {
-            address contractAddress = storageMapping1155[
-                address(sourceNftContractAddress)
-            ];
-
-            NftStorageERC1155 nftStorageContract = NftStorageERC1155(
-                contractAddress
-            );
-
-            nftStorageContract.depositToken(tokenId, tokenAmount);
-        }
-
         // Check if sourceNftContractAddress is original or duplicate
         address originalCollectionAddress = duplicateToOriginalMapping[
             address(sourceNftContractAddress)
         ];
 
-        if (originalCollectionAddress == address(0)) {
+        bool isOriginal = originalCollectionAddress == address(0);
+
+        if (isOriginal) {
+            bool hasOriginalStorage = originalStorageMapping1155[address(sourceNftContractAddress)] != address(0);
+
+            if (hasOriginalStorage) {
+                // originalStorageMapping1155[address(sourceNftContractAddress)] != address(0)
+                // Storage contract exists
+                // Lock nftTokenId on nftStorageContract
+                address storageAddress = originalStorageMapping1155[
+                    address(sourceNftContractAddress)
+                ];
+
+                sourceNftContractAddress.safeTransferFrom(
+                    msg.sender,
+                    address(storageAddress),
+                    tokenId
+                );
+            } else {
+                // Storage contract does not exit
+                // Create Storage contract
+                // Update Storage mapping with
+                //          sourceNftContractAddress => newStorageContract
+                // Lock nftTokenId on newStorageContract
+                NftStorageERC1155 newStorageContract = new NftStorageERC1155(
+                    address(sourceNftContractAddress)
+                );
+
+                originalStorageMapping1155[address(sourceNftContractAddress)] = address(
+                    newStorageContract
+                );
+                sourceNftContractAddress.safeTransferFrom(
+                    msg.sender,
+                    address(newStorageContract),
+                    tokenId
+                );
+            }
+            
             // if original i.e does not exist in duplicate mapping
             // emit the sourceNftContractAddress we got as argument
             emit Locked(
@@ -277,6 +321,41 @@ contract Bridge {
                 TYPEERC1155
             );
         } else {
+            bool hasDuplicateStorage = duplicateStorageMapping1155[address(sourceNftContractAddress)] != address(0);
+
+            if (hasDuplicateStorage) {
+                // originalStorageMapping1155[address(sourceNftContractAddress)] != address(0)
+                // Storage contract exists
+                // Lock nftTokenId on nftStorageContract
+                address storageAddress = duplicateStorageMapping1155[
+                    address(sourceNftContractAddress)
+                ];
+
+                sourceNftContractAddress.safeTransferFrom(
+                    msg.sender,
+                    address(storageAddress),
+                    tokenId
+                );
+            } else {
+                // Storage contract does not exit
+                // Create Storage contract
+                // Update Storage mapping with
+                //          sourceNftContractAddress => newStorageContract
+                // Lock nftTokenId on newStorageContract
+                NftStorageERC1155 newStorageContract = new NftStorageERC1155(
+                    address(sourceNftContractAddress)
+                );
+
+                duplicateStorageMapping1155[address(sourceNftContractAddress)] = address(
+                    newStorageContract
+                );
+                sourceNftContractAddress.safeTransferFrom(
+                    msg.sender,
+                    address(newStorageContract),
+                    tokenId
+                );
+            }
+            // if duplicate, emit original address
             emit Locked(
                 tokenId,
                 destinationChain,
@@ -298,55 +377,53 @@ contract Bridge {
     {
         bytes32 hash = claimNFT721Hash(data);
 
-        require(!uniqueIdentifier[hash], "Not unique");
+        require(!uniqueIdentifier[hash], "Data already processed!");
         uniqueIdentifier[hash] = true;
 
-        verifyClaimSignature(hash, data.signatures);
+        verifySignature(hash, data.signatures);
 
-        address originalCollectionAddress = address(
-            data.sourceNftContractAddress
-        );
+        address sourceNftContractAddress = data.sourceNftContractAddress
+        address duplicateCollectionAddress = originalToDuplicateMapping[sourceNftContractAddress];
 
-        address duplicateCollectionAddress = originalToDuplicateMapping[
-            originalCollectionAddress
-        ];
+        bool hasDuplicate = duplicateCollectionAddress != address(0);
+        
+        address storageContract;
+        if (hasDuplicate) {
+            storageContract = duplicateStorageMapping721[sourceNftContractAddress];
+        } else {
+            storageContract = originalStorageMapping721[sourceNftContractAddress];
+        }
 
-        address storageContract = storageMapping721[duplicateCollectionAddress];
+        bool hasStorage = storageContract != address(0);
 
-        // ===============================/ Is Duplicate && Has Storage /=======================
-        if (
-            duplicateCollectionAddress != address(0) &&
-            storageContract != address(0)
-        ) {
-            NFTMinter721Contract collecAddress = NFTMinter721Contract(
+        // ===============================/ hasDuplicate && hasStorage /=======================
+        if (hasDuplicate && hasStorage) {
+            NFTMinter721Contract duplicateCollection = NFTMinter721Contract(
                 duplicateCollectionAddress
             );
 
-            if (collecAddress.ownerOf(data.tokenId) == storageContract) {
+            if (duplicateCollection.ownerOf(data.tokenId) == storageContract) {
                 unLock721(
                     data.destinationUserAddress,
                     data.tokenId,
                     storageContract
                 );
             } else {
-                collecAddress.mint(data.destinationUserAddress, data.tokenId);
+                duplicateCollection.mint(
+                    data.destinationUserAddress,
+                    data.tokenId
+                );
             }
         }
-        // ===============================/ Is Duplicate && No Storage /=======================
-        else if (
-            duplicateCollectionAddress != address(0) &&
-            storageContract == address(0)
-        ) {
+        // ===============================/ hasDuplicate && NOT hasStorage /=======================
+        else if (hasDuplicate && !hasStorage) {
             NFTMinter721Contract nft721Collection = NFTMinter721Contract(
                 duplicateCollectionAddress
             );
             nft721Collection.mint(data.destinationUserAddress, data.tokenId);
         }
-        // ===============================/ Not Duplicate && No Storage /=======================
-        else if (
-            duplicateCollectionAddress == address(0) &&
-            storageContract == address(0)
-        ) {
+        // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
+        else if (!hasDuplicate && !hasStorage) {
             NFTMinter721Contract newCollectionAddress = new NFTMinter721Contract(
                     data.name,
                     data.symbol,
@@ -354,21 +431,34 @@ contract Bridge {
                 );
 
             // update duplicate mappings
-            originalToDuplicateMapping[originalCollectionAddress] = address(
+            originalToDuplicateMapping[sourceNftContractAddress] = address(
                 newCollectionAddress
             );
             duplicateToOriginalMapping[
                 address(newCollectionAddress)
-            ] = originalCollectionAddress;
+            ] = sourceNftContractAddress;
             newCollectionAddress.mint(
                 data.destinationUserAddress,
                 data.tokenId
             );
-        } else if (
-            duplicateCollectionAddress == address(0) &&
-            storageContract != address(0)
-        ) {
-            // TODO: handle this case
+        // ===============================/ NOT hasDuplicate && hasStorage /=======================
+        } else if (!hasDuplicate && hasStorage) {
+            NFTMinter721Contract originalCollection = NFTMinter721Contract(
+                sourceNftContractAddress
+            );
+
+            if (originalCollection.ownerOf(data.tokenId) == storageContract) {
+                unLock721(
+                    data.destinationUserAddress,
+                    data.tokenId,
+                    storageContract
+                );
+            } else {
+                originalCollection.mint(
+                    data.destinationUserAddress,
+                    data.tokenId
+                );
+            }
         } else {
             // TODO: remove after testing
             require(false, "Invalid bridge state");
@@ -387,28 +477,27 @@ contract Bridge {
     {
         bytes32 hash = claimNFT1155Hash(data);
 
-        require(!uniqueIdentifier[hash], "Not unique");
+        require(!uniqueIdentifier[hash], "Data already processed!");
         uniqueIdentifier[hash] = true;
 
-        verifyClaimSignature(hash, data.signatures);
+        verifySignature(hash, data.signatures);
 
-        address originalCollectionAddress = address(
-            data.sourceNftContractAddress
-        );
+        address sourceNftContractAddress = data.sourceNftContractAddress
+        address duplicateCollectionAddress = originalToDuplicateMapping[sourceNftContractAddress];
 
-        address duplicateCollectionAddress = originalToDuplicateMapping[
-            originalCollectionAddress
-        ];
+        bool hasDuplicate = duplicateCollectionAddress != address(0);
+        
+        address storageContract;
+        if (hasDuplicate) {
+            storageContract = duplicateStorageMapping1155[sourceNftContractAddress];
+        } else {
+            storageContract = originalStorageMapping1155[sourceNftContractAddress];
+        }
 
-        address storageContract = storageMapping1155[
-            duplicateCollectionAddress
-        ];
+        bool hasStorage = storageContract != address(0);
 
         // ===============================/ Is Duplicate && Has Storage /=======================
-        if (
-            duplicateCollectionAddress != address(0) &&
-            storageContract != address(0)
-        ) {
+        if (hasDuplicate && hasStorage) {
             NFTMinter1155Contract collecAddress = NFTMinter1155Contract(
                 duplicateCollectionAddress
             );
@@ -429,10 +518,7 @@ contract Bridge {
             }
         }
         // ===============================/ Is Duplicate && No Storage /=======================
-        else if (
-            duplicateCollectionAddress != address(0) &&
-            storageContract == address(0)
-        ) {
+        else if (hasDuplicate && !hasStorage) {
             NFTMinter1155Contract nft1155Collection = NFTMinter1155Contract(
                 duplicateCollectionAddress
             );
@@ -444,10 +530,7 @@ contract Bridge {
             );
         }
         // ===============================/ Not Duplicate && No Storage /=======================
-        else if (
-            duplicateCollectionAddress == address(0) &&
-            storageContract == address(0)
-        ) {
+        else if (!hasDuplicate && !hasStorage) {
             NFTMinter1155Contract newCollectionAddress = new NFTMinter1155Contract(
                     data.metadata
                 );
@@ -466,11 +549,25 @@ contract Bridge {
                 ""
             );
             // ===============================/ Duplicate && No Storage /=======================
-        } else if (
-            duplicateCollectionAddress == address(0) &&
-            storageContract != address(0)
-        ) {
-            // TODO: handle this case
+        } else if (!hasDuplicate && hasStorage) {
+             NFTMinter1155Contract collecAddress = NFTMinter1155Contract(
+                sourceNftContractAddress
+            );
+            if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
+                unLock1155(
+                    data.destinationUserAddress,
+                    data.tokenId,
+                    storageContract,
+                    data.tokenAmount
+                );
+            } else {
+                collecAddress.mint(
+                    data.destinationUserAddress,
+                    data.tokenId,
+                    data.tokenAmount,
+                    ""
+                );
+            }
         } else {
             // TODO: remove after testing
             require(false, "Invalid bridge state");
@@ -484,7 +581,7 @@ contract Bridge {
         uint256 tokenId,
         address contractAddress
     ) internal {
-        address nftStorageAddress721 = storageMapping721[
+        address nftStorageAddress721 = originalStorageMapping721[
             address(contractAddress)
         ];
 
@@ -510,7 +607,7 @@ contract Bridge {
         address contractAddress,
         uint256 amountOfTokens
     ) internal {
-        address nftStorageAddress1155 = storageMapping1155[
+        address nftStorageAddress1155 = originalStorageMapping1155[
             address(contractAddress)
         ];
 
@@ -530,10 +627,7 @@ contract Bridge {
         nftStorageContract.unlockToken(tokenId, amountOfTokens);
     }
 
-    function verifyClaimSignature(
-        bytes32 hash,
-        bytes[] memory signatures
-    ) public view {
+    function verifySignature(bytes32 hash, bytes[] memory signatures) internal {
         uint256 percentage = 0;
 
         for (uint256 i = 0; i < signatures.length; i++) {
@@ -546,7 +640,7 @@ contract Bridge {
 
         require(
             percentage >= (addressList.length * 2) / 3,
-            "Threshold not reached"
+            "Threshold not reached!"
         );
     }
 
