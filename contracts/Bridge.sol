@@ -323,9 +323,8 @@ contract Bridge {
 
         verifySignature(hash, data.signatures);
 
-        address sourceNftContractAddress = data.sourceNftContractAddress;
         address duplicateCollectionAddress = originalToDuplicateMapping[
-            sourceNftContractAddress
+            data.sourceNftContractAddress
         ];
 
         bool hasDuplicate = duplicateCollectionAddress != address(0);
@@ -333,11 +332,11 @@ contract Bridge {
         address storageContract;
         if (hasDuplicate) {
             storageContract = duplicateStorageMapping721[
-                sourceNftContractAddress
+                data.sourceNftContractAddress
             ];
         } else {
             storageContract = originalStorageMapping721[
-                sourceNftContractAddress
+                data.sourceNftContractAddress
             ];
         }
 
@@ -378,12 +377,11 @@ contract Bridge {
                 );
 
             // update duplicate mappings
-            originalToDuplicateMapping[sourceNftContractAddress] = address(
+            originalToDuplicateMapping[data.sourceNftContractAddress] = address(
                 newCollectionAddress
             );
-            duplicateToOriginalMapping[
-                address(newCollectionAddress)
-            ] = sourceNftContractAddress;
+            duplicateToOriginalMapping[address(newCollectionAddress)] = data
+                .sourceNftContractAddress;
             newCollectionAddress.mint(
                 data.destinationUserAddress,
                 data.tokenId
@@ -391,7 +389,7 @@ contract Bridge {
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
             NFTMinter721Contract originalCollection = NFTMinter721Contract(
-                sourceNftContractAddress
+                data.sourceNftContractAddress
             );
 
             if (originalCollection.ownerOf(data.tokenId) == storageContract) {
@@ -431,9 +429,8 @@ contract Bridge {
 
         verifySignature(hash, data.signatures);
 
-        address sourceNftContractAddress = data.sourceNftContractAddress;
         address duplicateCollectionAddress = originalToDuplicateMapping[
-            sourceNftContractAddress
+            data.sourceNftContractAddress
         ];
 
         bool hasDuplicate = duplicateCollectionAddress != address(0);
@@ -441,11 +438,11 @@ contract Bridge {
         address storageContract;
         if (hasDuplicate) {
             storageContract = duplicateStorageMapping1155[
-                sourceNftContractAddress
+                data.sourceNftContractAddress
             ];
         } else {
             storageContract = originalStorageMapping1155[
-                sourceNftContractAddress
+                data.sourceNftContractAddress
             ];
         }
 
@@ -491,12 +488,11 @@ contract Bridge {
                 );
 
             // update duplicate mappings
-            originalToDuplicateMapping[sourceNftContractAddress] = address(
+            originalToDuplicateMapping[data.sourceNftContractAddress] = address(
                 newCollectionAddress
             );
-            duplicateToOriginalMapping[
-                address(newCollectionAddress)
-            ] = sourceNftContractAddress;
+            duplicateToOriginalMapping[address(newCollectionAddress)] = data
+                .sourceNftContractAddress;
             newCollectionAddress.mint(
                 msg.sender,
                 data.tokenId,
@@ -506,7 +502,7 @@ contract Bridge {
             // ===============================/ Duplicate && No Storage /=======================
         } else if (!hasDuplicate && hasStorage) {
             NFTMinter1155Contract collecAddress = NFTMinter1155Contract(
-                sourceNftContractAddress
+                data.sourceNftContractAddress
             );
             if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
                 unLock1155(
@@ -582,7 +578,10 @@ contract Bridge {
         nftStorageContract.unlockToken(tokenId, amountOfTokens);
     }
 
-    function verifySignature(bytes32 hash, bytes[] memory signatures) internal {
+    function verifySignature(
+        bytes32 hash,
+        bytes[] memory signatures
+    ) internal view {
         uint256 percentage = 0;
 
         for (uint256 i = 0; i < signatures.length; i++) {
@@ -662,34 +661,4 @@ contract Bridge {
     ) private pure returns (address) {
         return ECDSA.recover(hash, sig);
     }
-
-    // function validatorSignature(bytes32 hash, bytes memory sig) external {
-    //     require(validators[msg.sender], "Not a valid validator");
-    //     require(!hasConfirmed(hash, msg.sender), "Signature already confirmed");
-
-    //     address signer = ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig);
-    //     require(validators[signer], "Not a valid validator");
-
-    //     bytes32 sigHash = keccak256(abi.encodePacked(hash, msg.sender));
-    //     signatureCount[sigHash]++;
-
-    //     require(signatureCount[sigHash] * 3 >= 11 * 2, "Not enough valid");
-    //     if (signatureCount[sigHash] * 3 >= 11 * 2) {
-    //         resetSignatureCount(hash, msg.sender);
-    //     }
-    // }
-
-    // function hasConfirmed(
-    //     bytes32 hash,
-    //     address validator
-    // ) internal view returns (bool) {
-    //     bytes32 sigHash = keccak256(abi.encodePacked(hash, validator));
-    //     return signatureCount[sigHash] > 0;
-    // }
-
-    // function resetSignatureCount(bytes32 hash, address validator) internal {
-    //     bytes32 sigHash = keccak256(
-    //         abi.encodePacked(hash, validators[msg.sender])
-    //     );
-    // }
 }

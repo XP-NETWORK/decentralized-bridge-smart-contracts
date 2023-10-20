@@ -3,7 +3,21 @@ import "@nomicfoundation/hardhat-toolbox";
 import '@openzeppelin/hardhat-upgrades';
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.20",
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      outputSelection: {
+        "*": {
+          "*": ["*"]
+        }
+      },
+      viaIR: true,
+      optimizer: {
+        enabled: true,
+        runs: 200
+      }
+    }
+  },
   networks: {
    
     hardhat: {}, // Local Ethereum network
