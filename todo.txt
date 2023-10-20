@@ -1,31 +1,17 @@
-make toUser dynamic in claim() instead of msg.sender
-
-lock emit
-    token Id
-    collectionAddress (srcContractAddress)
-    toChainUserAddress
-    metadata
-
-    srcChain
-
-    optional amountOfTokens
+make variables of values that I am checking in if conditions to reuse them and for readability
 
 
 claim(): 
     has storage, no duplicate
 
-chain (args):
-    srcChain
-    srcContractAddress
-    
-claim 
-    emit
-        claim will consider it self as destination
 
-        destinationChain
-        srcChain
 
-separate storage mappings for duplicate and original
+
+=======================================/ DONE /=========================
+IMPORTANT: save a unique hash on claim so that it cannot be reused again
+update the verify signature
+
+add check to ensure that the destination chain is the same as required
 
 
 lock args
@@ -37,5 +23,26 @@ lock args
       add: encryption type  => ECDSA
                             => EdDSA (Ed25519) | Ton & Elrond
 
+separate storage mappings for duplicate and original
 
-IMPORTANT: save a unique hash on claim so that it cannot be reused again
+make toUser dynamic in claim() instead of msg.sender
+lock emit
+    token Id
+    collectionAddress (srcContractAddress)
+    toChainUserAddress
+    metadata
+
+    srcChain
+
+    optional amountOfTokens
+
+
+chain (args):
+    srcChain
+    srcContractAddress
+claim 
+    emit
+        claim will consider it self as destination
+
+        destinationChain
+        srcChain
