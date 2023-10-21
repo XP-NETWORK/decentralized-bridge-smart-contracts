@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "hardhat/console.sol";
-
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -25,7 +23,7 @@ contract Bridge {
     mapping(address => bool) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
 
-    uint256 validatorsCount = 0;
+    uint256 public validatorsCount = 0;
 
     // originalCollectionAddress => destinationCollectionAddress
     mapping(address => mapping(string => ContractInfo))
@@ -132,9 +130,7 @@ contract Bridge {
         uint256 percentage = 0;
         for (uint256 i = 0; i < sigs.length; i++) {
             address signer = recover(hashSwap(_validator), sigs[i]);
-            // console.log("I am a console log!");
             if (validators[signer]) {
-                // console.log("I am a console log2222!");
                 percentage += 1;
             }
         }
