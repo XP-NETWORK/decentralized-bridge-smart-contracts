@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -7,16 +7,20 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @dev Struct representing details of an NFT transfer between chains.
  */
 struct NftTransferDetails {
-    uint256 id; // Unique ID for the NFT transfer
+    uint256 tokenId; // Unique ID for the NFT transfer
     string sourceChain; // Chain from where the NFT is being transferred
     string destinationChain; // Chain to where the NFT is being transferred
-    string sourceUserAddress; // User's address in the source chain
-    string destinationUserAddress; // User's address in the destination chain
-    string sourceNftContractAddress; // Address of the NFT contract in the source chain
+    address destinationUserAddress; // User's address in the destination chain
+    address sourceNftContractAddress; // Address of the NFT contract in the source chain
+    string name; // name of NFT collection
+    string symbol; // symbol of nft collection
+    uint256 royalty; // royalty of nft collection
+    address royaltyReceiver; // address of user who is going to receive royalty
     string metadata; // Metadata related to the NFT being transferred
     string transactionHash; // Transaction hash of the transfer on the source chain
-    uint256 count; // Number of NFTs being transferred
+    uint256 tokenAmount; // Number of NFTs being transferred
     string nftType; // Type of the NFT (could be ERC721 or ERC1155)
+    uint256 fee; // fee that needs to be paid by the user to the bridge,
 }
 
 /**
@@ -49,8 +53,8 @@ contract BridgeStorage {
     // Mapping of existing validators.
     mapping(address => bool) public validators;
 
-    // Mapping of votes of new validators. validatorStatusChangeVotes[validatorAddress][senderAddress][status][validatorEpoch] = numberOfVotes
-    mapping(address => mapping(address => mapping(bool => mapping(uint256 => uint256))))
+    // Mapping of votes of new validators. validatorStatusChangeVotes[validatorAddress][status][validatorEpoch] = numberOfVotes
+    mapping(address => mapping(bool => mapping(uint256 => uint256)))
         public validatorStatusChangeVotes;
 
     // Mapping to check if already voted on newValidator  validatorVoted[validatorAddress][senderAddress][validatorEpoch] = true/ false
@@ -145,14 +149,15 @@ contract BridgeStorage {
             chainEpoch[chain]++;
         }
     }
-    
+
     /**
-     * @dev change status of a validator with  2/3 + 1 of total validators votes are given
+     * @dev change _status of a validator with  2/3 + 1 of total validators votes are given
      * @param _validatorAddress new validator address.
+     * @param _status new validator address.
      */
     function changeValidatorStatus(
         address _validatorAddress,
-        bool status
+        bool _status
     ) public onlyValidator {
         uint256 _validatorEpoch = validatorEpoch[_validatorAddress];
         require(
@@ -163,22 +168,22 @@ contract BridgeStorage {
 
         validatorVoted[_validatorAddress][msg.sender][_validatorEpoch] = true;
 
-        validatorStatusChangeVotes[_validatorAddress][msg.sender][status][
+        validatorStatusChangeVotes[_validatorAddress][_status][
             _validatorEpoch
         ]++;
 
         uint256 twoByThreeValidators = (2 * validatorCount) / 3;
 
         if (
-            (validatorStatusChangeVotes[_validatorAddress][msg.sender][status][
+            (validatorStatusChangeVotes[_validatorAddress][_status][
                 _validatorEpoch
             ] >= twoByThreeValidators + 1)
         ) {
-            if (status && validators[_validatorAddress] == false)
+            if (_status && validators[_validatorAddress] == false)
                 validatorCount++;
-            else if (status == false && validators[_validatorAddress])
+            else if (_status == false && validators[_validatorAddress])
                 validatorCount--;
-            validators[_validatorAddress] = status;
+            validators[_validatorAddress] = _status;
             validatorEpoch[_validatorAddress]++;
         }
     }
