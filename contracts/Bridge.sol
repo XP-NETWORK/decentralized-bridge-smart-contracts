@@ -49,7 +49,6 @@ contract Bridge {
     mapping(address => mapping(string => address))
         public duplicateStorageMapping1155;
 
-    address[] public addressList;
     uint256 private txFees = 0x0;
     string public selfChain = "";
     string constant TYPEERC721 = "singular"; // a more general term to accomodate non-evm chains
@@ -126,7 +125,6 @@ contract Bridge {
         selfChain = _chainSymbol;
         for (uint256 i = 0; i < _validators.length; i++) {
             validators[_validators[i]] = true;
-            addressList.push(_validators[i]);
         }
     }
 
@@ -140,10 +138,9 @@ contract Bridge {
                 percentage += 1;
             }
         }
-        if (percentage >= (addressList.length * 2) / 3) {
+        if (percentage >= (validatorsCount * 2) / 3) {
             emit AddNewValidator(address(_validator));
             validators[_validator] = true;
-            addressList.push(_validator);
             validatorsCount += 1;
         }
     }
@@ -653,7 +650,7 @@ contract Bridge {
         }
 
         require(
-            percentage >= (addressList.length * 2) / 3,
+            percentage >= (validatorsCount * 2) / 3,
             "Threshold not reached!"
         );
 
