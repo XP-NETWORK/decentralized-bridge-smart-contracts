@@ -6,7 +6,7 @@ async function main() {
     const stakingAmount_ = '100';
     const stakingAmount = ethers.parseEther(stakingAmount_);
 
-    const stakingContract = await ethers.deployContract("XpStaking", [stakingAmount, erc20TokenAddress]);
+    const stakingContract = await ethers.deployContract("ERC20Staking", [stakingAmount, erc20TokenAddress]);
 
     await stakingContract.waitForDeployment();
 
