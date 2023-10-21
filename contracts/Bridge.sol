@@ -172,7 +172,9 @@ contract Bridge {
 
         // NOT hasStorage
         if (storageAddress == address(0)) {
-            storageAddress = storageDeployer.deployNFT721Storage(address(sourceNftContractAddress));
+            storageAddress = storageDeployer.deployNFT721Storage(
+                address(sourceNftContractAddress)
+            );
 
             storageMapping721[address(sourceNftContractAddress)][
                 selfChain
@@ -199,7 +201,9 @@ contract Bridge {
 
         // NOT hasStorage
         if (storageAddress == address(0)) {
-            storageAddress = storageDeployer.deployNFT1155Storage(address(sourceNftContractAddress)); 
+            storageAddress = storageDeployer.deployNFT1155Storage(
+                address(sourceNftContractAddress)
+            );
 
             storageMapping1155[address(sourceNftContractAddress)][
                 selfChain
@@ -397,7 +401,12 @@ contract Bridge {
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
-            IERC721Royalty newCollectionAddress = IERC721Royalty(collectionDeployer.deployNFT721Collection(data.name, data.symbol)); 
+            IERC721Royalty newCollectionAddress = IERC721Royalty(
+                collectionDeployer.deployNFT721Collection(
+                    data.name,
+                    data.symbol
+                )
+            );
             // new ERC721Royalty(
             //     data.name,
             //     data.symbol
@@ -529,7 +538,9 @@ contract Bridge {
         }
         // ===============================/ Not Duplicate && No Storage /=======================
         else if (!hasDuplicate && !hasStorage) {
-            IERC1155Royalty newCollectionAddress = IERC1155Royalty(collectionDeployer.deployNFT1155Collection());
+            IERC1155Royalty newCollectionAddress = IERC1155Royalty(
+                collectionDeployer.deployNFT1155Collection()
+            );
             //  new ERC1155Royalty();
 
             // update duplicate mappings
@@ -601,7 +612,7 @@ contract Bridge {
 
         emit UnLock721(to, tokenId, address(contractAddress));
 
-        nftStorageContract.unlockToken(tokenId);
+        nftStorageContract.unlockToken(tokenId, to);
     }
 
     function unLock1155(
@@ -628,7 +639,7 @@ contract Bridge {
 
         emit UnLock1155(to, tokenId, address(contractAddress), amountOfTokens);
 
-        nftStorageContract.unlockToken(tokenId, amountOfTokens);
+        nftStorageContract.unlockToken(tokenId, amountOfTokens, to);
     }
 
     function rewardValidators(

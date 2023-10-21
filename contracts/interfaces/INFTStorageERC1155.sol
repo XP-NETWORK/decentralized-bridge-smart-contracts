@@ -30,5 +30,5 @@ interface INFTStorageERC1155 {
      * @param tokenId The ID of the token to be unlocked.
      * @param amount The amount of the token to be unlocked.
      */
-    function unlockToken(uint256 tokenId, uint256 amount) external;
+    function unlockToken(uint256 tokenId, uint256 amount, address to) external;
 }

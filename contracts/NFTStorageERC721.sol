@@ -32,12 +32,15 @@ contract NFTStorageERC721 is ERC721Holder {
     }
 
     // Function to allow the owner of this contract to transfer an ERC-721 token to another address
-    function unlockToken(uint256 tokenId) external onlyOwner onlyValidator {
+    function unlockToken(
+        uint256 tokenId,
+        address to
+    ) external onlyOwner onlyValidator {
         // Ensure this contract is the owner of the token before transferring
         require(
             collectionAddress.ownerOf(tokenId) == address(this),
             "This contract is not the owner of this token"
         );
-        collectionAddress.safeTransferFrom(address(this), owner, tokenId);
+        collectionAddress.safeTransferFrom(address(this), to, tokenId);
     }
 }

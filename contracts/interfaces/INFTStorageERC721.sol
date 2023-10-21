@@ -28,5 +28,5 @@ interface INFTStorageERC721 {
      *
      * @param tokenId The ID of the token to be unlocked.
      */
-    function unlockToken(uint256 tokenId) external;
+    function unlockToken(uint256 tokenId, address to) external;
 }

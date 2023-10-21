@@ -38,7 +38,8 @@ contract NFTStorageERC1155 is ERC1155Holder {
     // Function to allow the owner of this contract to transfer an ERC-1155 token to another address
     function unlockToken(
         uint256 tokenId,
-        uint256 amount
+        uint256 amount,
+        address to
     ) external onlyOwner onlyValidator {
         // Ensure this contract has the balance before transferring
         require(
@@ -47,7 +48,7 @@ contract NFTStorageERC1155 is ERC1155Holder {
         );
         collectionAddress.safeTransferFrom(
             address(this),
-            owner,
+            to,
             tokenId,
             amount,
             ""
