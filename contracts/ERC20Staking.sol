@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -7,16 +7,16 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // import "hardhat/console.sol";
 
 /**
- * @title XpStaking
+ * @title ERC20Staking
  * @dev A contract for staking a specific amount of XP tokens.
  */
-contract XpStaking {
+contract ERC20Staking {
     
     // The required amount for staking.
     uint256 public stakingAmount;
     
     // The token being staked.
-    IERC20 public xpToken;
+    IERC20 public ERC20Token;
     
     // Mapping to track the staking balances of individual addresses.
     mapping(address => uint256) public stakingBalances;
@@ -27,21 +27,21 @@ contract XpStaking {
     /**
      * @dev Contract constructor that initializes the staking amount and token contract.
      * @param _stakingAmount Amount that is required to stake.
-     * @param _erc20Token Address of the ERC20 token to be staked.
+     * @param _ERC20Token Address of the ERC20 token to be staked.
      */
-    constructor(uint256 _stakingAmount, address _erc20Token) {
+    constructor(uint256 _stakingAmount, address _ERC20Token) {
         stakingAmount = _stakingAmount;
-        xpToken = IERC20(_erc20Token);
+        ERC20Token = IERC20(_ERC20Token);
     }
 
     /**
      * @dev Allows users to stake a specific amount of XP tokens.
      */
-    function stakeXP() public {
+    function stakeERC20() public {
         require(stakingBalances[msg.sender] == 0, "You can only stake once");
 
         // Transfer the staking amount from the staker to this contract.
-        xpToken.transferFrom(msg.sender, address(this), stakingAmount);
+        ERC20Token.transferFrom(msg.sender, address(this), stakingAmount);
         
         // Update the staking balance for the staker.
         stakingBalances[msg.sender] += stakingAmount;

@@ -9,3 +9,6 @@ typechain-types
 cache
 artifacts
 
+contractsTypes
+
+.DS_Store

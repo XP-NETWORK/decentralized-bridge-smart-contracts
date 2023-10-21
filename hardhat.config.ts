@@ -3,21 +3,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import '@openzeppelin/hardhat-upgrades';
 
 const config: HardhatUserConfig = {
-  solidity: {
-    version: "0.8.20",
-    settings: {
-      outputSelection: {
-        "*": {
-          "*": ["*"]
-        }
-      },
-      viaIR: true,
-      optimizer: {
-        enabled: true,
-        runs: 200
-      }
-    }
-  },
+  solidity: "0.8.21",
   networks: {
    
     hardhat: {}, // Local Ethereum network
@@ -33,6 +19,9 @@ const config: HardhatUserConfig = {
       gasPrice: 5000000000, // Gas price (wei) for transactions on OP Testnet
       accounts: ["8a6a4e9e3865814dc8f1e4fca103051162921715d1e517ba638ba05656f320b0"]
     },
+  },
+  typechain: {
+    outDir: "contractsTypes"
   },
 };
 
