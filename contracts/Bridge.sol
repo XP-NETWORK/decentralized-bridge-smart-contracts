@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./NftStorageERC721.sol";
 import "./NftStorageERC1155.sol";
 import "./ERC721Royalty.sol";
-import "./NFTMinter1155Contract.sol";
+import "./ERC1155Royalty.sol";
 
 struct ContractInfo {
     string chain;
@@ -81,7 +81,7 @@ contract Bridge {
         address sourceNftContractAddress, // Address of the NFT contract in the source chain
         uint256 tokenAmount, // Token amount is 1 incase it is ERC721
         string nftType, // NFT type is either 721 or 1155.
-        string selfChain // Name of the chain emitting
+        string chain // Name of the chain emitting
     );
 
     event UnLock721(address to, uint256 tokenId, address contractAddr);
@@ -325,7 +325,8 @@ contract Bridge {
         require(!uniqueIdentifier[hash], "Data already processed!");
         uniqueIdentifier[hash] = true;
 
-        verifySignature(hash, signatures);
+        address[] memory validatorsToReward = verifySignature(hash, signatures);
+        rewardValidators(data.fee, validatorsToReward);
 
         ContractInfo
             memory duplicateCollectionAddress = originalToDuplicateMapping[
@@ -453,7 +454,8 @@ contract Bridge {
         require(!uniqueIdentifier[hash], "Data already processed!");
         uniqueIdentifier[hash] = true;
 
-        verifySignature(hash, signatures);
+        address[] memory validatorsToReward = verifySignature(hash, signatures);
+        rewardValidators(data.fee, validatorsToReward);
 
         ContractInfo
             memory duplicateCollectionAddress = originalToDuplicateMapping[
@@ -478,7 +480,7 @@ contract Bridge {
 
         // ===============================/ Is Duplicate && Has Storage /=======================
         if (hasDuplicate && hasStorage) {
-            NFTMinter1155Contract collecAddress = NFTMinter1155Contract(
+            ERC1155Royalty collecAddress = ERC1155Royalty(
                 duplicateCollectionAddress.contractAddress
             );
             if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
@@ -494,27 +496,29 @@ contract Bridge {
                     data.destinationUserAddress,
                     data.tokenId,
                     data.tokenAmount,
-                    ""
+                    data.royalty,
+                    data.royaltyReceiver,
+                    data.metadata
                 );
             }
         }
         // ===============================/ Is Duplicate && No Storage /=======================
         else if (hasDuplicate && !hasStorage) {
-            NFTMinter1155Contract nft1155Collection = NFTMinter1155Contract(
+            ERC1155Royalty nft1155Collection = ERC1155Royalty(
                 duplicateCollectionAddress.contractAddress
             );
             nft1155Collection.mint(
-                msg.sender,
+                data.destinationUserAddress,
                 data.tokenId,
                 data.tokenAmount,
-                ""
+                data.royalty,
+                data.royaltyReceiver,
+                data.metadata
             );
         }
         // ===============================/ Not Duplicate && No Storage /=======================
         else if (!hasDuplicate && !hasStorage) {
-            NFTMinter1155Contract newCollectionAddress = new NFTMinter1155Contract(
-                    data.metadata
-                );
+            ERC1155Royalty newCollectionAddress = new ERC1155Royalty();
 
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
@@ -524,14 +528,16 @@ contract Bridge {
                 data.sourceChain
             ] = ContractInfo(data.sourceChain, data.sourceNftContractAddress);
             newCollectionAddress.mint(
-                msg.sender,
+                data.destinationUserAddress,
                 data.tokenId,
                 data.tokenAmount,
-                ""
+                data.royalty,
+                data.royaltyReceiver,
+                data.metadata
             );
             // ===============================/ Duplicate && No Storage /=======================
         } else if (!hasDuplicate && hasStorage) {
-            NFTMinter1155Contract collecAddress = NFTMinter1155Contract(
+            ERC1155Royalty collecAddress = ERC1155Royalty(
                 data.sourceNftContractAddress
             );
             if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
@@ -547,7 +553,9 @@ contract Bridge {
                     data.destinationUserAddress,
                     data.tokenId,
                     data.tokenAmount,
-                    ""
+                    data.royalty,
+                    data.royaltyReceiver,
+                    data.metadata
                 );
             }
         } else {
@@ -611,17 +619,36 @@ contract Bridge {
         nftStorageContract.unlockToken(tokenId, amountOfTokens);
     }
 
+    function rewardValidators(
+        uint256 fee,
+        address[] memory validatorsToReward
+    ) internal {
+        require(fee > 0, "Invalid fees");
+
+        uint256 totalRewards = address(this).balance;
+
+        require(totalRewards >= fee, "No rewards available");
+
+        uint256 feePerValidator = fee / validatorsToReward.length;
+
+        for (uint256 i = 0; i < validatorsToReward.length; i++) {
+            payable(validatorsToReward[i]).transfer(feePerValidator);
+        }
+    }
+
     function verifySignature(
         bytes32 hash,
         bytes[] memory signatures
-    ) internal view {
+    ) internal view returns (address[] memory) {
         uint256 percentage = 0;
+        address[] memory validatorsToReward = new address[](signatures.length);
 
         for (uint256 i = 0; i < signatures.length; i++) {
             address signer = recover(hash, signatures[i]);
 
             if (validators[signer]) {
                 percentage += 1;
+                validatorsToReward[i] = signer;
             }
         }
 
@@ -629,6 +656,8 @@ contract Bridge {
             percentage >= (addressList.length * 2) / 3,
             "Threshold not reached!"
         );
+
+        return validatorsToReward;
     }
 
     function createClaimDataHash(
