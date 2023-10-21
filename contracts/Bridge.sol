@@ -711,6 +711,8 @@ contract Bridge {
         bytes32 hash,
         bytes memory sig
     ) private pure returns (address) {
+        
+        hash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
         return ECDSA.recover(hash, sig);
     }
 }
