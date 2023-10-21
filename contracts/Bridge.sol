@@ -7,10 +7,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "./NftStorageERC721.sol";
-import "./NftStorageERC1155.sol";
-import "./ERC721Royalty.sol";
-import "./ERC1155Royalty.sol";
+import "./interfaces/INFTStorageERC721.sol";
+import "./interfaces/INFTStorageERC1155.sol";
+import "./interfaces/IERC721Royalty.sol";
+import "./interfaces/IERC1155Royalty.sol";
+import "./interfaces/INFTStorageDeployer.sol";
+import "./interfaces/INFTCollectionDeployer.sol";
 
 struct ContractInfo {
     string chain;
@@ -22,6 +24,9 @@ contract Bridge {
 
     mapping(address => bool) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
+
+    INFTCollectionDeployer public collectionDeployer;
+    INFTStorageDeployer public storageDeployer;
 
     uint256 public validatorsCount = 0;
 
@@ -119,7 +124,18 @@ contract Bridge {
         _;
     }
 
-    constructor(address[] memory _validators, string memory _chainSymbol) {
+    constructor(
+        address[] memory _validators,
+        string memory _chainSymbol,
+        address _collectionDeployer,
+        address _storageDeployer
+    ) {
+        collectionDeployer = INFTCollectionDeployer(_collectionDeployer);
+        storageDeployer = INFTStorageDeployer(_storageDeployer);
+
+        collectionDeployer.setOwner(address(this));
+        storageDeployer.setOwner(address(this));
+
         selfChain = _chainSymbol;
         for (uint256 i = 0; i < _validators.length; i++) {
             validators[_validators[i]] = true;
@@ -129,12 +145,15 @@ contract Bridge {
     function addValidator(address _validator, bytes[] memory sigs) public {
         uint256 percentage = 0;
         for (uint256 i = 0; i < sigs.length; i++) {
-            address signer = recover(keccak256(abi.encode(_validator)), sigs[i]);
+            address signer = recover(
+                keccak256(abi.encode(_validator)),
+                sigs[i]
+            );
             if (validators[signer]) {
                 percentage += 1;
             }
         }
-        if (percentage >= ((validatorsCount * 2) / 3) + 1)  {
+        if (percentage >= ((validatorsCount * 2) / 3) + 1) {
             emit AddNewValidator(address(_validator));
             validators[_validator] = true;
             validatorsCount += 1;
@@ -153,9 +172,8 @@ contract Bridge {
 
         // NOT hasStorage
         if (storageAddress == address(0)) {
-            storageAddress = address(
-                new NftStorageERC721(address(sourceNftContractAddress))
-            );
+            storageAddress = storageDeployer.deployNFT721Storage(address(sourceNftContractAddress));
+
             storageMapping721[address(sourceNftContractAddress)][
                 selfChain
             ] = storageAddress;
@@ -181,9 +199,8 @@ contract Bridge {
 
         // NOT hasStorage
         if (storageAddress == address(0)) {
-            storageAddress = address(
-                new NftStorageERC1155(address(sourceNftContractAddress))
-            );
+            storageAddress = storageDeployer.deployNFT1155Storage(address(sourceNftContractAddress)); 
+
             storageMapping1155[address(sourceNftContractAddress)][
                 selfChain
             ] = storageAddress;
@@ -344,7 +361,7 @@ contract Bridge {
 
         // ===============================/ hasDuplicate && hasStorage /=======================
         if (hasDuplicate && hasStorage) {
-            ERC721Royalty duplicateCollection = ERC721Royalty(
+            IERC721Royalty duplicateCollection = IERC721Royalty(
                 duplicateCollectionAddress.contractAddress
             );
 
@@ -367,7 +384,7 @@ contract Bridge {
         }
         // ===============================/ hasDuplicate && NOT hasStorage /=======================
         else if (hasDuplicate && !hasStorage) {
-            ERC721Royalty nft721Collection = ERC721Royalty(
+            IERC721Royalty nft721Collection = IERC721Royalty(
                 duplicateCollectionAddress.contractAddress
             );
             nft721Collection.mint(
@@ -380,10 +397,11 @@ contract Bridge {
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
-            ERC721Royalty newCollectionAddress = new ERC721Royalty(
-                data.name,
-                data.symbol
-            );
+            IERC721Royalty newCollectionAddress = IERC721Royalty(collectionDeployer.deployNFT721Collection(data.name, data.symbol)); 
+            // new ERC721Royalty(
+            //     data.name,
+            //     data.symbol
+            // );
 
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
@@ -403,7 +421,7 @@ contract Bridge {
             );
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
-            ERC721Royalty originalCollection = ERC721Royalty(
+            IERC721Royalty originalCollection = IERC721Royalty(
                 data.sourceNftContractAddress
             );
 
@@ -473,7 +491,7 @@ contract Bridge {
 
         // ===============================/ Is Duplicate && Has Storage /=======================
         if (hasDuplicate && hasStorage) {
-            ERC1155Royalty collecAddress = ERC1155Royalty(
+            IERC1155Royalty collecAddress = IERC1155Royalty(
                 duplicateCollectionAddress.contractAddress
             );
             if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
@@ -497,7 +515,7 @@ contract Bridge {
         }
         // ===============================/ Is Duplicate && No Storage /=======================
         else if (hasDuplicate && !hasStorage) {
-            ERC1155Royalty nft1155Collection = ERC1155Royalty(
+            IERC1155Royalty nft1155Collection = IERC1155Royalty(
                 duplicateCollectionAddress.contractAddress
             );
             nft1155Collection.mint(
@@ -511,7 +529,8 @@ contract Bridge {
         }
         // ===============================/ Not Duplicate && No Storage /=======================
         else if (!hasDuplicate && !hasStorage) {
-            ERC1155Royalty newCollectionAddress = new ERC1155Royalty();
+            IERC1155Royalty newCollectionAddress = IERC1155Royalty(collectionDeployer.deployNFT1155Collection());
+            //  new ERC1155Royalty();
 
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
@@ -530,7 +549,7 @@ contract Bridge {
             );
             // ===============================/ Duplicate && No Storage /=======================
         } else if (!hasDuplicate && hasStorage) {
-            ERC1155Royalty collecAddress = ERC1155Royalty(
+            IERC1155Royalty collecAddress = IERC1155Royalty(
                 data.sourceNftContractAddress
             );
             if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
@@ -576,7 +595,7 @@ contract Bridge {
 
         // if storage contract exists in mapping, unlock token on the
         // storage contract
-        NftStorageERC721 nftStorageContract = NftStorageERC721(
+        INFTStorageERC721 nftStorageContract = INFTStorageERC721(
             nftStorageAddress721
         );
 
@@ -603,7 +622,7 @@ contract Bridge {
 
         // if storage contract exists in mapping, unlock token on the
         // storage contract
-        NftStorageERC1155 nftStorageContract = NftStorageERC1155(
+        INFTStorageERC1155 nftStorageContract = INFTStorageERC1155(
             nftStorageAddress1155
         );
 

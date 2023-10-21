@@ -10,8 +10,9 @@ contract ERC721Royalty is ERC721URIStorage, Ownable, IERC2981 {
 
     constructor(
         string memory name,
-        string memory symbol
-    ) ERC721(name, symbol) Ownable(msg.sender) {}
+        string memory symbol,
+        address owner
+    ) ERC721(name, symbol) Ownable(owner) {}
 
     function mint(
         address to,

@@ -4,12 +4,12 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 
-contract NftStorageERC1155 is ERC1155Holder {
+contract NFTStorageERC1155 is ERC1155Holder {
     address public owner;
     IERC1155 public collectionAddress;
 
-    constructor(address _collectionAddress) {
-        owner = msg.sender;
+    constructor(address _collectionAddress, address _owner) {
+        owner = _owner;
         collectionAddress = IERC1155(_collectionAddress);
     }
 

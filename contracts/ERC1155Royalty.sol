@@ -10,7 +10,7 @@ contract ERC1155Royalty is ERC1155, Ownable, IERC2981 {
     mapping(uint256 => uint256) private _royalties;
     mapping(uint256 => string) private _tokenURIs;
 
-    constructor() ERC1155("") Ownable(msg.sender) {}
+    constructor(address owner) ERC1155("") Ownable(owner) {}
 
     function setTokenURI(
         uint256 tokenId,
