@@ -134,7 +134,7 @@ contract Bridge {
                 percentage += 1;
             }
         }
-        if (percentage >= (validatorsCount * 2) / 3) {
+        if (percentage >= ((validatorsCount * 2) / 3) + 1)  {
             emit AddNewValidator(address(_validator));
             validators[_validator] = true;
             validatorsCount += 1;
@@ -646,7 +646,7 @@ contract Bridge {
         }
 
         require(
-            percentage >= (validatorsCount * 2) / 3,
+            percentage >= ((validatorsCount * 2) / 3) + 1,
             "Threshold not reached!"
         );
 
