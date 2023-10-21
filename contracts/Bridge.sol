@@ -78,7 +78,7 @@ contract Bridge {
         address sourceNftContractAddress, // Address of the NFT contract in the source chain
         uint256 tokenAmount, // Token amount is 1 incase it is ERC721
         string nftType, // NFT type is either 721 or 1155.
-        string chain // Name of the chain emitting
+        string sourceChain // Name of the chain emitting
     );
 
     event UnLock721(address to, uint256 tokenId, address contractAddr);
@@ -129,7 +129,7 @@ contract Bridge {
     function addValidator(address _validator, bytes[] memory sigs) public {
         uint256 percentage = 0;
         for (uint256 i = 0; i < sigs.length; i++) {
-            address signer = recover(hashSwap(_validator), sigs[i]);
+            address signer = recover(keccak256(abi.encode(_validator)), sigs[i]);
             if (validators[signer]) {
                 percentage += 1;
             }
@@ -675,16 +675,6 @@ contract Bridge {
                     data.fee
                 )
             );
-    }
-
-    function claimFee(address payable receiver) external {
-        uint256 sendAmt = txFees;
-        txFees = 0;
-        receiver.transfer(sendAmt);
-    }
-
-    function hashSwap(address _validator) private pure returns (bytes32) {
-        return keccak256(abi.encode(_validator));
     }
 
     function recover(
