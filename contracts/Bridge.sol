@@ -139,6 +139,7 @@ contract Bridge {
         selfChain = _chainSymbol;
         for (uint256 i = 0; i < _validators.length; i++) {
             validators[_validators[i]] = true;
+            validatorsCount += 1;
         }
     }
 
