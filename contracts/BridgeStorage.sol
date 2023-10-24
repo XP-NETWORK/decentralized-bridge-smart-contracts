@@ -3,13 +3,20 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-
 /**
  * @dev Structure representing chain to chain fee
  */
 struct ChainFee {
     string chain;
     uint256 fee;
+}
+
+/**
+ * @dev Stucture to store signature with signer public address
+ */
+struct SignerAndSignature {
+    address publicAddress;
+    string signature;
 }
 
 /**
@@ -24,7 +31,7 @@ contract BridgeStorage {
     mapping(address => uint256) public validatorEpoch;
 
     // Mapping from staker's address to an array of their signatures.
-    mapping(address => string[]) public stakingSignatures;
+    mapping(address => SignerAndSignature[]) public stakingSignatures;
 
     // Mapping of existing validators.
     mapping(address => bool) public validators;
@@ -49,7 +56,8 @@ contract BridgeStorage {
     uint256 public validatorCount;
 
     // Mapping lockSignatures[txHAsh][Chain] => signatures array
-    mapping(string => mapping(string => string[])) public lockSignatures;
+    mapping(string => mapping(string => SignerAndSignature[]))
+        public lockSignatures;
 
     // Mapping to check if a signature has already been used.
     mapping(string => bool) public usedSignatures;
@@ -162,7 +170,10 @@ contract BridgeStorage {
     ) public onlyValidator {
         require(!usedSignatures[signature], "Signature already used");
         usedSignatures[signature] = true;
-        stakingSignatures[stakerAddress].push(signature);
+        SignerAndSignature memory signerAndSignatre;
+        signerAndSignatre.publicAddress = msg.sender;
+        signerAndSignatre.signature = signature;
+        stakingSignatures[stakerAddress].push(signerAndSignatre);
         changeValidatorStatus(stakerAddress, true);
     }
 
@@ -173,7 +184,7 @@ contract BridgeStorage {
      */
     function getStakingSignatures(
         address stakerAddress
-    ) external view returns (string[] memory) {
+    ) external view returns (SignerAndSignature[] memory) {
         return stakingSignatures[stakerAddress];
     }
 
@@ -201,7 +212,10 @@ contract BridgeStorage {
     ) public onlyValidator {
         require(!usedSignatures[signature], "Signature already used");
         usedSignatures[signature] = true;
-        lockSignatures[transactionHash][chain].push(signature);
+        SignerAndSignature memory signerAndSignatre;
+        signerAndSignatre.publicAddress = msg.sender;
+        signerAndSignatre.signature = signature;
+        lockSignatures[transactionHash][chain].push(signerAndSignatre);
     }
 
     /**
@@ -213,7 +227,7 @@ contract BridgeStorage {
     function getLockNftSignatures(
         string calldata transactionHash,
         string calldata chain
-    ) external view returns (string[] memory) {
+    ) external view returns (SignerAndSignature[] memory) {
         return lockSignatures[transactionHash][chain];
     }
 
