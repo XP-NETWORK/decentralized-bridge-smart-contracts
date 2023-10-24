@@ -43,9 +43,7 @@ describe("Bridge", function () {
         bscContractDeployer: HardhatEthersSigner,
         addrs: HardhatEthersSigner[];
 
-    let validators: string[];
-
-    let wallet1: any, wallet2: any;
+    let bscValidators: string[];
 
     async function deployBridge(
         chainSymbol: string,
@@ -102,6 +100,8 @@ describe("Bridge", function () {
             ...addrs
         ] = await ethers.getSigners();
 
+        bscValidators = [bscValidator1.address, bscValidator2.address];
+
         bscBridge = await deployBridge(
             "BSC",
             [bscValidator1.address, bscValidator2.address],
@@ -129,7 +129,7 @@ describe("Bridge", function () {
         });
 
         it("Should set validators correctly", async function () {
-            for (let validator of validators) {
+            for (let validator of bscValidators) {
                 expect(await bscBridge.bridge.validators(validator)).to.equal(
                     true
                 );
@@ -152,7 +152,7 @@ describe("Bridge", function () {
         it("Should fail to initialize contract if collection or storage address is zero", async function () {
             await expect(
                 Bridge.deploy(
-                    validators,
+                    bscValidators,
                     bscBridge.chainSymbol,
                     ethers.ZeroAddress,
                     ethers.ZeroAddress
@@ -162,12 +162,12 @@ describe("Bridge", function () {
 
         it("Should have the correct validators count", async function () {
             expect(await bscBridge.bridge.validatorsCount()).to.be.equal(
-                validators.length
+                bscValidators.length
             );
         });
     });
 
-    describe.only("Lock 721", function () {
+    describe("Lock 721", function () {
         const uint256 = ethers.Typed.uint256;
 
         let nftDetails = {
@@ -280,24 +280,24 @@ describe("Bridge", function () {
 
         it("Should claim nft on eth for corrosponding nft locked on bsc", async function () {
             /// approve nft of token id minted in before each to be transferred to the bridge
-            const approvedTx = await mintedCollectionOnBSC
+            await mintedCollectionOnBSC
                 .connect(bscUser)
                 .approve(
                     await bscBridge.bridge.getAddress(),
                     nftDetails.tokenId
-                );
-            await approvedTx.wait();
+                )
+                .then((r) => r.wait());
 
             /// lock the nft by creating a new storage
-            const lockedTx = await bscBridge.bridge
+            const lockedReceipt = await bscBridge.bridge
                 .connect(bscUser)
                 .lock721(
                     nftDetails.tokenId,
                     "ETH",
-                    nftDetails.toAddress,
+                    ethUser.address,
                     nftDetails.collectionAddress
-                );
-            const lockedReceipt = await lockedTx.wait();
+                )
+                .then((r) => r.wait());
 
             // get the new storage contract address for the original nft
             const storageAddressForCollection =
@@ -331,7 +331,6 @@ describe("Bridge", function () {
 
             const logs = lockedReceipt?.logs[1] as EventLog;
             const args = logs.args;
-            console.log({ args });
 
             const lockedEventData = {
                 tokenId: Number(args[0]),
@@ -343,7 +342,7 @@ describe("Bridge", function () {
                 sourceChain: args[6],
             };
 
-            // =================================================================
+            // ======================== PREPARE DATA FOR HASHING ======================
             // create hash from log data and nft details
 
             /**
@@ -381,8 +380,8 @@ describe("Bridge", function () {
                     lockedEventData.sourceNftContractAddress,
                 name: nftDetails.name,
                 symbol: nftDetails.symbol,
-                royalty: 100,
-                royaltyReceiver: nftDetails.royaltyReceiver,
+                royalty: nftDetails.royalty.value,
+                royaltyReceiver: ethUser.address,
                 metadata: nftDetails.tokenURI,
                 transactionHash: lockHash ?? "",
                 tokenAmount: lockedEventData.tokenAmount,
@@ -408,6 +407,8 @@ describe("Bridge", function () {
 
             const nftTransferDetailsValues = Object.values(claimDataArgs);
 
+            // ======================== HASH AND SEND ======================
+
             const dataHash = keccak256(
                 encoder.encode(
                     nftTransferDetailsTypes,
@@ -415,12 +416,18 @@ describe("Bridge", function () {
                 )
             );
 
-            const _1_validatorSignature = await ethValidator1.signMessage(
+            const _1_validatorSignatureProm = ethValidator1.signMessage(
                 hexStringToByteArray(dataHash)
             );
-            const _2_validatorSignature = await ethValidator2.signMessage(
+            const _2_validatorSignatureProm = ethValidator2.signMessage(
                 hexStringToByteArray(dataHash)
             );
+
+            const [_1_validatorSignature, _2_validatorSignature] =
+                await Promise.all([
+                    _1_validatorSignatureProm,
+                    _2_validatorSignatureProm,
+                ]);
 
             await ethBridge.bridge
                 .connect(ethUser)
@@ -431,15 +438,45 @@ describe("Bridge", function () {
                 )
                 .then((r) => r.wait());
 
-            const duplicateCollection =
+            // ======================= VERIFY ===================
+
+            const [destinationChainId, duplicateCollectionAddress] =
                 await ethBridge.bridge.originalToDuplicateMapping(
                     lockedEventData.sourceNftContractAddress,
                     lockedEventData.sourceChain
                 );
 
-            expect(duplicateCollection).to.not.be.equal(ZeroAddress);
+            expect(duplicateCollectionAddress).to.not.be.equal(ZeroAddress);
+            expect(destinationChainId).to.be.equal(ethBridge.chainSymbol);
 
-            console.log({ duplicateCollection });
+            const duplicateCollectionContract = await ethers.getContractAt(
+                "ERC721Royalty",
+                duplicateCollectionAddress
+            );
+            const duplicateNFTOwnerProm = duplicateCollectionContract.ownerOf(
+                ethers.Typed.uint256(lockedEventData.tokenId)
+            );
+
+            const royaltyInfoProm = duplicateCollectionContract.royaltyInfo(
+                ethers.Typed.uint256(lockedEventData.tokenId),
+                ethers.Typed.uint256(1)
+            );
+
+            const tokenURIProm = duplicateCollectionContract.tokenURI(
+                ethers.Typed.uint256(lockedEventData.tokenId)
+            );
+
+            const [duplicateNFTOwner, royaltyInfo, tokenURI] =
+                await Promise.all([
+                    duplicateNFTOwnerProm,
+                    royaltyInfoProm,
+                    tokenURIProm,
+                ]);
+
+            expect(duplicateNFTOwner).to.be.equal(ethUser.address);
+            expect(royaltyInfo[0]).to.be.equal(ethUser.address); // receiver
+            expect(royaltyInfo[1]).to.be.equal(nftDetails.royalty.value); // value
+            expect(tokenURI).to.be.equal("");
         });
     });
 });
