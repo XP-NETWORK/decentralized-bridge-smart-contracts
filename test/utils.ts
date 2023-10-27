@@ -1,4 +1,5 @@
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { expect } from "chai";
 import {
     Contract,
     ContractTransactionReceipt,
@@ -9,19 +10,20 @@ import {
     keccak256,
 } from "ethers";
 import { ethers as hardhatEthers } from "hardhat";
+import { ERC1155Royalty, ERC721Royalty } from "../contractsTypes";
 import {
     TBridge,
     TCreateHashReturn,
     TGetValidatorSignatures,
+    TLockOnBSCAndClaimOnEthArgs,
     TLockOnBSCAndClaimOnEthReturn,
+    TLockOnEthAndClaimOnBSCArgs,
     TLockReturn,
     TLockedEventData,
     TNFTDetails,
     TNFTType,
     TProcessedLogs,
 } from "./types";
-import { ERC1155Royalty, ERC721Royalty } from "../contractsTypes";
-import { expect } from "chai";
 
 const encoder = new ethers.AbiCoder();
 export const FEE = ethers.Typed.uint256(5);
@@ -816,18 +818,18 @@ export async function claimOnBSC(
         expect(balance2).to.be.gt(0);
     }
 }
-export async function lockOnBSCAndClaimOnEth(
-    mintedCollectionOnBSC: ERC1155Royalty | ERC721Royalty,
-    tokenIds: [Typed, Typed],
-    mintedCollectionOnBSCAddress: string,
-    nftDetails: TNFTDetails,
-    bscUser: HardhatEthersSigner,
-    ethUser: HardhatEthersSigner,
-    bscBridge: TBridge,
-    ethBridge: TBridge,
-    nftType: TNFTType,
-    getValidatorSignatures: TGetValidatorSignatures
-) {
+export async function lockOnBSCAndClaimOnEth({
+    mintedCollectionOnBSC,
+    tokenIds,
+    mintedCollectionOnBSCAddress,
+    nftDetails,
+    bscUser,
+    ethUser,
+    bscBridge,
+    ethBridge,
+    nftType,
+    getValidatorSignatures,
+}: TLockOnBSCAndClaimOnEthArgs) {
     const [parsedLogs1, parsedLogs2, lockedReceipt1, lockedReceipt2] =
         await lockOnBSC(
             mintedCollectionOnBSC,
@@ -853,20 +855,20 @@ export async function lockOnBSCAndClaimOnEth(
     );
 }
 
-export async function lockOnEthAndClaimOnBSC(
-    lockedEventDatas: TProcessedLogs[],
-    duplicateCollectionContracts: Contract[],
-    duplicateCollectionAddresses: string[],
-    mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty,
-    mintedCollectionOnBSCAddress: string,
-    nftDetails: TNFTDetails,
-    bscUser: HardhatEthersSigner,
-    ethUser: HardhatEthersSigner,
-    bscBridge: TBridge,
-    ethBridge: TBridge,
-    getValidatorSignatures: TGetValidatorSignatures,
-    nftType: TNFTType
-) {
+export async function lockOnEthAndClaimOnBSC({
+    lockedEventDatas,
+    duplicateCollectionContracts,
+    duplicateCollectionAddresses,
+    mintedCollectionOnBSC,
+    mintedCollectionOnBSCAddress,
+    nftDetails,
+    bscUser,
+    ethUser,
+    bscBridge,
+    ethBridge,
+    getValidatorSignatures,
+    nftType,
+}: TLockOnEthAndClaimOnBSCArgs) {
     const [
         lockedOnEthLogData1,
         lockedOnEthLogData2,

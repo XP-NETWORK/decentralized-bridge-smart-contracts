@@ -186,6 +186,10 @@ contract Bridge {
         string memory destinationUserAddress, // User's address in the destination chain
         address sourceNftContractAddress // Address of the NFT contract in the source chain
     ) external {
+        require(
+            sourceNftContractAddress != address(0),
+            "sourceNftContractAddress cannot be zero address"
+        );
         // Check if sourceNftContractAddress is original or duplicate
         ContractInfo
             memory originalCollectionAddress = duplicateToOriginalMapping[
@@ -240,6 +244,11 @@ contract Bridge {
         address sourceNftContractAddress, // Address of the NFT contract in the source chain
         uint256 tokenAmount
     ) external {
+        require(
+            sourceNftContractAddress != address(0),
+            "sourceNftContractAddress cannot be zero address"
+        );
+        require(tokenAmount > 0, "token amount must be > than zero");
         // Check if sourceNftContractAddress is original or duplicate
         ContractInfo
             memory originalCollectionAddress = duplicateToOriginalMapping[

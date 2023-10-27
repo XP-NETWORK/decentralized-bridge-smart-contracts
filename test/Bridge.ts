@@ -194,7 +194,7 @@ describe("Bridge", function () {
                     lockedEventDatas,
                     duplicateCollectionAddresses,
                     duplicateCollectionContracts,
-                ] = await lockOnBSCAndClaimOnEth(
+                ] = await lockOnBSCAndClaimOnEth({
                     mintedCollectionOnBSC,
                     tokenIds,
                     mintedCollectionOnBSCAddress,
@@ -204,10 +204,10 @@ describe("Bridge", function () {
                     bscBridge,
                     ethBridge,
                     nftType,
-                    getValidatorSignatures
-                );
+                    getValidatorSignatures,
+                });
 
-                await lockOnEthAndClaimOnBSC(
+                await lockOnEthAndClaimOnBSC({
                     lockedEventDatas,
                     duplicateCollectionContracts,
                     duplicateCollectionAddresses,
@@ -219,8 +219,8 @@ describe("Bridge", function () {
                     bscBridge,
                     ethBridge,
                     getValidatorSignatures,
-                    nftType
-                );
+                    nftType,
+                });
             }
         });
 
@@ -240,7 +240,7 @@ describe("Bridge", function () {
                     lockedEventDatas,
                     duplicateCollectionAddresses,
                     duplicateCollectionContracts,
-                ] = await lockOnBSCAndClaimOnEth(
+                ] = await lockOnBSCAndClaimOnEth({
                     mintedCollectionOnBSC,
                     tokenIds,
                     mintedCollectionOnBSCAddress,
@@ -250,10 +250,10 @@ describe("Bridge", function () {
                     bscBridge,
                     ethBridge,
                     nftType,
-                    getValidatorSignatures
-                );
+                    getValidatorSignatures,
+                });
 
-                await lockOnEthAndClaimOnBSC(
+                await lockOnEthAndClaimOnBSC({
                     lockedEventDatas,
                     duplicateCollectionContracts,
                     duplicateCollectionAddresses,
@@ -265,8 +265,8 @@ describe("Bridge", function () {
                     bscBridge,
                     ethBridge,
                     getValidatorSignatures,
-                    nftType
-                );
+                    nftType,
+                });
             }
         });
     });

@@ -1,5 +1,6 @@
 import { Contract, ContractTransactionReceipt, Typed } from "ethers";
-import { Bridge, ERC721Royalty } from "../contractsTypes";
+import { Bridge, ERC1155Royalty, ERC721Royalty } from "../contractsTypes";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 export type TLockedEventData = {
     tokenId: number;
@@ -69,3 +70,31 @@ export type TGetValidatorSignatures = (
     hash: Uint8Array,
     type: "eth" | "bsc"
 ) => Promise<[string, string]>;
+
+export type TLockOnBSCAndClaimOnEthArgs = {
+    mintedCollectionOnBSC: ERC1155Royalty | ERC721Royalty;
+    tokenIds: [Typed, Typed];
+    mintedCollectionOnBSCAddress: string;
+    nftDetails: TNFTDetails;
+    bscUser: HardhatEthersSigner;
+    ethUser: HardhatEthersSigner;
+    bscBridge: TBridge;
+    ethBridge: TBridge;
+    nftType: TNFTType;
+    getValidatorSignatures: TGetValidatorSignatures;
+};
+
+export type TLockOnEthAndClaimOnBSCArgs = {
+    lockedEventDatas: TProcessedLogs[];
+    duplicateCollectionContracts: Contract[];
+    duplicateCollectionAddresses: string[];
+    mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty;
+    mintedCollectionOnBSCAddress: string;
+    nftDetails: TNFTDetails;
+    bscUser: HardhatEthersSigner;
+    ethUser: HardhatEthersSigner;
+    bscBridge: TBridge;
+    ethBridge: TBridge;
+    getValidatorSignatures: TGetValidatorSignatures;
+    nftType: TNFTType;
+};
