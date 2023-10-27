@@ -17,6 +17,7 @@ import {
 import {
     TLockOnBSCAndClaimOnEthReturn,
     TLockReturn,
+    TNFTDetails,
     TNFTType,
     TProcessedLogs,
 } from "./types";
@@ -169,26 +170,11 @@ describe("Bridge", function () {
         });
     });
 
-    describe("721 NFT Integration Test", function () {
-        const uint256 = ethers.Typed.uint256;
+    describe("Integration Tests; To and Fro between two chains", function () {
+        const name = "MyCollection";
+        const symbol = "MC";
 
-        let nftDetails = {
-            toAddress: "",
-            tokenId1: uint256(0),
-            tokenId2: uint256(0),
-            royalty: uint256(0),
-            royaltyReceiver: "",
-            tokenURI: "",
-            collectionAddress: "",
-            name: "",
-            symbol: "",
-        };
-
-        let mintedCollectionOnBSC: ERC721Royalty;
-        let mintedCollectionOnBSCAddress: string;
-        let tokenIds: Typed[] = [];
-
-        beforeEach(async function () {
+        async function deploy721Collection() {
             const CollectionDeployer = await ethers.getContractFactory(
                 "NFTCollectionDeployer"
             );
@@ -196,38 +182,32 @@ describe("Bridge", function () {
             const collectionInstance = await CollectionDeployer.connect(
                 bscUser
             ).deploy();
-            collectionInstance.setOwner(bscUser.address);
+            await collectionInstance.setOwner(bscUser.address);
 
-            const name = "MyCollection";
-            const symbol = "MC";
-            const toWait = await collectionInstance.deployNFT721Collection(
-                name,
-                symbol
-            );
-            const response = await toWait.wait();
+            const response = await collectionInstance
+                .deployNFT721Collection(name, symbol)
+                .then((r) => r.wait());
 
-            if (!response) return;
-
-            const logs = response.logs[1] as EventLog;
+            const logs = response!.logs[1] as EventLog;
             const newCollectionAddress = logs.args[0];
 
-            mintedCollectionOnBSC = await ethers.getContractAt(
+            const mintedCollectionOnBSC = await ethers.getContractAt(
                 "ERC721Royalty",
                 newCollectionAddress
             );
 
-            mintedCollectionOnBSCAddress =
+            const mintedCollectionOnBSCAddress =
                 await mintedCollectionOnBSC.getAddress();
 
             const toAddress = bscUser.address;
             const tokenId1 = ethers.Typed.uint256(1);
             const tokenId2 = ethers.Typed.uint256(2);
-            tokenIds = [tokenId1, tokenId2];
+            const tokenIds: [Typed, Typed] = [tokenId1, tokenId2];
             const royalty = ethers.Typed.uint256(100);
             const royaltyReceiver = bscUser.address;
             const tokenURI = "";
 
-            nftDetails = {
+            const nftDetails = {
                 toAddress,
                 tokenId1,
                 tokenId2,
@@ -246,9 +226,96 @@ describe("Bridge", function () {
             });
 
             await Promise.all(mintPromises);
-        });
+
+            return {
+                newCollectionAddress,
+                name,
+                symbol,
+                mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                tokenIds,
+            };
+        }
+
+        async function deploy1155Collection(toMint: number) {
+            const CollectionDeployer = await ethers.getContractFactory(
+                "NFTCollectionDeployer"
+            );
+
+            const collectionInstance = await CollectionDeployer.connect(
+                bscUser
+            ).deploy();
+
+            await collectionInstance.setOwner(bscUser.address);
+
+            const response = await collectionInstance
+                .connect(bscUser)
+                .deployNFT1155Collection()
+                .then((r) => r.wait());
+
+            const logs = response!.logs[1] as EventLog;
+            const newCollectionAddress = logs.args[0];
+
+            const mintedCollectionOnBSC = await ethers.getContractAt(
+                "ERC1155Royalty",
+                newCollectionAddress
+            );
+
+            const mintedCollectionOnBSCAddress =
+                await mintedCollectionOnBSC.getAddress();
+
+            const toAddress = bscUser.address;
+            const tokenId1 = ethers.Typed.uint256(1);
+            const tokenId2 = ethers.Typed.uint256(2);
+            const tokenIds: [Typed, Typed] = [tokenId1, tokenId2];
+            const royalty = ethers.Typed.uint256(100);
+            const royaltyReceiver = bscUser.address;
+            const tokenURI = "";
+
+            const nftDetails = {
+                toAddress,
+                tokenId1,
+                tokenId2,
+                royalty,
+                royaltyReceiver,
+                tokenURI,
+                collectionAddress: newCollectionAddress,
+                name,
+                symbol,
+            };
+
+            const mintPromises = tokenIds.map((id) => {
+                return mintedCollectionOnBSC
+                    .connect(bscUser)
+                    .mint(
+                        bscUser.address,
+                        id,
+                        ethers.Typed.uint256(toMint),
+                        ethers.Typed.uint256(100),
+                        bscUser.address,
+                        ""
+                    );
+            });
+
+            await Promise.all(mintPromises);
+
+            return {
+                newCollectionAddress,
+                name,
+                symbol,
+                mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                tokenIds,
+            };
+        }
+
         async function lockOnBSC(
             mintedCollectionOnBSC: ERC1155Royalty | ERC721Royalty,
+            tokenIds: [Typed, Typed],
+            mintedCollectionOnBSCAddress: string,
+            nftDetails: TNFTDetails,
             nftType: TNFTType
         ): Promise<TLockReturn> {
             await Promise.all(
@@ -267,7 +334,6 @@ describe("Bridge", function () {
                 })
             );
             /// lock the nft by creating a new storage
-
             const [lockedReceipt1, lockedReceipt2] = await Promise.all(
                 tokenIds.map(async (id) => {
                     if (nftType === 721) {
@@ -288,7 +354,7 @@ describe("Bridge", function () {
                                 ethBridge.chainSymbol,
                                 ethUser.address,
                                 nftDetails.collectionAddress,
-                                AMOUNT_TODO
+                                ethers.Typed.uint256(AMOUNT_TODO)
                             )
                             .then((r) => r.wait());
                     }
@@ -333,7 +399,6 @@ describe("Bridge", function () {
             }
 
             // =================================================================
-
             const parsedLogs1 = parseLogs(lockedReceipt1?.logs[1] as EventLog);
             const parsedLogs2 = parseLogs(lockedReceipt2?.logs[1] as EventLog);
 
@@ -348,7 +413,9 @@ describe("Bridge", function () {
                 mintedCollectionOnBSCAddress
             );
             expect(parsedLogs1.tokenAmount).to.be.equal(1);
-            expect(parsedLogs1.nftType).to.be.equal("singular");
+            expect(parsedLogs1.nftType).to.be.equal(
+                nftType === 721 ? "singular" : "multiple"
+            );
             expect(parsedLogs1.sourceChain).to.be.equal(bscBridge.chainSymbol);
 
             expect(parsedLogs2.tokenId).to.be.equal(nftDetails.tokenId2.value);
@@ -375,6 +442,7 @@ describe("Bridge", function () {
             parsedLogs2: TProcessedLogs,
             lockedReceipt1: ContractTransactionReceipt | null,
             lockedReceipt2: ContractTransactionReceipt | null,
+            nftDetails: TNFTDetails,
             nftType: TNFTType
         ): TLockOnBSCAndClaimOnEthReturn {
             const lockedEventDatas = [parsedLogs1, parsedLogs2];
@@ -544,6 +612,7 @@ describe("Bridge", function () {
             lockedEventDatas: TProcessedLogs[],
             duplicateCollectionContracts: ERC1155Royalty[] | ERC721Royalty[],
             duplicateCollectionAddresses: string[],
+            nftDetails: TNFTDetails,
             nftType: TNFTType
         ): Promise<TLockReturn> {
             const [duplicateCollectionAddress1, duplicateCollectionAddress2] =
@@ -644,6 +713,7 @@ describe("Bridge", function () {
             expect(
                 duplicateStorageAddressForDuplicateCollection1
             ).to.not.be.equal(ZeroAddress);
+
             expect(originalStorageAddressForDuplicateCollection2).to.be.equal(
                 ZeroAddress
             );
@@ -757,6 +827,8 @@ describe("Bridge", function () {
             lockOnEthReceipt1: ContractTransactionReceipt | null,
             lockOnEthReceipt2: ContractTransactionReceipt | null,
             mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty,
+            mintedCollectionOnBSCAddress: string,
+            nftDetails: TNFTDetails,
             nftType: TNFTType
         ) {
             const [claimDataArgs1, dataHash1] = createHash(
@@ -871,16 +943,27 @@ describe("Bridge", function () {
             }
         }
 
-        async function lockOnBSCAndClaimOnEth(): TLockOnBSCAndClaimOnEthReturn {
-            const nftType = 721;
+        async function lockOnBSCAndClaimOnEth(
+            mintedCollectionOnBSC: ERC1155Royalty | ERC721Royalty,
+            tokenIds: [Typed, Typed],
+            mintedCollectionOnBSCAddress: string,
+            nftDetails: TNFTDetails,
+            nftType: TNFTType
+        ) {
             const [parsedLogs1, parsedLogs2, lockedReceipt1, lockedReceipt2] =
-                await lockOnBSC(mintedCollectionOnBSC, nftType);
-
+                await lockOnBSC(
+                    mintedCollectionOnBSC,
+                    tokenIds,
+                    mintedCollectionOnBSCAddress,
+                    nftDetails,
+                    nftType
+                );
             return await claimOnEth(
                 parsedLogs1,
                 parsedLogs2,
                 lockedReceipt1,
                 lockedReceipt2,
+                nftDetails,
                 nftType
             );
         }
@@ -888,10 +971,12 @@ describe("Bridge", function () {
         async function lockOnEthAndClaimOnBSC(
             lockedEventDatas: TProcessedLogs[],
             duplicateCollectionContracts: Contract[],
-            duplicateCollectionAddresses: string[]
+            duplicateCollectionAddresses: string[],
+            mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty,
+            mintedCollectionOnBSCAddress: string,
+            nftDetails: TNFTDetails,
+            nftType: TNFTType
         ) {
-            const nftType = 721;
-
             const [
                 lockedOnEthLogData1,
                 lockedOnEthLogData2,
@@ -901,6 +986,7 @@ describe("Bridge", function () {
                 lockedEventDatas,
                 duplicateCollectionContracts as any,
                 duplicateCollectionAddresses,
+                nftDetails,
                 nftType
             );
 
@@ -910,24 +996,80 @@ describe("Bridge", function () {
                 lockOnEthReceipt1,
                 lockOnEthReceipt2,
                 mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
                 nftType
             );
         }
 
-        it("Should successfully run the complete flow to and fro with multiple 721 NFT", async function () {
-            const CYCLES = 2;
+        it("Should successfully run the complete flow to and fro with multiple 1155 NFT", async function () {
+            const cycles = 2;
+            const nftType = 1155;
 
-            for (let cycle = 0; cycle < CYCLES; cycle++) {
+            const {
+                mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                tokenIds,
+            } = await deploy1155Collection(cycles);
+
+            for (let cycle = 0; cycle < cycles; cycle++) {
                 const [
                     lockedEventDatas,
                     duplicateCollectionAddresses,
                     duplicateCollectionContracts,
-                ] = await lockOnBSCAndClaimOnEth();
+                ] = await lockOnBSCAndClaimOnEth(
+                    mintedCollectionOnBSC,
+                    tokenIds,
+                    mintedCollectionOnBSCAddress,
+                    nftDetails,
+                    nftType
+                );
 
                 await lockOnEthAndClaimOnBSC(
                     lockedEventDatas,
                     duplicateCollectionContracts,
-                    duplicateCollectionAddresses
+                    duplicateCollectionAddresses,
+                    mintedCollectionOnBSC,
+                    mintedCollectionOnBSCAddress,
+                    nftDetails,
+                    nftType
+                );
+            }
+        });
+
+        it("Should successfully run the complete flow to and fro with multiple 721 NFT", async function () {
+            const cycles = 2;
+            const nftType = 721;
+
+            const {
+                mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                tokenIds,
+            } = await deploy721Collection();
+
+            for (let cycle = 0; cycle < cycles; cycle++) {
+                const [
+                    lockedEventDatas,
+                    duplicateCollectionAddresses,
+                    duplicateCollectionContracts,
+                ] = await lockOnBSCAndClaimOnEth(
+                    mintedCollectionOnBSC,
+                    tokenIds,
+                    mintedCollectionOnBSCAddress,
+                    nftDetails,
+                    nftType
+                );
+
+                await lockOnEthAndClaimOnBSC(
+                    lockedEventDatas,
+                    duplicateCollectionContracts,
+                    duplicateCollectionAddresses,
+                    mintedCollectionOnBSC,
+                    mintedCollectionOnBSCAddress,
+                    nftDetails,
+                    nftType
                 );
             }
         });
