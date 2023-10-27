@@ -55,3 +55,17 @@ export type TLockReturn = [
 ];
 
 export type TNFTType = 721 | 1155;
+export type TContractInstance = Bridge;
+
+export type TBridge = {
+    bridge: TContractInstance;
+    address: string;
+    chainSymbol: string;
+    collectionDeployer: string;
+    storageDeployer: string;
+};
+
+export type TGetValidatorSignatures = (
+    hash: Uint8Array,
+    type: "eth" | "bsc"
+) => Promise<[string, string]>;
