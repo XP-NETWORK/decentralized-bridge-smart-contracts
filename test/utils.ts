@@ -25,7 +25,7 @@ import {
     TProcessedLogs,
 } from "./types";
 
-const encoder = new ethers.AbiCoder();
+export const encoder = new ethers.AbiCoder();
 export const FEE = ethers.Typed.uint256(5);
 export const AMOUNT_TO_LOCK = 1;
 

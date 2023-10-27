@@ -6,9 +6,12 @@ import { TBridge, TGetValidatorSignatures } from "./types";
 import {
     deploy1155Collection,
     deploy721Collection,
+    encoder,
+    hexStringToByteArray,
     lockOnBSCAndClaimOnEth,
     lockOnEthAndClaimOnBSC,
 } from "./utils";
+import { EventLog, ZeroAddress, keccak256 } from "ethers";
 
 describe("Bridge", function () {
     let Bridge: Bridge__factory, bscBridge: TBridge, ethBridge: TBridge;
@@ -176,6 +179,86 @@ describe("Bridge", function () {
 
         return await Promise.all(promises);
     };
+
+    describe("addValidator", async function () {
+        const createAddValidatorHash = async (validatorAddress: string) => {
+            const hash = keccak256(
+                encoder.encode(["address"], [validatorAddress])
+            );
+            const hexifiedDataHash = hexStringToByteArray(hash);
+            const signatures = await getValidatorSignatures(
+                hexifiedDataHash,
+                "bsc"
+            );
+            return signatures;
+        };
+        it("Should fail if zero address for validator is provided", async function () {
+            const signatures = await createAddValidatorHash(ZeroAddress);
+
+            await expect(
+                bscBridge.bridge
+                    .addValidator(ZeroAddress, signatures)
+                    .then((r) => r.wait())
+            ).to.be.revertedWith("Address cannot be zero address!");
+        });
+
+        it("Should fail if no signatures are provided", async function () {
+            const newValidator = addrs[10];
+
+            await expect(
+                bscBridge.bridge
+                    .addValidator(newValidator, [])
+                    .then((r) => r.wait())
+            ).to.be.revertedWith("Must have signatures!");
+        });
+
+        it("Should fail if validators do not reach threshold", async function () {
+            const newValidator = addrs[10];
+            const signatures = await createAddValidatorHash(
+                newValidator.address
+            );
+
+            await expect(
+                bscBridge.bridge
+                    .addValidator(newValidator.address, [signatures[0]])
+                    .then((r) => r.wait())
+            ).to.be.revertedWith("Threshold not reached!");
+        });
+
+        it("Should successfully add a new validator with correct arguments", async function () {
+            const newValidator = addrs[10];
+
+            const [signatures, beforeValidatorAdditionCount] =
+                await Promise.all([
+                    createAddValidatorHash(newValidator.address),
+                    bscBridge.bridge.validatorsCount(),
+                ]);
+
+            const receipt = await bscBridge.bridge
+                .addValidator(newValidator.address, signatures)
+                .then((r) => r.wait());
+
+            const logs = receipt?.logs?.[0] as EventLog;
+
+            expect(logs).to.not.be.undefined;
+            expect(logs.args).to.not.be.undefined;
+
+            const logsArgs = logs.args[0];
+
+            expect(logsArgs).to.be.eq(newValidator.address);
+
+            const [validatorExistsInMapping, afterValidatorAdditionCount] =
+                await Promise.all([
+                    bscBridge.bridge.validators(newValidator),
+                    bscBridge.bridge.validatorsCount(),
+                ]);
+
+            expect(validatorExistsInMapping).to.be.eq(true);
+            expect(Number(afterValidatorAdditionCount)).to.be.eq(
+                Number(beforeValidatorAdditionCount) + 1
+            );
+        });
+    });
 
     describe("Integration Tests; To and Fro between two chains", function () {
         it("Should successfully run the complete flow to and fro with multiple 1155 NFT", async function () {

@@ -160,8 +160,8 @@ contract Bridge {
         address _validator,
         bytes[] memory signatures
     ) external {
-        require(_validator != address(0), "Address cannot be zero address");
-        require(signatures.length > 0, "Must have signatures");
+        require(_validator != address(0), "Address cannot be zero address!");
+        require(signatures.length > 0, "Must have signatures!");
 
         uint256 percentage = 0;
         for (uint256 i = 0; i < signatures.length; i++) {
@@ -173,11 +173,15 @@ contract Bridge {
                 percentage += 1;
             }
         }
-        if (percentage >= ((validatorsCount * 2) / 3) + 1) {
-            emit AddNewValidator(address(_validator));
-            validators[_validator] = true;
-            validatorsCount += 1;
-        }
+
+        require(
+            percentage >= ((validatorsCount * 2) / 3) + 1,
+            "Threshold not reached!"
+        );
+
+        emit AddNewValidator(address(_validator));
+        validators[_validator] = true;
+        validatorsCount += 1;
     }
 
     function lock721(
