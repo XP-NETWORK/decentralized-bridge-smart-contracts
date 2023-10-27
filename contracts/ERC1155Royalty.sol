@@ -45,6 +45,6 @@ contract ERC1155Royalty is ERC1155, Ownable, IERC2981 {
         uint256 salePrice
     ) external view override returns (address receiver, uint256 royaltyAmount) {
         receiver = _royaltyReceivers[tokenId];
-        royaltyAmount = (salePrice * _royalties[tokenId]) / 10000;
+        royaltyAmount = _royalties[tokenId];
     }
 }

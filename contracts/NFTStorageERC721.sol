@@ -18,11 +18,6 @@ contract NFTStorageERC721 is ERC721Holder {
         _;
     }
 
-    modifier onlyValidator() {
-        require(false, "Only validators can unlock token");
-        _;
-    }
-
     // Function to deposit an ERC-721 token into this contract
     function depositToken(uint256 tokenId) external {
         // Ensure the msg.sender is the owner of the token
@@ -32,10 +27,7 @@ contract NFTStorageERC721 is ERC721Holder {
     }
 
     // Function to allow the owner of this contract to transfer an ERC-721 token to another address
-    function unlockToken(
-        uint256 tokenId,
-        address to
-    ) external onlyOwner onlyValidator {
+    function unlockToken(uint256 tokenId, address to) external onlyOwner {
         // Ensure this contract is the owner of the token before transferring
         require(
             collectionAddress.ownerOf(tokenId) == address(this),
