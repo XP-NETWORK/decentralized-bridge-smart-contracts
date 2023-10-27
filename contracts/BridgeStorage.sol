@@ -4,36 +4,19 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
- * @dev Struct representing details of an NFT transfer between chains.
+ * @dev Structure representing chain to chain fee
  */
-struct NftTransferDetails {
-    uint256 tokenId; // Unique ID for the NFT transfer
-    string sourceChain; // Chain from where the NFT is being transferred
-    string destinationChain; // Chain to where the NFT is being transferred
-    address destinationUserAddress; // User's address in the destination chain
-    address sourceNftContractAddress; // Address of the NFT contract in the source chain
-    string name; // name of NFT collection
-    string symbol; // symbol of nft collection
-    uint256 royalty; // royalty of nft collection
-    address royaltyReceiver; // address of user who is going to receive royalty
-    string metadata; // Metadata related to the NFT being transferred
-    string transactionHash; // Transaction hash of the transfer on the source chain
-    uint256 tokenAmount; // Number of NFTs being transferred
-    string nftType; // Type of the NFT (could be ERC721 or ERC1155)
-    uint256 fee; // fee that needs to be paid by the user to the bridge,
-}
-
-/**
- * @dev Struct representing an NFT transfer with associated signatures.
- */
-struct NftTransferWithSignatures {
-    NftTransferDetails transferDetails; // Details of the NFT transfer
-    string[] signatures; // Signatures associated with the transfer
-}
-
 struct ChainFee {
     string chain;
     uint256 fee;
+}
+
+/**
+ * @dev Stucture to store signature with signer public address
+ */
+struct SignerAndSignature {
+    address publicAddress;
+    string signature;
 }
 
 /**
@@ -48,7 +31,7 @@ contract BridgeStorage {
     mapping(address => uint256) public validatorEpoch;
 
     // Mapping from staker's address to an array of their signatures.
-    mapping(address => string[]) public stakingSignatures;
+    mapping(address => SignerAndSignature[]) public stakingSignatures;
 
     // Mapping of existing validators.
     mapping(address => bool) public validators;
@@ -72,8 +55,9 @@ contract BridgeStorage {
     // total validator count
     uint256 public validatorCount;
 
-    // Mapping from a concatenated string of chain and transaction hash to the transfer details and its signatures.
-    mapping(string => NftTransferWithSignatures) public lockSignatures;
+    // Mapping lockSignatures[txHAsh][Chain] => signatures array
+    mapping(string => mapping(string => SignerAndSignature[]))
+        public lockSignatures;
 
     // Mapping to check if a signature has already been used.
     mapping(string => bool) public usedSignatures;
@@ -96,19 +80,6 @@ contract BridgeStorage {
         for (uint256 i = 0; i < bootstrapChainFee.length; i++) {
             chainFee[bootstrapChainFee[i].chain] = bootstrapChainFee[i].fee;
         }
-    }
-
-    /**
-     * @dev Concatenates two strings.
-     * @param a First string.
-     * @param b Second string.
-     * @return Concatenated string.
-     */
-    function concatenate(
-        string calldata a,
-        string calldata b
-    ) public pure returns (string memory) {
-        return string(abi.encodePacked(a, b));
     }
 
     /**
@@ -199,7 +170,10 @@ contract BridgeStorage {
     ) public onlyValidator {
         require(!usedSignatures[signature], "Signature already used");
         usedSignatures[signature] = true;
-        stakingSignatures[stakerAddress].push(signature);
+        SignerAndSignature memory signerAndSignatre;
+        signerAndSignatre.publicAddress = msg.sender;
+        signerAndSignatre.signature = signature;
+        stakingSignatures[stakerAddress].push(signerAndSignatre);
         changeValidatorStatus(stakerAddress, true);
     }
 
@@ -210,7 +184,7 @@ contract BridgeStorage {
      */
     function getStakingSignatures(
         address stakerAddress
-    ) external view returns (string[] memory) {
+    ) external view returns (SignerAndSignature[] memory) {
         return stakingSignatures[stakerAddress];
     }
 
@@ -226,61 +200,47 @@ contract BridgeStorage {
     }
 
     /**
-     * @dev Approves the locking of an NFT using a signature and associated transfer details.
-     * @param nftTransferDetails Details of the NFT transfer.
+     * @dev Approves the locking of an NFT using a signature.
+     * @param transactionHash tx hash of source chain
+     * @param chain source chain name eg BSC
      * @param signature The signature to be approved.
      */
     function approveLockNft(
-        NftTransferDetails calldata nftTransferDetails,
+        string calldata transactionHash,
+        string calldata chain,
         string calldata signature
     ) public onlyValidator {
         require(!usedSignatures[signature], "Signature already used");
         usedSignatures[signature] = true;
-
-        string memory chainAndTxHash = concatenate(
-            nftTransferDetails.sourceChain,
-            nftTransferDetails.transactionHash
-        );
-
-        if (
-            bytes(
-                lockSignatures[chainAndTxHash].transferDetails.transactionHash
-            ).length == 0
-        ) {
-            lockSignatures[chainAndTxHash] = NftTransferWithSignatures({
-                transferDetails: nftTransferDetails,
-                signatures: new string[](0)
-            });
-        }
-
-        lockSignatures[chainAndTxHash].signatures.push(signature);
+        SignerAndSignature memory signerAndSignatre;
+        signerAndSignatre.publicAddress = msg.sender;
+        signerAndSignatre.signature = signature;
+        lockSignatures[transactionHash][chain].push(signerAndSignatre);
     }
 
     /**
-     * @dev Retrieves lock signatures and associated transfer details for a specific chain and transaction.
-     * @param chain Source chain of the transfer.
-     * @param txHash Transaction hash of the transfer.
-     * @return Struct containing transfer details and associated signatures.
+     * @dev Retrieves lock signatures for a specific chain and transaction.
+     * @param transactionHash tx hash of source chain
+     * @param chain source chain name eg BSC
+     * @return signatures array.
      */
     function getLockNftSignatures(
-        string calldata chain,
-        string calldata txHash
-    ) external view returns (NftTransferWithSignatures memory) {
-        string memory chainAndTxHash = concatenate(chain, txHash);
-        return lockSignatures[chainAndTxHash];
+        string calldata transactionHash,
+        string calldata chain
+    ) external view returns (SignerAndSignature[] memory) {
+        return lockSignatures[transactionHash][chain];
     }
 
     /**
      * @dev Retrieves the count of lock signatures for a specific chain and transaction.
-     * @param chain Source chain of the transfer.
-     * @param txHash Transaction hash of the transfer.
+     * @param transactionHash tx hash of source chain
+     * @param chain source chain name eg BSC
      * @return Number of signatures.
      */
     function getLockNftSignaturesCount(
-        string calldata chain,
-        string calldata txHash
+        string calldata transactionHash,
+        string calldata chain
     ) external view returns (uint256) {
-        string memory chainAndTxHash = concatenate(chain, txHash);
-        return lockSignatures[chainAndTxHash].signatures.length;
+        return lockSignatures[transactionHash][chain].length;
     }
 }
