@@ -1,18 +1,29 @@
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import {
+    Contract,
     ContractTransactionReceipt,
     EventLog,
     Typed,
     ZeroAddress,
 } from "ethers";
 import { ethers } from "hardhat";
-import { Bridge, Bridge__factory, ERC721Royalty } from "../contractsTypes";
-import { TLockOnBSCAndClaimOnEthReturn, TProcessedLogs } from "./types";
+import {
+    Bridge,
+    Bridge__factory,
+    ERC1155Royalty,
+    ERC721Royalty,
+} from "../contractsTypes";
+import {
+    TLockOnBSCAndClaimOnEthReturn,
+    TLockReturn,
+    TNFTType,
+    TProcessedLogs,
+} from "./types";
 import { Fee, createHash, parseLogs } from "./utils";
 
 type TContractInstance = Bridge;
-
+const AMOUNT_TODO = 1;
 type TBridge = {
     bridge: TContractInstance;
     address: string;
@@ -236,52 +247,90 @@ describe("Bridge", function () {
 
             await Promise.all(mintPromises);
         });
-
-        async function lockOnBSC(): Promise<
-            [
-                TProcessedLogs,
-                TProcessedLogs,
-                ContractTransactionReceipt | null,
-                ContractTransactionReceipt | null
-            ]
-        > {
+        async function lockOnBSC(
+            mintedCollectionOnBSC: ERC1155Royalty | ERC721Royalty,
+            nftType: TNFTType
+        ): Promise<TLockReturn> {
             await Promise.all(
                 tokenIds.map(async (id) => {
-                    return mintedCollectionOnBSC
-                        .connect(bscUser)
-                        .approve(bscBridge.address, id)
-                        .then((r) => r.wait());
+                    if (nftType === 721) {
+                        return (mintedCollectionOnBSC as ERC721Royalty)
+                            .connect(bscUser)
+                            .approve(bscBridge.address, id)
+                            .then((r) => r.wait());
+                    } else {
+                        return (mintedCollectionOnBSC as ERC1155Royalty)
+                            .connect(bscUser)
+                            .setApprovalForAll(bscBridge.address, true)
+                            .then((r) => r.wait());
+                    }
                 })
             );
             /// lock the nft by creating a new storage
+
             const [lockedReceipt1, lockedReceipt2] = await Promise.all(
-                tokenIds.map((id) =>
-                    bscBridge.bridge
-                        .connect(bscUser)
-                        ["lock721"](
-                            id,
-                            ethBridge.chainSymbol,
-                            ethUser.address,
-                            nftDetails.collectionAddress
-                        )
-                        .then((r) => r.wait())
-                )
+                tokenIds.map(async (id) => {
+                    if (nftType === 721) {
+                        return bscBridge.bridge
+                            .connect(bscUser)
+                            .lock721(
+                                id,
+                                ethBridge.chainSymbol,
+                                ethUser.address,
+                                nftDetails.collectionAddress
+                            )
+                            .then((r) => r.wait());
+                    } else {
+                        return bscBridge.bridge
+                            .connect(bscUser)
+                            .lock1155(
+                                id,
+                                ethBridge.chainSymbol,
+                                ethUser.address,
+                                nftDetails.collectionAddress,
+                                AMOUNT_TODO
+                            )
+                            .then((r) => r.wait());
+                    }
+                })
             );
 
             // get the new storage contract address for the original nft
             const storageAddressForCollection = await bscBridge.bridge[
-                "originalStorageMapping721"
+                nftType === 721
+                    ? "originalStorageMapping721"
+                    : "originalStorageMapping1155"
             ](nftDetails.collectionAddress, "BSC");
             expect(storageAddressForCollection).to.not.be.equal(
                 ethers.ZeroAddress
             );
 
-            const [owner1, owner2] = await Promise.all([
-                mintedCollectionOnBSC.ownerOf(nftDetails.tokenId1),
-                mintedCollectionOnBSC.ownerOf(nftDetails.tokenId2),
-            ]);
-            expect(storageAddressForCollection).to.be.equal(owner1);
-            expect(storageAddressForCollection).to.be.equal(owner2);
+            if (nftType === 721) {
+                const [owner1, owner2] = await Promise.all([
+                    (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+                        nftDetails.tokenId1
+                    ),
+                    (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+                        nftDetails.tokenId2
+                    ),
+                ]);
+                expect(storageAddressForCollection).to.be.equal(owner1);
+                expect(storageAddressForCollection).to.be.equal(owner2);
+            } else {
+                const [balance1, balance2] = await Promise.all([
+                    (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+                        storageAddressForCollection,
+                        nftDetails.tokenId1
+                    ),
+                    (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+                        storageAddressForCollection,
+                        nftDetails.tokenId2
+                    ),
+                ]);
+                // Check if storageAddressForCollection has at least one of each token
+                expect(balance1).to.be.gt(0);
+                expect(balance2).to.be.gt(0);
+            }
 
             // =================================================================
 
@@ -313,7 +362,9 @@ describe("Bridge", function () {
                 mintedCollectionOnBSCAddress
             );
             expect(parsedLogs2.tokenAmount).to.be.equal(1);
-            expect(parsedLogs2.nftType).to.be.equal("singular");
+            expect(parsedLogs2.nftType).to.be.equal(
+                nftType === 721 ? "singular" : "multiple"
+            );
             expect(parsedLogs2.sourceChain).to.be.equal(bscBridge.chainSymbol);
 
             return [parsedLogs1, parsedLogs2, lockedReceipt1, lockedReceipt2];
@@ -323,7 +374,8 @@ describe("Bridge", function () {
             parsedLogs1: TProcessedLogs,
             parsedLogs2: TProcessedLogs,
             lockedReceipt1: ContractTransactionReceipt | null,
-            lockedReceipt2: ContractTransactionReceipt | null
+            lockedReceipt2: ContractTransactionReceipt | null,
+            nftType: TNFTType
         ): TLockOnBSCAndClaimOnEthReturn {
             const lockedEventDatas = [parsedLogs1, parsedLogs2];
 
@@ -347,9 +399,13 @@ describe("Bridge", function () {
 
                     return ethBridge.bridge
                         .connect(ethUser)
-                        ["claimNFT721"](data, signatures, {
-                            value: Fee.value,
-                        })
+                        [nftType === 721 ? "claimNFT721" : "claimNFT1155"](
+                            data,
+                            signatures,
+                            {
+                                value: Fee.value,
+                            }
+                        )
                         .then((r) => r.wait());
                 })
             );
@@ -379,66 +435,103 @@ describe("Bridge", function () {
             const duplicateCollectionContracts = await Promise.all(
                 duplicateCollectionAddresses.map((contractAddress) =>
                     ethers.getContractAt(
-                        // TODO: Make this dynamic as well
-                        "ERC721Royalty",
+                        nftType === 721 ? "ERC721Royalty" : "ERC1155Royalty",
                         contractAddress
                     )
                 )
             );
 
             const [duplicateCollectionContract1, duplicateCollectionContract2] =
-                duplicateCollectionContracts;
+                duplicateCollectionContracts as unknown as
+                    | ERC721Royalty[]
+                    | ERC1155Royalty[];
 
-            const duplicateNFTOwnerProm1 = duplicateCollectionContract1.ownerOf(
-                ethers.Typed.uint256(parsedLogs1.tokenId)
-            );
+            // TODO: need to change ways in which I am checking the owner
+            if (nftType === 721) {
+                const duplicateNFTOwnerProm1 = (
+                    duplicateCollectionContract1 as ERC721Royalty
+                ).ownerOf(ethers.Typed.uint256(parsedLogs1.tokenId));
 
-            const royaltyInfoProm1 = duplicateCollectionContract1.royaltyInfo(
-                ethers.Typed.uint256(parsedLogs1.tokenId),
-                ethers.Typed.uint256(1)
-            );
+                const duplicateNFTOwnerProm2 = (
+                    duplicateCollectionContract2 as ERC721Royalty
+                ).ownerOf(ethers.Typed.uint256(parsedLogs2.tokenId));
 
-            const tokenURIProm1 = duplicateCollectionContract1.tokenURI(
-                ethers.Typed.uint256(parsedLogs1.tokenId)
-            );
+                const royaltyInfoProm1 =
+                    duplicateCollectionContract1.royaltyInfo(
+                        ethers.Typed.uint256(parsedLogs1.tokenId),
+                        ethers.Typed.uint256(1)
+                    );
 
-            const duplicateNFTOwnerProm2 = duplicateCollectionContract2.ownerOf(
-                ethers.Typed.uint256(parsedLogs2.tokenId)
-            );
+                const royaltyInfoProm2 =
+                    duplicateCollectionContract2.royaltyInfo(
+                        ethers.Typed.uint256(parsedLogs2.tokenId),
+                        ethers.Typed.uint256(1)
+                    );
 
-            const royaltyInfoProm2 = duplicateCollectionContract2.royaltyInfo(
-                ethers.Typed.uint256(parsedLogs2.tokenId),
-                ethers.Typed.uint256(1)
-            );
+                const [
+                    duplicateNFTOwner1,
+                    royaltyInfo1,
+                    duplicateNFTOwner2,
+                    royaltyInfo2,
+                ] = await Promise.all([
+                    duplicateNFTOwnerProm1,
+                    royaltyInfoProm1,
+                    duplicateNFTOwnerProm2,
+                    royaltyInfoProm2,
+                ]);
 
-            const tokenURIProm3 = duplicateCollectionContract2.tokenURI(
-                ethers.Typed.uint256(parsedLogs2.tokenId)
-            );
+                expect(duplicateNFTOwner1).to.be.equal(ethUser.address);
+                expect(royaltyInfo1[0]).to.be.equal(ethUser.address); // receiver
+                expect(royaltyInfo1[1]).to.be.equal(nftDetails.royalty.value); // value
+                expect(duplicateNFTOwner2).to.be.equal(ethUser.address);
+                expect(royaltyInfo2[0]).to.be.equal(ethUser.address); // receiver
+                expect(royaltyInfo2[1]).to.be.equal(nftDetails.royalty.value); // value
+            } else {
+                const duplicateNFTOwnerProm1 = (
+                    duplicateCollectionContract1 as ERC1155Royalty
+                ).balanceOf(
+                    ethUser.address,
+                    ethers.Typed.uint256(parsedLogs1.tokenId)
+                );
 
-            const [
-                duplicateNFTOwner1,
-                royaltyInfo1,
-                tokenURI1,
-                duplicateNFTOwner2,
-                royaltyInfo2,
-                tokenURI2,
-            ] = await Promise.all([
-                duplicateNFTOwnerProm1,
-                royaltyInfoProm1,
-                tokenURIProm1,
-                duplicateNFTOwnerProm2,
-                royaltyInfoProm2,
-                tokenURIProm3,
-            ]);
+                const duplicateNFTOwnerProm2 = (
+                    duplicateCollectionContract2 as ERC1155Royalty
+                ).balanceOf(
+                    ethUser.address,
+                    ethers.Typed.uint256(parsedLogs2.tokenId)
+                );
 
-            expect(duplicateNFTOwner1).to.be.equal(ethUser.address);
-            expect(royaltyInfo1[0]).to.be.equal(ethUser.address); // receiver
-            expect(royaltyInfo1[1]).to.be.equal(nftDetails.royalty.value); // value
-            expect(tokenURI1).to.be.equal("");
-            expect(duplicateNFTOwner2).to.be.equal(ethUser.address);
-            expect(royaltyInfo2[0]).to.be.equal(ethUser.address); // receiver
-            expect(royaltyInfo2[1]).to.be.equal(nftDetails.royalty.value); // value
-            expect(tokenURI2).to.be.equal("");
+                const royaltyInfoProm1 =
+                    duplicateCollectionContract1.royaltyInfo(
+                        ethers.Typed.uint256(parsedLogs1.tokenId),
+                        ethers.Typed.uint256(1)
+                    );
+
+                const royaltyInfoProm2 =
+                    duplicateCollectionContract2.royaltyInfo(
+                        ethers.Typed.uint256(parsedLogs2.tokenId),
+                        ethers.Typed.uint256(1)
+                    );
+
+                const [
+                    duplicateNFTOwner1,
+                    royaltyInfo1,
+                    duplicateNFTOwner2,
+                    royaltyInfo2,
+                ] = await Promise.all([
+                    duplicateNFTOwnerProm1,
+                    royaltyInfoProm1,
+                    duplicateNFTOwnerProm2,
+                    royaltyInfoProm2,
+                ]);
+
+                expect(duplicateNFTOwner1).to.be.gt(0);
+                expect(royaltyInfo1[0]).to.be.equal(ethUser.address); // receiver
+                expect(royaltyInfo1[1]).to.be.equal(nftDetails.royalty.value); // value
+                expect(duplicateNFTOwner2).to.be.gt(0);
+                expect(royaltyInfo2[0]).to.be.equal(ethUser.address); // receiver
+                expect(royaltyInfo2[1]).to.be.equal(nftDetails.royalty.value); // value
+            }
 
             return [
                 lockedEventDatas,
@@ -449,65 +542,87 @@ describe("Bridge", function () {
 
         async function lockOnEth(
             lockedEventDatas: TProcessedLogs[],
-            duplicateCollectionContracts: ERC721Royalty[],
-            duplicateCollectionAddresses: string[]
-        ): Promise<
-            [
-                TProcessedLogs,
-                TProcessedLogs,
-                ContractTransactionReceipt | null,
-                ContractTransactionReceipt | null
-            ]
-        > {
+            duplicateCollectionContracts: ERC1155Royalty[] | ERC721Royalty[],
+            duplicateCollectionAddresses: string[],
+            nftType: TNFTType
+        ): Promise<TLockReturn> {
             const [duplicateCollectionAddress1, duplicateCollectionAddress2] =
                 duplicateCollectionAddresses;
 
             await Promise.all(
-                lockedEventDatas.map((data, i) =>
-                    duplicateCollectionContracts[i]
-                        .connect(ethUser)
-                        .approve(ethBridge.address, data.tokenId)
-                        .then((r) => r.wait())
-                )
+                lockedEventDatas.map(async (data, i) => {
+                    if (nftType === 721) {
+                        return (
+                            duplicateCollectionContracts[i] as ERC721Royalty
+                        )
+                            .connect(ethUser)
+                            .approve(ethBridge.address, data.tokenId)
+                            .then((r) => r.wait());
+                    } else {
+                        return (
+                            duplicateCollectionContracts[i] as ERC1155Royalty
+                        )
+                            .connect(ethUser)
+                            .setApprovalForAll(ethBridge.address, true)
+                            .then((r) => r.wait());
+                    }
+                })
             );
 
             const [lockOnEthReceipt1, lockOnEthReceipt2] = await Promise.all(
-                lockedEventDatas.map((data, i) =>
-                    ethBridge.bridge
-                        .connect(ethUser)
-                        ["lock721"](
-                            data.tokenId,
-                            bscBridge.chainSymbol,
-                            bscUser.address,
-                            duplicateCollectionContracts[i]
-                        )
-                        .then((r) => r.wait())
-                )
+                lockedEventDatas.map(async (data, i) => {
+                    if (nftType === 721) {
+                        return ethBridge.bridge
+                            .connect(ethUser)
+                            .lock721(
+                                data.tokenId,
+                                bscBridge.chainSymbol,
+                                bscUser.address,
+                                duplicateCollectionContracts[i]
+                            )
+                            .then((r) => r.wait());
+                    } else {
+                        return ethBridge.bridge
+                            .connect(ethUser)
+                            .lock1155(
+                                data.tokenId,
+                                bscBridge.chainSymbol,
+                                bscUser.address,
+                                duplicateCollectionContracts[i],
+                                AMOUNT_TODO
+                            )
+                            .then((r) => r.wait());
+                    }
+                })
             );
 
             const originalStorageAddressForDuplicateCollectionProm1 =
-                ethBridge.bridge["originalStorageMapping721"](
-                    duplicateCollectionAddress1,
-                    bscBridge.chainSymbol
-                );
+                ethBridge.bridge[
+                    nftType === 721
+                        ? "originalStorageMapping721"
+                        : "originalStorageMapping1155"
+                ](duplicateCollectionAddress1, bscBridge.chainSymbol);
 
             const duplicateStorageAddressForDuplicateCollectionProm1 =
-                ethBridge.bridge["duplicateStorageMapping721"](
-                    duplicateCollectionAddress1,
-                    ethBridge.chainSymbol
-                );
+                ethBridge.bridge[
+                    nftType === 721
+                        ? "duplicateStorageMapping721"
+                        : "duplicateStorageMapping1155"
+                ](duplicateCollectionAddress1, ethBridge.chainSymbol);
 
             const originalStorageAddressForDuplicateCollectionProm2 =
-                ethBridge.bridge["originalStorageMapping721"](
-                    duplicateCollectionAddress2,
-                    bscBridge.chainSymbol
-                );
+                ethBridge.bridge[
+                    nftType === 721
+                        ? "originalStorageMapping721"
+                        : "originalStorageMapping1155"
+                ](duplicateCollectionAddress2, bscBridge.chainSymbol);
 
             const duplicateStorageAddressForDuplicateCollectionProm2 =
-                ethBridge.bridge["duplicateStorageMapping721"](
-                    duplicateCollectionAddress2,
-                    ethBridge.chainSymbol
-                );
+                ethBridge.bridge[
+                    nftType === 721
+                        ? "duplicateStorageMapping721"
+                        : "duplicateStorageMapping1155"
+                ](duplicateCollectionAddress2, ethBridge.chainSymbol);
 
             const [
                 originalStorageAddressForDuplicateCollection1,
@@ -567,8 +682,11 @@ describe("Bridge", function () {
             expect(lockedOnEthLogData1.sourceNftContractAddress).to.be.equal(
                 nftDetails.collectionAddress
             );
+            // TODO: make it dynamic
             expect(lockedOnEthLogData1.tokenAmount).to.be.equal(1);
-            expect(lockedOnEthLogData1.nftType).to.be.equal("singular");
+            expect(lockedOnEthLogData1.nftType).to.be.equal(
+                nftType === 721 ? "singular" : "multiple"
+            );
             expect(lockedOnEthLogData1.sourceChain).to.be.equal(
                 bscBridge.chainSymbol
             );
@@ -587,8 +705,11 @@ describe("Bridge", function () {
             expect(lockedOnEthLogData2.sourceNftContractAddress).to.be.equal(
                 nftDetails.collectionAddress
             );
+            // TODO: make it dynamic
             expect(lockedOnEthLogData2.tokenAmount).to.be.equal(1);
-            expect(lockedOnEthLogData2.nftType).to.be.equal("singular");
+            expect(lockedOnEthLogData2.nftType).to.be.equal(
+                nftType === 721 ? "singular" : "multiple"
+            );
             expect(lockedOnEthLogData2.sourceChain).to.be.equal(
                 bscBridge.chainSymbol
             );
@@ -634,7 +755,9 @@ describe("Bridge", function () {
             lockedOnEthLogData1: TProcessedLogs,
             lockedOnEthLogData2: TProcessedLogs,
             lockOnEthReceipt1: ContractTransactionReceipt | null,
-            lockOnEthReceipt2: ContractTransactionReceipt | null
+            lockOnEthReceipt2: ContractTransactionReceipt | null,
+            mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty,
+            nftType: TNFTType
         ) {
             const [claimDataArgs1, dataHash1] = createHash(
                 lockedOnEthLogData1,
@@ -656,64 +779,119 @@ describe("Bridge", function () {
                 )
             );
 
-            let [owner1, owner2] = await Promise.all([
-                mintedCollectionOnBSC.ownerOf(lockedOnEthLogData1.tokenId),
-                mintedCollectionOnBSC.ownerOf(lockedOnEthLogData2.tokenId),
-            ]);
-
             // ensure that storage is owner of the nft
-
             const [originalStorage721a, originalStorage721b] =
                 await Promise.all([
-                    bscBridge.bridge["originalStorageMapping721"](
-                        mintedCollectionOnBSCAddress,
-                        bscBridge.chainSymbol
+                    bscBridge.bridge[
+                        nftType === 721
+                            ? "originalStorageMapping721"
+                            : "originalStorageMapping1155"
+                    ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+                    bscBridge.bridge[
+                        nftType === 721
+                            ? "originalStorageMapping721"
+                            : "originalStorageMapping1155"
+                    ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+                ]);
+
+            // TODO: extract to a function
+            if (nftType === 721) {
+                let [owner1, owner2] = await Promise.all([
+                    (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+                        lockedOnEthLogData1.tokenId
                     ),
-                    bscBridge.bridge["originalStorageMapping721"](
-                        mintedCollectionOnBSCAddress,
-                        bscBridge.chainSymbol
+                    (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+                        lockedOnEthLogData2.tokenId
                     ),
                 ]);
-            expect(owner1).to.be.equal(originalStorage721a);
-            expect(owner2).to.be.equal(originalStorage721b);
+                expect(owner1).to.be.equal(originalStorage721a);
+                expect(owner2).to.be.equal(originalStorage721b);
+            } else {
+                const [balance1, balance2] = await Promise.all([
+                    (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+                        originalStorage721a,
+                        nftDetails.tokenId1
+                    ),
+                    (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+                        originalStorage721b,
+                        nftDetails.tokenId2
+                    ),
+                ]);
+                // Check if storageAddressForCollection has at least one of each token
+                expect(balance1).to.be.gt(0);
+                expect(balance2).to.be.gt(0);
+            }
 
             await Promise.all(
-                [claimDataArgs1, claimDataArgs2].map((args, i) =>
-                    bscBridge.bridge
-                        .connect(bscUser)
-                        ["claimNFT721"](args, signatures[i], {
-                            value: Fee.value,
-                        })
-                        .then((r) => r.wait())
-                )
+                [claimDataArgs1, claimDataArgs2].map((args, i) => {
+                    if (nftType === 721) {
+                        return bscBridge.bridge
+                            .connect(bscUser)
+                            .claimNFT721(args, signatures[i], {
+                                value: Fee.value,
+                            })
+                            .then((r) => r.wait());
+                    } else {
+                        return bscBridge.bridge
+                            .connect(bscUser)
+                            .claimNFT1155(args, signatures[i], {
+                                value: Fee.value,
+                            })
+                            .then((r) => r.wait());
+                    }
+                })
             );
 
             // ensure that bsc user is the owner after claiming
-            [owner1, owner2] = await Promise.all([
-                mintedCollectionOnBSC.ownerOf(lockedOnEthLogData1.tokenId),
-                mintedCollectionOnBSC.ownerOf(lockedOnEthLogData2.tokenId),
-            ]);
-            expect(owner1).to.be.equal(bscUser.address);
-            expect(owner2).to.be.equal(bscUser.address);
+            if (nftType === 721) {
+                let [owner1, owner2] = await Promise.all([
+                    (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+                        lockedOnEthLogData1.tokenId
+                    ),
+                    (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+                        lockedOnEthLogData2.tokenId
+                    ),
+                ]);
+                expect(owner1).to.be.equal(bscUser.address);
+                expect(owner2).to.be.equal(bscUser.address);
+            } else {
+                const [balance1, balance2] = await Promise.all([
+                    (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+                        bscUser.address,
+                        nftDetails.tokenId1
+                    ),
+                    (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+                        bscUser.address,
+                        nftDetails.tokenId2
+                    ),
+                ]);
+                // Check if storageAddressForCollection has at least one of each token
+                expect(balance1).to.be.gt(0);
+                expect(balance2).to.be.gt(0);
+            }
         }
 
         async function lockOnBSCAndClaimOnEth(): TLockOnBSCAndClaimOnEthReturn {
+            const nftType = 721;
             const [parsedLogs1, parsedLogs2, lockedReceipt1, lockedReceipt2] =
-                await lockOnBSC();
+                await lockOnBSC(mintedCollectionOnBSC, nftType);
 
             return await claimOnEth(
                 parsedLogs1,
                 parsedLogs2,
                 lockedReceipt1,
-                lockedReceipt2
+                lockedReceipt2,
+                nftType
             );
         }
 
         async function lockOnEthAndClaimOnBSC(
             lockedEventDatas: TProcessedLogs[],
-            duplicateCollectionContracts: ERC721Royalty[],
+            duplicateCollectionContracts: Contract[],
             duplicateCollectionAddresses: string[]
         ) {
+            const nftType = 721;
+
             const [
                 lockedOnEthLogData1,
                 lockedOnEthLogData2,
@@ -721,15 +899,18 @@ describe("Bridge", function () {
                 lockOnEthReceipt2,
             ] = await lockOnEth(
                 lockedEventDatas,
-                duplicateCollectionContracts,
-                duplicateCollectionAddresses
+                duplicateCollectionContracts as any,
+                duplicateCollectionAddresses,
+                nftType
             );
 
             await claimOnBSC(
                 lockedOnEthLogData1,
                 lockedOnEthLogData2,
                 lockOnEthReceipt1,
-                lockOnEthReceipt2
+                lockOnEthReceipt2,
+                mintedCollectionOnBSC,
+                nftType
             );
         }
 

@@ -1,4 +1,4 @@
-import { Typed } from "ethers";
+import { Contract, ContractTransactionReceipt, Typed } from "ethers";
 import { Bridge, ERC721Royalty } from "../contractsTypes";
 
 export type TLockedEventData = {
@@ -37,7 +37,7 @@ export type TLockOnBSCAndClaimOnEthReturn = Promise<
     [
         logs: TProcessedLogs[],
         storageAddresses: string[],
-        storageContracts: ERC721Royalty[]
+        storageContracts: Contract[]
     ]
 >;
 
@@ -46,3 +46,12 @@ export type TCreateHashReturn = [
     Uint8Array,
     string
 ];
+
+export type TLockReturn = [
+    TProcessedLogs,
+    TProcessedLogs,
+    ContractTransactionReceipt | null,
+    ContractTransactionReceipt | null
+];
+
+export type TNFTType = 721 | 1155;
