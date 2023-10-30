@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 /**
  * @dev Structure representing chain to chain fee
  */
@@ -67,18 +65,18 @@ contract BridgeStorage {
 
     /**
      * @dev bootstrap the bridge storage with a intial validator and intial fee for chains
-     * @param bootstrapValidator Address of the staker.
-     * @param bootstrapChainFee array of chain fee
+     * @param _bootstrapValidator Address of the staker.
+     * @param _bootstrapChainFee array of chain fee
      */
     constructor(
-        address bootstrapValidator,
-        ChainFee[] memory bootstrapChainFee
+        address _bootstrapValidator,
+        ChainFee[] memory _bootstrapChainFee
     ) {
-        validators[bootstrapValidator] = true;
+        validators[_bootstrapValidator] = true;
         validatorCount++;
 
-        for (uint256 i = 0; i < bootstrapChainFee.length; i++) {
-            chainFee[bootstrapChainFee[i].chain] = bootstrapChainFee[i].fee;
+        for (uint256 i = 0; i < _bootstrapChainFee.length; i++) {
+            chainFee[_bootstrapChainFee[i].chain] = _bootstrapChainFee[i].fee;
         }
     }
 
@@ -95,29 +93,29 @@ contract BridgeStorage {
 
     /**
      * @dev change / add a chain with new fee
-     * @param chain  new / old chain.
-     * @param fee  new fee.
+     * @param _chain  new / old chain.
+     * @param _fee  new fee.
      */
     function changeChainFee(
-        string calldata chain,
-        uint256 fee
+        string calldata _chain,
+        uint256 _fee
     ) public onlyValidator {
         require(
-            chainFeeVoted[chain][fee][msg.sender][chainEpoch[chain]] == false,
+            chainFeeVoted[_chain][_fee][msg.sender][chainEpoch[_chain]] == false,
             "Already voted"
         );
-        chainFeeVoted[chain][fee][msg.sender][chainEpoch[chain]] = true;
+        chainFeeVoted[_chain][_fee][msg.sender][chainEpoch[_chain]] = true;
 
-        chainFeeVotes[chain][fee][chainEpoch[chain]]++;
+        chainFeeVotes[_chain][_fee][chainEpoch[_chain]]++;
 
         uint256 twoByThreeValidators = (2 * validatorCount) / 3;
 
         if (
-            chainFeeVotes[chain][fee][chainEpoch[chain]] >=
+            chainFeeVotes[_chain][_fee][chainEpoch[_chain]] >=
             twoByThreeValidators + 1
         ) {
-            chainFee[chain] = fee;
-            chainEpoch[chain]++;
+            chainFee[_chain] = _fee;
+            chainEpoch[_chain]++;
         }
     }
 
@@ -161,20 +159,20 @@ contract BridgeStorage {
 
     /**
      * @dev Approves a stake using a signature.
-     * @param stakerAddress Address of the staker.
-     * @param signature The signature to be approved.
+     * @param _stakerAddress Address of the staker.
+     * @param _signature The signature to be approved.
      */
     function approveStake(
-        address stakerAddress,
-        string calldata signature
+        address _stakerAddress,
+        string calldata _signature
     ) public onlyValidator {
-        require(!usedSignatures[signature], "Signature already used");
-        usedSignatures[signature] = true;
+        require(!usedSignatures[_signature], "Signature already used");
+        usedSignatures[_signature] = true;
         SignerAndSignature memory signerAndSignatre;
         signerAndSignatre.publicAddress = msg.sender;
-        signerAndSignatre.signature = signature;
-        stakingSignatures[stakerAddress].push(signerAndSignatre);
-        changeValidatorStatus(stakerAddress, true);
+        signerAndSignatre.signature = _signature;
+        stakingSignatures[_stakerAddress].push(signerAndSignatre);
+        changeValidatorStatus(_stakerAddress, true);
     }
 
     /**
@@ -201,21 +199,21 @@ contract BridgeStorage {
 
     /**
      * @dev Approves the locking of an NFT using a signature.
-     * @param transactionHash tx hash of source chain
-     * @param chain source chain name eg BSC
-     * @param signature The signature to be approved.
+     * @param _transactionHash tx hash of source chain
+     * @param _chain source chain name eg BSC
+     * @param _signature The signature to be approved.
      */
     function approveLockNft(
-        string calldata transactionHash,
-        string calldata chain,
-        string calldata signature
+        string calldata _transactionHash,
+        string calldata _chain,
+        string calldata _signature
     ) public onlyValidator {
-        require(!usedSignatures[signature], "Signature already used");
-        usedSignatures[signature] = true;
+        require(!usedSignatures[_signature], "Signature already used");
+        usedSignatures[_signature] = true;
         SignerAndSignature memory signerAndSignatre;
         signerAndSignatre.publicAddress = msg.sender;
-        signerAndSignatre.signature = signature;
-        lockSignatures[transactionHash][chain].push(signerAndSignatre);
+        signerAndSignatre.signature = _signature;
+        lockSignatures[_transactionHash][_chain].push(signerAndSignatre);
     }
 
     /**
