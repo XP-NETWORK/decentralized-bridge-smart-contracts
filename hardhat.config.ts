@@ -43,6 +43,14 @@ const config: HardhatUserConfig = {
             accounts: [
                 "8a6a4e9e3865814dc8f1e4fca103051162921715d1e517ba638ba05656f320b0",
             ],
+        }, 
+        maticTestnet: {
+            url: "https://rpc-mumbai.maticvigil.com/", // OP Testnet RPC URL
+            chainId: 80001, // Chain ID for MATIC Testnet
+            gasPrice: 5000000000, // Gas price (wei) for transactions on MATIC Testnet
+            accounts: [
+                "8a6a4e9e3865814dc8f1e4fca103051162921715d1e517ba638ba05656f320b0",
+            ],
         },
     },
     typechain: {
