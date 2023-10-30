@@ -21,10 +21,15 @@ struct ContractInfo {
     address contractAddress;
 }
 
+struct Validator {
+    bool added;
+    uint pendingReward;
+}
+
 contract Bridge {
     using ECDSA for bytes32;
 
-    mapping(address => bool) public validators;
+    mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
 
     INFTCollectionDeployer public collectionDeployer;
@@ -78,6 +83,7 @@ contract Bridge {
     }
 
     event AddNewValidator(address _validator);
+    event RewardValidator(address _validator);
 
     event Locked(
         uint256 tokenId, // Unique ID for the NFT transfer
@@ -117,13 +123,13 @@ contract Bridge {
         require(
             keccak256(abi.encodePacked(destinationChain)) ==
                 keccak256(abi.encodePacked(selfChain)),
-            "Invalid destination chain"
+            "Invalid destination chain!"
         );
         _;
     }
 
     modifier hasCorrectFee(uint256 fee) {
-        require(fee >= msg.value, "Fee and sent amount do not match");
+        require(msg.value >= fee, "data.fee LESS THAN sent amount!");
         _;
     }
 
@@ -150,9 +156,8 @@ contract Bridge {
 
         selfChain = _chainSymbol;
         for (uint256 i = 0; i < _validators.length; i++) {
-            validators[_validators[i]] = true;
+            validators[_validators[i]].added = true;
             validatorsCount += 1;
-            // validatorsArray.push(_validators[i]);
         }
     }
 
@@ -169,7 +174,7 @@ contract Bridge {
                 keccak256(abi.encode(_validator)),
                 signatures[i]
             );
-            if (validators[signer]) {
+            if (validators[signer].added) {
                 percentage += 1;
             }
         }
@@ -180,8 +185,41 @@ contract Bridge {
         );
 
         emit AddNewValidator(address(_validator));
-        validators[_validator] = true;
+        validators[_validator].added = true;
         validatorsCount += 1;
+    }
+
+    function claimValidatorRewards(
+        address _validator,
+        bytes[] memory signatures
+    ) external {
+        require(_validator != address(0), "Address cannot be zero address!");
+        require(signatures.length > 0, "Must have signatures!");
+        require(
+            validators[_validator].added == true,
+            "Validator does not exist!"
+        );
+
+        uint256 percentage = 0;
+        for (uint256 i = 0; i < signatures.length; i++) {
+            address signer = recover(
+                keccak256(abi.encode(_validator)),
+                signatures[i]
+            );
+            if (validators[signer].added) {
+                percentage += 1;
+            }
+        }
+
+        require(
+            percentage >= ((validatorsCount * 2) / 3) + 1,
+            "Threshold not reached!"
+        );
+
+        emit RewardValidator(address(_validator));
+        uint256 rewards = validators[_validator].pendingReward;
+        validators[_validator].pendingReward = 0;
+        payable(_validator).transfer(rewards);
     }
 
     function lock721(
@@ -311,6 +349,12 @@ contract Bridge {
         hasCorrectFee(data.fee)
         matchesCurrentChain(data.destinationChain)
     {
+        // console.log("msg.value %s", msg.value);
+        require(
+            keccak256(abi.encodePacked(data.nftType)) ==
+                keccak256(abi.encodePacked(TYPEERC721)),
+            "Invalid NFT type!"
+        );
         bytes32 hash = createClaimDataHash(data);
 
         require(!uniqueIdentifier[hash], "Data already processed!");
@@ -450,6 +494,11 @@ contract Bridge {
         hasCorrectFee(data.fee)
         matchesCurrentChain(data.destinationChain)
     {
+        require(
+            keccak256(abi.encodePacked(data.nftType)) ==
+                keccak256(abi.encodePacked(TYPEERC1155)),
+            "Invalid NFT type!"
+        );
         bytes32 hash = createClaimDataHash(data);
 
         require(!uniqueIdentifier[hash], "Data already processed!");
@@ -694,13 +743,15 @@ contract Bridge {
         require(fee > 0, "Invalid fees");
 
         uint256 totalRewards = address(this).balance;
+        // console.log("totalRewards %s", totalRewards);
 
         require(totalRewards >= fee, "No rewards available");
 
-        uint256 feePerValidator = fee / validatorsToReward.length;
-
+        uint256 feePerValidator = totalRewards / validatorsToReward.length;
+        // console.log("FEE %s", feePerValidator);
         for (uint256 i = 0; i < validatorsToReward.length; i++) {
-            payable(validatorsToReward[i]).transfer(feePerValidator);
+            validators[validatorsToReward[i]].pendingReward += feePerValidator;
+            // payable().transfer(feePerValidator);
         }
     }
 
@@ -717,7 +768,7 @@ contract Bridge {
             address signer = recover(hash, signatures[i]);
             // console.log("signer: %s", signer);
 
-            if (validators[signer]) {
+            if (validators[signer].added) {
                 percentage += 1;
                 validatorsToReward[i] = signer;
             }
@@ -790,4 +841,6 @@ contract Bridge {
         );
         return ECDSA.recover(hash, sig);
     }
+
+    receive() external payable {}
 }
