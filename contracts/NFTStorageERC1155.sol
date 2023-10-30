@@ -18,11 +18,6 @@ contract NFTStorageERC1155 is ERC1155Holder {
         _;
     }
 
-    modifier onlyValidator() {
-        require(false, "Only validators can unlock token");
-        _;
-    }
-
     // Function to deposit an ERC-1155 token into this contract
     function depositToken(uint256 tokenId, uint256 amount) external onlyOwner {
         // Transfer the token to this contract
@@ -40,7 +35,7 @@ contract NFTStorageERC1155 is ERC1155Holder {
         uint256 tokenId,
         uint256 amount,
         address to
-    ) external onlyOwner onlyValidator {
+    ) external onlyOwner {
         // Ensure this contract has the balance before transferring
         require(
             collectionAddress.balanceOf(address(this), tokenId) >= amount,

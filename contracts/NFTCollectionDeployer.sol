@@ -14,6 +14,8 @@ contract NFTCollectionDeployer {
         _;
     }
 
+    event CreatedCollection(address collectionAddress);
+
     function setOwner(address _owner) external {
         require(owner == address(0), "Owner already set!");
         owner = _owner;
@@ -29,12 +31,20 @@ contract NFTCollectionDeployer {
             owner
         );
 
-        return address(newERC721CollectionAddress);
+        address collectionAddress = address(newERC721CollectionAddress);
+
+        emit CreatedCollection(collectionAddress);
+
+        return collectionAddress;
     }
 
     function deployNFT1155Collection() external onlyOwner returns (address) {
         ERC1155Royalty newERC1155CollectionAddress = new ERC1155Royalty(owner);
 
-        return address(newERC1155CollectionAddress);
+        address collectionAddress = address(newERC1155CollectionAddress);
+
+        emit CreatedCollection(collectionAddress);
+
+        return collectionAddress;
     }
 }

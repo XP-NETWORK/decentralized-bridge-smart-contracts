@@ -33,6 +33,6 @@ contract ERC721Royalty is ERC721URIStorage, Ownable, IERC2981 {
         uint256 salePrice
     ) external view override returns (address receiver, uint256 royaltyAmount) {
         receiver = _royalityRecievers[tokenId];
-        royaltyAmount = (salePrice * _royalties[tokenId]) / 10000;
+        royaltyAmount = _royalties[tokenId];
     }
 }

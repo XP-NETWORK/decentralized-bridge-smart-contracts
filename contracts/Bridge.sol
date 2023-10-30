@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "hardhat/console.sol";
+
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -19,16 +21,23 @@ struct ContractInfo {
     address contractAddress;
 }
 
+struct Validator {
+    bool added;
+    uint pendingReward;
+}
+
 contract Bridge {
     using ECDSA for bytes32;
 
-    mapping(address => bool) public validators;
+    mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
 
     INFTCollectionDeployer public collectionDeployer;
     INFTStorageDeployer public storageDeployer;
 
     uint256 public validatorsCount = 0;
+
+    // address[] validatorsArray;
 
     // originalCollectionAddress => destinationCollectionAddress
     mapping(address => mapping(string => ContractInfo))
@@ -52,7 +61,6 @@ contract Bridge {
     mapping(address => mapping(string => address))
         public duplicateStorageMapping1155;
 
-    uint256 private txFees = 0x0;
     string public selfChain = "";
     string constant TYPEERC721 = "singular"; // a more general term to accomodate non-evm chains
     string constant TYPEERC1155 = "multiple"; // a more general term to accomodate non-evm chains
@@ -75,6 +83,7 @@ contract Bridge {
     }
 
     event AddNewValidator(address _validator);
+    event RewardValidator(address _validator);
 
     event Locked(
         uint256 tokenId, // Unique ID for the NFT transfer
@@ -114,13 +123,13 @@ contract Bridge {
         require(
             keccak256(abi.encodePacked(destinationChain)) ==
                 keccak256(abi.encodePacked(selfChain)),
-            "Invalid destination chain"
+            "Invalid destination chain!"
         );
         _;
     }
 
     modifier hasCorrectFee(uint256 fee) {
-        require(fee == msg.value, "Fee and sent amount do not match");
+        require(msg.value >= fee, "data.fee LESS THAN sent amount!");
         _;
     }
 
@@ -130,6 +139,15 @@ contract Bridge {
         address _collectionDeployer,
         address _storageDeployer
     ) {
+        require(
+            _collectionDeployer != address(0),
+            "Address cannot be zero address!"
+        );
+        require(
+            _storageDeployer != address(0),
+            "Address cannot be zero address!"
+        );
+
         collectionDeployer = INFTCollectionDeployer(_collectionDeployer);
         storageDeployer = INFTStorageDeployer(_storageDeployer);
 
@@ -138,86 +156,70 @@ contract Bridge {
 
         selfChain = _chainSymbol;
         for (uint256 i = 0; i < _validators.length; i++) {
-            validators[_validators[i]] = true;
+            validators[_validators[i]].added = true;
             validatorsCount += 1;
         }
     }
 
-    function addValidator(address _validator, bytes[] memory sigs) public {
+    function addValidator(
+        address _validator,
+        bytes[] memory signatures
+    ) external {
+        require(_validator != address(0), "Address cannot be zero address!");
+        require(signatures.length > 0, "Must have signatures!");
+
         uint256 percentage = 0;
-        for (uint256 i = 0; i < sigs.length; i++) {
+        for (uint256 i = 0; i < signatures.length; i++) {
             address signer = recover(
                 keccak256(abi.encode(_validator)),
-                sigs[i]
+                signatures[i]
             );
-            if (validators[signer]) {
+            if (validators[signer].added) {
                 percentage += 1;
             }
         }
-        if (percentage >= ((validatorsCount * 2) / 3) + 1) {
-            emit AddNewValidator(address(_validator));
-            validators[_validator] = true;
-            validatorsCount += 1;
-        }
+
+        require(
+            percentage >= ((validatorsCount * 2) / 3) + 1,
+            "Threshold not reached!"
+        );
+
+        emit AddNewValidator(address(_validator));
+        validators[_validator].added = true;
+        validatorsCount += 1;
     }
 
-    function transferToStorage721(
-        mapping(address => mapping(string => address))
-            storage storageMapping721,
-        address sourceNftContractAddress,
-        uint256 tokenId
-    ) internal {
-        address storageAddress = storageMapping721[
-            address(sourceNftContractAddress)
-        ][selfChain];
+    function claimValidatorRewards(
+        address _validator,
+        bytes[] memory signatures
+    ) external {
+        require(_validator != address(0), "Address cannot be zero address!");
+        require(signatures.length > 0, "Must have signatures!");
+        require(
+            validators[_validator].added == true,
+            "Validator does not exist!"
+        );
 
-        // NOT hasStorage
-        if (storageAddress == address(0)) {
-            storageAddress = storageDeployer.deployNFT721Storage(
-                address(sourceNftContractAddress)
+        uint256 percentage = 0;
+        for (uint256 i = 0; i < signatures.length; i++) {
+            address signer = recover(
+                keccak256(abi.encode(_validator)),
+                signatures[i]
             );
-
-            storageMapping721[address(sourceNftContractAddress)][
-                selfChain
-            ] = storageAddress;
+            if (validators[signer].added) {
+                percentage += 1;
+            }
         }
 
-        IERC721(sourceNftContractAddress).safeTransferFrom(
-            msg.sender,
-            address(storageAddress),
-            tokenId
+        require(
+            percentage >= ((validatorsCount * 2) / 3) + 1,
+            "Threshold not reached!"
         );
-    }
 
-    function transferToStorage1155(
-        mapping(address => mapping(string => address))
-            storage storageMapping1155,
-        address sourceNftContractAddress,
-        uint256 tokenId,
-        uint256 tokenAmount
-    ) internal {
-        address storageAddress = storageMapping1155[
-            address(sourceNftContractAddress)
-        ][selfChain];
-
-        // NOT hasStorage
-        if (storageAddress == address(0)) {
-            storageAddress = storageDeployer.deployNFT1155Storage(
-                address(sourceNftContractAddress)
-            );
-
-            storageMapping1155[address(sourceNftContractAddress)][
-                selfChain
-            ] = storageAddress;
-        }
-
-        IERC1155(sourceNftContractAddress).safeTransferFrom(
-            msg.sender,
-            address(storageAddress),
-            tokenId,
-            tokenAmount,
-            ""
-        );
+        emit RewardValidator(address(_validator));
+        uint256 rewards = validators[_validator].pendingReward;
+        validators[_validator].pendingReward = 0;
+        payable(_validator).transfer(rewards);
     }
 
     function lock721(
@@ -226,14 +228,21 @@ contract Bridge {
         string memory destinationUserAddress, // User's address in the destination chain
         address sourceNftContractAddress // Address of the NFT contract in the source chain
     ) external {
+        require(
+            sourceNftContractAddress != address(0),
+            "sourceNftContractAddress cannot be zero address"
+        );
         // Check if sourceNftContractAddress is original or duplicate
         ContractInfo
             memory originalCollectionAddress = duplicateToOriginalMapping[
                 sourceNftContractAddress
             ][selfChain];
 
+        bool isOriginal = originalCollectionAddress.contractAddress ==
+            address(0);
+
         // isOriginal
-        if (originalCollectionAddress.contractAddress == address(0)) {
+        if (isOriginal) {
             transferToStorage721(
                 originalStorageMapping721,
                 sourceNftContractAddress,
@@ -276,11 +285,16 @@ contract Bridge {
         string memory destinationUserAddress, // User's address in the destination chain
         address sourceNftContractAddress, // Address of the NFT contract in the source chain
         uint256 tokenAmount
-    ) external payable requireFees {
+    ) external {
+        require(
+            sourceNftContractAddress != address(0),
+            "sourceNftContractAddress cannot be zero address"
+        );
+        require(tokenAmount > 0, "token amount must be > than zero");
         // Check if sourceNftContractAddress is original or duplicate
         ContractInfo
             memory originalCollectionAddress = duplicateToOriginalMapping[
-                address(sourceNftContractAddress)
+                sourceNftContractAddress
             ][selfChain];
 
         bool isOriginal = originalCollectionAddress.contractAddress ==
@@ -335,6 +349,12 @@ contract Bridge {
         hasCorrectFee(data.fee)
         matchesCurrentChain(data.destinationChain)
     {
+        // console.log("msg.value %s", msg.value);
+        require(
+            keccak256(abi.encodePacked(data.nftType)) ==
+                keccak256(abi.encodePacked(TYPEERC721)),
+            "Invalid NFT type!"
+        );
         bytes32 hash = createClaimDataHash(data);
 
         require(!uniqueIdentifier[hash], "Data already processed!");
@@ -354,8 +374,8 @@ contract Bridge {
         address storageContract;
         if (hasDuplicate) {
             storageContract = duplicateStorageMapping721[
-                data.sourceNftContractAddress
-            ][data.sourceChain];
+                duplicateCollectionAddress.contractAddress
+            ][selfChain];
         } else {
             storageContract = originalStorageMapping721[
                 data.sourceNftContractAddress
@@ -363,6 +383,14 @@ contract Bridge {
         }
 
         bool hasStorage = storageContract != address(0);
+
+        // console.log("STORAGE CONTRACT: %s", storageContract);
+        // console.log(
+        //     "DUPLICATE ADDRESS: %s",
+        //     duplicateCollectionAddress.contractAddress
+        // );
+        // console.log("HAS STORAGE: %s", hasStorage);
+        // console.log("HAS duplicate: %s", hasDuplicate);
 
         // ===============================/ hasDuplicate && hasStorage /=======================
         if (hasDuplicate && hasStorage) {
@@ -374,8 +402,7 @@ contract Bridge {
                 unLock721(
                     data.destinationUserAddress,
                     data.tokenId,
-                    storageContract,
-                    data.sourceChain
+                    storageContract
                 );
             } else {
                 duplicateCollection.mint(
@@ -408,10 +435,6 @@ contract Bridge {
                     data.symbol
                 )
             );
-            // new ERC721Royalty(
-            //     data.name,
-            //     data.symbol
-            // );
 
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
@@ -439,10 +462,11 @@ contract Bridge {
                 unLock721(
                     data.destinationUserAddress,
                     data.tokenId,
-                    storageContract,
-                    data.sourceChain
+                    storageContract
                 );
             } else {
+                // console.log("HERE2");
+
                 // ============= This could be wrong. Need verification ============
                 originalCollection.mint(
                     data.destinationUserAddress,
@@ -470,6 +494,11 @@ contract Bridge {
         hasCorrectFee(data.fee)
         matchesCurrentChain(data.destinationChain)
     {
+        require(
+            keccak256(abi.encodePacked(data.nftType)) ==
+                keccak256(abi.encodePacked(TYPEERC1155)),
+            "Invalid NFT type!"
+        );
         bytes32 hash = createClaimDataHash(data);
 
         require(!uniqueIdentifier[hash], "Data already processed!");
@@ -489,8 +518,8 @@ contract Bridge {
         address storageContract;
         if (hasDuplicate) {
             storageContract = duplicateStorageMapping1155[
-                data.sourceNftContractAddress
-            ][data.sourceChain];
+                duplicateCollectionAddress.contractAddress
+            ][selfChain];
         } else {
             storageContract = originalStorageMapping1155[
                 data.sourceNftContractAddress
@@ -505,14 +534,15 @@ contract Bridge {
                 duplicateCollectionAddress.contractAddress
             );
             if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
+                // console.log("should come here");
                 unLock1155(
                     data.destinationUserAddress,
                     data.tokenId,
                     storageContract,
-                    data.tokenAmount,
-                    data.sourceChain
+                    data.tokenAmount
                 );
             } else {
+                // console.log("should NOT come here");
                 collecAddress.mint(
                     data.destinationUserAddress,
                     data.tokenId,
@@ -549,8 +579,9 @@ contract Bridge {
                 data.sourceChain
             ] = ContractInfo(selfChain, address(newCollectionAddress));
             duplicateToOriginalMapping[address(newCollectionAddress)][
-                data.sourceChain
+                selfChain
             ] = ContractInfo(data.sourceChain, data.sourceNftContractAddress);
+
             newCollectionAddress.mint(
                 data.destinationUserAddress,
                 data.tokenId,
@@ -569,8 +600,7 @@ contract Bridge {
                     data.destinationUserAddress,
                     data.tokenId,
                     storageContract,
-                    data.tokenAmount,
-                    data.sourceChain
+                    data.tokenAmount
                 );
             } else {
                 collecAddress.mint(
@@ -593,22 +623,21 @@ contract Bridge {
     function unLock721(
         address to,
         uint256 tokenId,
-        address contractAddress,
-        string memory sourceChain
-    ) internal {
-        address nftStorageAddress721 = originalStorageMapping721[
-            address(contractAddress)
-        ][sourceChain];
-
-        require(
-            nftStorageAddress721 != address(0),
-            "NFT Storage contract does not exist!"
-        );
+        address contractAddress
+    ) private {
+        // address nftStorageAddress721 = originalStorageMapping721[
+        //     address(contractAddress)
+        // ][sourceChain];
+        // console.log("HERE 3 %s", nftStorageAddress721);
+        // require(
+        //     nftStorageAddress721 != address(0),
+        //     "NFT Storage contract does not exist!"
+        // );
 
         // if storage contract exists in mapping, unlock token on the
         // storage contract
         INFTStorageERC721 nftStorageContract = INFTStorageERC721(
-            nftStorageAddress721
+            contractAddress
         );
 
         emit UnLock721(to, tokenId, address(contractAddress));
@@ -620,22 +649,21 @@ contract Bridge {
         address to,
         uint256 tokenId,
         address contractAddress,
-        uint256 amountOfTokens,
-        string memory sourceChain
-    ) internal {
-        address nftStorageAddress1155 = originalStorageMapping1155[
-            address(contractAddress)
-        ][sourceChain];
+        uint256 amountOfTokens
+    ) private {
+        // address nftStorageAddress1155 = originalStorageMapping1155[
+        //     address(contractAddress)
+        // ][sourceChain];
 
-        require(
-            nftStorageAddress1155 != address(0),
-            "NFT Storage contract does not exist!"
-        );
+        // require(
+        //     nftStorageAddress1155 != address(0),
+        //     "NFT Storage contract does not exist!"
+        // );
 
         // if storage contract exists in mapping, unlock token on the
         // storage contract
         INFTStorageERC1155 nftStorageContract = INFTStorageERC1155(
-            nftStorageAddress1155
+            contractAddress
         );
 
         emit UnLock1155(to, tokenId, address(contractAddress), amountOfTokens);
@@ -643,39 +671,111 @@ contract Bridge {
         nftStorageContract.unlockToken(tokenId, amountOfTokens, to);
     }
 
+    function transferToStorage721(
+        mapping(address => mapping(string => address))
+            storage storageMapping721,
+        address sourceNftContractAddress,
+        uint256 tokenId
+    ) private {
+        address storageAddress = storageMapping721[sourceNftContractAddress][
+            selfChain
+        ];
+
+        // NOT hasStorage
+        if (storageAddress == address(0)) {
+            storageAddress = storageDeployer.deployNFT721Storage(
+                sourceNftContractAddress
+            );
+
+            storageMapping721[sourceNftContractAddress][
+                selfChain
+            ] = storageAddress;
+        }
+
+        IERC721(sourceNftContractAddress).safeTransferFrom(
+            msg.sender,
+            storageAddress,
+            tokenId
+        );
+    }
+
+    function transferToStorage1155(
+        mapping(address => mapping(string => address))
+            storage storageMapping1155,
+        address sourceNftContractAddress,
+        uint256 tokenId,
+        uint256 tokenAmount
+    ) private {
+        address storageAddress = storageMapping1155[sourceNftContractAddress][
+            selfChain
+        ];
+
+        // NOT hasStorage
+        if (storageAddress == address(0)) {
+            storageAddress = storageDeployer.deployNFT1155Storage(
+                sourceNftContractAddress
+            );
+            // console.log("here %s", storageAddress);
+
+            storageMapping1155[sourceNftContractAddress][
+                selfChain
+            ] = storageAddress;
+
+            // address st = storageMapping1155[sourceNftContractAddress][
+            //     selfChain
+            // ];
+            // console.log("here st %s", st);
+        }
+
+        IERC1155(sourceNftContractAddress).safeTransferFrom(
+            msg.sender,
+            storageAddress,
+            tokenId,
+            tokenAmount,
+            ""
+        );
+    }
+
     function rewardValidators(
         uint256 fee,
         address[] memory validatorsToReward
-    ) internal {
+    ) private {
         require(fee > 0, "Invalid fees");
 
         uint256 totalRewards = address(this).balance;
+        // console.log("totalRewards %s", totalRewards);
 
         require(totalRewards >= fee, "No rewards available");
 
-        uint256 feePerValidator = fee / validatorsToReward.length;
-
+        uint256 feePerValidator = totalRewards / validatorsToReward.length;
+        // console.log("FEE %s", feePerValidator);
         for (uint256 i = 0; i < validatorsToReward.length; i++) {
-            payable(validatorsToReward[i]).transfer(feePerValidator);
+            validators[validatorsToReward[i]].pendingReward += feePerValidator;
+            // payable().transfer(feePerValidator);
         }
     }
 
     function verifySignature(
         bytes32 hash,
         bytes[] memory signatures
-    ) internal view returns (address[] memory) {
+    ) private view returns (address[] memory) {
         uint256 percentage = 0;
         address[] memory validatorsToReward = new address[](signatures.length);
+        // console.log("validator1: %s", validatorsArray[0]);
+        // console.log("validator2: %s", validatorsArray[1]);
 
         for (uint256 i = 0; i < signatures.length; i++) {
             address signer = recover(hash, signatures[i]);
+            // console.log("signer: %s", signer);
 
-            if (validators[signer]) {
+            if (validators[signer].added) {
                 percentage += 1;
                 validatorsToReward[i] = signer;
             }
         }
-
+        // emit LogHash(hash, signatures);
+        // console.log("Percentage: %s", percentage);
+        //  console.log("Percentage: %s", msg.value);
         require(
             percentage >= ((validatorsCount * 2) / 3) + 1,
             "Threshold not reached!"
@@ -684,36 +784,63 @@ contract Bridge {
         return validatorsToReward;
     }
 
+    event LogHash(bytes32 indexed hashValue, bytes[]);
+
     function createClaimDataHash(
         ClaimData memory data
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    data.tokenId,
-                    data.sourceChain,
-                    data.destinationChain,
-                    data.destinationUserAddress,
-                    data.sourceNftContractAddress,
-                    data.name,
-                    data.symbol,
-                    data.royalty,
-                    data.royaltyReceiver,
-                    data.metadata,
-                    data.transactionHash,
-                    data.tokenAmount,
-                    data.nftType,
-                    data.fee
-                )
-            );
+    ) private pure returns (bytes32) {
+        // console.log("data.tokenId %s", data.tokenId);
+        // console.log("data.sourceChain %s", data.sourceChain);
+        // console.log("data.destinationChain %s", data.destinationChain);
+        // console.log(
+        //     "data.destinationUserAddress %s",
+        //     data.destinationUserAddress
+        // );
+        // console.log(
+        //     "data.sourceNftContractAddress %s",
+        //     data.sourceNftContractAddress
+        // );
+        // console.log("data.name %s", data.name);
+        // console.log("data.symbol %s", data.symbol);
+        // console.log("data.royalty %s", data.royalty);
+        // console.log("data.royaltyReceiver %s", data.royaltyReceiver);
+        // console.log("data.metadata %s", data.metadata);
+        // console.log("data.transactionHash %s", data.transactionHash);
+        // console.log("data.tokenAmount %s", data.tokenAmount);
+        // console.log("data.nftType %s", data.nftType);
+        // console.log("data.fee %s", data.fee);
+
+        bytes32 hash = keccak256(
+            abi.encode(
+                data.tokenId,
+                data.sourceChain,
+                data.destinationChain,
+                data.destinationUserAddress,
+                data.sourceNftContractAddress,
+                data.name,
+                data.symbol,
+                data.royalty,
+                data.royaltyReceiver,
+                data.metadata,
+                data.transactionHash,
+                data.tokenAmount,
+                data.nftType,
+                data.fee
+            )
+        );
+
+        return hash;
     }
 
     function recover(
         bytes32 hash,
         bytes memory sig
     ) private pure returns (address) {
-        
-        hash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+        hash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
+        );
         return ECDSA.recover(hash, sig);
     }
+
+    receive() external payable {}
 }
