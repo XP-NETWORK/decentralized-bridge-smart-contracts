@@ -19,6 +19,7 @@ import {
     TLockOnBSCAndClaimOnEthReturn,
     TLockOnEthAndClaimOnBSCArgs,
     TLockReturn,
+    TLockReturn_NEW,
     TLockedEventData,
     TNFTDetails,
     TNFTType,
@@ -366,6 +367,7 @@ export async function lockOnBSC(
     expect(parsedLogs2.nftType).to.be.equal(getNftType(nftType));
     expect(parsedLogs2.sourceChain).to.be.equal(bscBridge.chainSymbol);
 
+    // @ts-ignore
     return [parsedLogs1, parsedLogs2, lockedReceipt1, lockedReceipt2];
 }
 
@@ -817,6 +819,370 @@ export async function claimOnBSC(
         expect(balance1).to.be.gt(0);
         expect(balance2).to.be.gt(0);
     }
+}
+
+type TLockNewArgs = {
+    lockedEventDatas: TProcessedLogs[];
+    duplicateCollectionContracts: ERC1155Royalty[] | ERC721Royalty[];
+    duplicateCollectionAddresses: string[];
+    nftDetails: TNFTDetails;
+    bscUser: HardhatEthersSigner;
+    ethUser: HardhatEthersSigner;
+    bscBridge: TBridge;
+    ethBridge: TBridge;
+    nftType: TNFTType;
+};
+
+export async function lock_NEW({
+    lockedEventDatas,
+    duplicateCollectionContracts,
+    duplicateCollectionAddresses,
+    nftDetails,
+    bscUser,
+    ethUser,
+    bscBridge,
+    ethBridge,
+    nftType,
+}: TLockNewArgs): Promise<TLockReturn_NEW> {
+    const [duplicateCollectionAddress1, duplicateCollectionAddress2] =
+        duplicateCollectionAddresses;
+
+    console.log({ bscBridge: bscBridge.chainSymbol }); // MOONBEAM
+    console.log({ ethBridge: ethBridge.chainSymbol }); // ARBI
+
+    await Promise.all(
+        lockedEventDatas.map(async (data, i) => {
+            if (nftType === 721) {
+                return (duplicateCollectionContracts[i] as ERC721Royalty)
+                    .connect(bscUser)
+                    .approve(bscBridge.address, data.tokenId)
+                    .then((r) => r.wait());
+            } else {
+                return (duplicateCollectionContracts[i] as ERC1155Royalty)
+                    .connect(bscUser)
+                    .setApprovalForAll(bscBridge.address, true)
+                    .then((r) => r.wait());
+            }
+        })
+    );
+
+    const [lockOnEthReceipt1, lockOnEthReceipt2] = await Promise.all(
+        lockedEventDatas.map(async (data, i) => {
+            if (nftType === 721) {
+                return bscBridge.bridge
+                    .connect(bscUser)
+                    .lock721(
+                        data.tokenId,
+                        ethBridge.chainSymbol,
+                        ethUser.address,
+                        duplicateCollectionContracts[i]
+                    )
+                    .then((r) => r.wait());
+            } else {
+                return bscBridge.bridge
+                    .connect(bscUser)
+                    .lock1155(
+                        data.tokenId,
+                        ethBridge.chainSymbol,
+                        ethUser.address,
+                        duplicateCollectionContracts[i],
+                        AMOUNT_TO_LOCK
+                    )
+                    .then((r) => r.wait());
+            }
+        })
+    );
+
+    const originalStorageAddressForDuplicateCollectionProm1 = bscBridge.bridge[
+        nftType === 721
+            ? "originalStorageMapping721"
+            : "originalStorageMapping1155"
+    ](duplicateCollectionAddress1, bscBridge.chainSymbol);
+
+    const duplicateStorageAddressForDuplicateCollectionProm1 = bscBridge.bridge[
+        nftType === 721
+            ? "duplicateStorageMapping721"
+            : "duplicateStorageMapping1155"
+    ](duplicateCollectionAddress1, bscBridge.chainSymbol);
+
+    const originalStorageAddressForDuplicateCollectionProm2 = bscBridge.bridge[
+        nftType === 721
+            ? "originalStorageMapping721"
+            : "originalStorageMapping1155"
+    ](duplicateCollectionAddress2, bscBridge.chainSymbol);
+
+    const duplicateStorageAddressForDuplicateCollectionProm2 = bscBridge.bridge[
+        nftType === 721
+            ? "duplicateStorageMapping721"
+            : "duplicateStorageMapping1155"
+    ](duplicateCollectionAddress2, bscBridge.chainSymbol);
+
+    const [
+        originalStorageAddressForDuplicateCollection1,
+        duplicateStorageAddressForDuplicateCollection1,
+        originalStorageAddressForDuplicateCollection2,
+        duplicateStorageAddressForDuplicateCollection2,
+    ] = await Promise.all([
+        originalStorageAddressForDuplicateCollectionProm1,
+        duplicateStorageAddressForDuplicateCollectionProm1,
+        originalStorageAddressForDuplicateCollectionProm2,
+        duplicateStorageAddressForDuplicateCollectionProm2,
+    ]);
+
+    // ======================= LOCK ON ETH - VERIFY ===================
+
+    expect(originalStorageAddressForDuplicateCollection1).to.be.equal(
+        ZeroAddress
+    );
+    expect(duplicateStorageAddressForDuplicateCollection1).to.not.be.equal(
+        ZeroAddress
+    );
+
+    expect(originalStorageAddressForDuplicateCollection2).to.be.equal(
+        ZeroAddress
+    );
+    expect(duplicateStorageAddressForDuplicateCollection2).to.not.be.equal(
+        ZeroAddress
+    );
+
+    /**
+     *  emit Locked(
+            tokenId,
+            destinationChain,
+            destinationUserAddress,
+            address(originalCollectionAddress.contractAddress),
+            1,
+            TYPEERC721,
+            originalCollectionAddress.chain
+        );
+     */
+    const lockedOnEthLogData1 = parseLogs(
+        lockOnEthReceipt1!.logs[1] as EventLog
+    );
+
+    console.log({ lockedOnEthLogData1 });
+
+    const lockedOnEthLogData2 = parseLogs(
+        lockOnEthReceipt2!.logs[1] as EventLog
+    );
+
+    expect(lockedOnEthLogData1.tokenId).to.be.equal(nftDetails.tokenId1.value);
+    expect(lockedOnEthLogData1.destinationChain).to.be.equal(
+        ethBridge.chainSymbol
+    );
+    expect(lockedOnEthLogData1.destinationUserAddress).to.be.equal(
+        ethUser.address
+    );
+    expect(lockedOnEthLogData1.sourceNftContractAddress).to.be.equal(
+        nftDetails.collectionAddress
+    );
+    expect(lockedOnEthLogData1.tokenAmount).to.be.equal(1);
+    expect(lockedOnEthLogData1.nftType).to.be.equal(getNftType(nftType));
+
+    // TODO
+    // expect(lockedOnEthLogData1.sourceChain).to.be.equal(ethBridge.chainSymbol);
+
+    // ---
+
+    expect(lockedOnEthLogData2.tokenId).to.be.equal(nftDetails.tokenId2.value);
+    expect(lockedOnEthLogData2.destinationChain).to.be.equal(
+        ethBridge.chainSymbol
+    );
+    expect(lockedOnEthLogData2.destinationUserAddress).to.be.equal(
+        ethUser.address
+    );
+    expect(lockedOnEthLogData2.sourceNftContractAddress).to.be.equal(
+        nftDetails.collectionAddress
+    );
+    expect(lockedOnEthLogData2.tokenAmount).to.be.equal(1);
+    expect(lockedOnEthLogData2.nftType).to.be.equal(getNftType(nftType));
+
+    // TODO
+    // expect(lockedOnEthLogData2.sourceChain).to.be.equal(ethBridge.chainSymbol);
+
+    const parsedLogs1 = parseLogs(lockOnEthReceipt1?.logs[1] as EventLog);
+    const parsedLogs2 = parseLogs(lockOnEthReceipt2?.logs[1] as EventLog);
+
+    return [[parsedLogs1, parsedLogs2], lockOnEthReceipt1, lockOnEthReceipt2];
+}
+
+type TClaimNewArgs = {
+    lockedOnEthLogData1: TProcessedLogs;
+    lockedOnEthLogData2: TProcessedLogs;
+    lockOnEthReceipt1: ContractTransactionReceipt | null;
+    lockOnEthReceipt2: ContractTransactionReceipt | null;
+    mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty;
+    mintedCollectionOnBSCAddress: string;
+    nftDetails: TNFTDetails;
+    bscUser: HardhatEthersSigner;
+    ethUser: HardhatEthersSigner;
+    bscBridge: TBridge;
+    nftType: TNFTType;
+    getValidatorSignatures: TGetValidatorSignatures;
+};
+
+export async function claim_NEW({
+    lockedOnEthLogData1,
+    lockedOnEthLogData2,
+    lockOnEthReceipt1,
+    lockOnEthReceipt2,
+    mintedCollectionOnBSC,
+    mintedCollectionOnBSCAddress,
+    nftDetails,
+    bscUser,
+    ethUser,
+    bscBridge,
+    nftType,
+    getValidatorSignatures,
+}: TClaimNewArgs): Promise<[string[], Contract[]]> {
+    console.log("here");
+
+    console.log({
+        bscBridge: bscBridge.chainSymbol,
+    });
+
+    console.log({ lockedOnEthLogData1 });
+    const [claimDataArgs1, dataHash1] = createHash(
+        lockedOnEthLogData1,
+        lockOnEthReceipt1?.hash,
+        nftDetails,
+        ethUser.address
+    );
+    console.log("here1");
+
+    const [claimDataArgs2, dataHash2] = createHash(
+        lockedOnEthLogData2,
+        lockOnEthReceipt2?.hash,
+        nftDetails,
+        ethUser.address
+    );
+    console.log("here2");
+
+    const signatures = await Promise.all(
+        [dataHash1, dataHash2].map((hash) =>
+            getValidatorSignatures(hash, "bsc")
+        )
+    );
+    console.log("here3");
+
+    // // ensure that storage is owner of the nft
+    // const [originalStorage721a, originalStorage721b] = await Promise.all([
+    //     bscBridge.bridge[
+    //         nftType === 721
+    //             ? "originalStorageMapping721"
+    //             : "originalStorageMapping1155"
+    //     ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+    //     bscBridge.bridge[
+    //         nftType === 721
+    //             ? "originalStorageMapping721"
+    //             : "originalStorageMapping1155"
+    //     ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+    // ]);
+
+    console.log("here4");
+    // if (nftType === 721) {
+    //     let [owner1, owner2] = await Promise.all([
+    //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+    //             lockedOnEthLogData1.tokenId
+    //         ),
+    //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+    //             lockedOnEthLogData2.tokenId
+    //         ),
+    //     ]);
+    //     expect(owner1).to.be.equal(originalStorage721a);
+    //     expect(owner2).to.be.equal(originalStorage721b);
+    // } else {
+    //     const [balance1, balance2] = await Promise.all([
+    //         (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+    //             originalStorage721a,
+    //             nftDetails.tokenId1
+    //         ),
+    //         (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+    //             originalStorage721b,
+    //             nftDetails.tokenId2
+    //         ),
+    //     ]);
+    //     // Check if storageAddressForCollection has at least one of each token
+    //     expect(balance1).to.be.gt(0);
+    //     expect(balance2).to.be.gt(0);
+    // }
+
+    console.log({ claimDataArgs1 });
+
+    await Promise.all(
+        [claimDataArgs1, claimDataArgs2].map(async (args, i) => {
+            if (nftType === 721) {
+                return bscBridge.bridge
+                    .connect(bscUser)
+                    .claimNFT721(args, signatures[i], {
+                        value: FEE.value,
+                    })
+                    .then((r) => r.wait());
+            } else {
+                return bscBridge.bridge
+                    .connect(bscUser)
+                    .claimNFT1155(args, signatures[i], {
+                        value: FEE.value,
+                    })
+                    .then((r) => r.wait());
+            }
+        })
+    );
+
+    const [
+        [destinationChainId1, duplicateCollectionAddress1],
+        [destinationChainId2, duplicateCollectionAddress2],
+    ] = await Promise.all(
+        [lockedOnEthLogData1, lockedOnEthLogData2].map((d) =>
+            bscBridge.bridge.originalToDuplicateMapping(
+                d.sourceNftContractAddress,
+                d.sourceChain
+            )
+        )
+    );
+    console.log({ duplicateCollectionAddress1, duplicateCollectionAddress2 });
+    const duplicateCollectionAddresses = [
+        duplicateCollectionAddress1,
+        duplicateCollectionAddress2,
+    ];
+
+    const duplicateCollectionContracts = await Promise.all(
+        duplicateCollectionAddresses.map((contractAddress) =>
+            hardhatEthers.getContractAt(
+                nftType === 721 ? "ERC721Royalty" : "ERC1155Royalty",
+                contractAddress
+            )
+        )
+    );
+    return [duplicateCollectionAddresses, duplicateCollectionContracts];
+
+    // ensure that bsc user is the owner after claiming
+    // if (nftType === 721) {
+    //     let [owner1, owner2] = await Promise.all([
+    //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+    //             lockedOnEthLogData1.tokenId
+    //         ),
+    //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+    //             lockedOnEthLogData2.tokenId
+    //         ),
+    //     ]);
+    //     expect(owner1).to.be.equal(bscUser.address);
+    //     expect(owner2).to.be.equal(bscUser.address);
+    // } else {
+    //     const [balance1, balance2] = await Promise.all([
+    //         (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+    //             bscUser.address,
+    //             nftDetails.tokenId1
+    //         ),
+    //         (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+    //             bscUser.address,
+    //             nftDetails.tokenId2
+    //         ),
+    //     ]);
+    //     // Check if storageAddressForCollection has at least one of each token
+    //     expect(balance1).to.be.gt(0);
+    //     expect(balance2).to.be.gt(0);
+    // }
 }
 export async function lockOnBSCAndClaimOnEth({
     mintedCollectionOnBSC,

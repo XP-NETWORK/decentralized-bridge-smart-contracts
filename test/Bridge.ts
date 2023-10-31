@@ -6,16 +6,20 @@ import {
     ERC1155Royalty,
     ERC721Royalty,
 } from "../contractsTypes";
-import { TBridge, TGetValidatorSignatures } from "./types";
+import { TBridge, TGetValidatorSignatures, TProcessedLogs } from "./types";
 import {
+    claimOnBSC,
+    claim_NEW,
     deploy1155Collection,
     deploy721Collection,
     encoder,
     hexStringToByteArray,
     lockOnBSCAndClaimOnEth,
+    lockOnEth,
     lockOnEthAndClaimOnBSC,
+    lock_NEW,
 } from "./utils";
-import { EventLog, Typed, ZeroAddress, keccak256 } from "ethers";
+import { Contract, EventLog, Typed, ZeroAddress, keccak256 } from "ethers";
 
 describe("Bridge", function () {
     let Bridge: Bridge__factory, bscBridge: TBridge, ethBridge: TBridge;
@@ -27,7 +31,7 @@ describe("Bridge", function () {
         bscUser: HardhatEthersSigner,
         ethUser: HardhatEthersSigner,
         ethBridgeDeployer: HardhatEthersSigner,
-        bscContractDeployer: HardhatEthersSigner,
+        bscBridgeDeployer: HardhatEthersSigner,
         addrs: HardhatEthersSigner[];
 
     let bscValidators: string[];
@@ -77,7 +81,7 @@ describe("Bridge", function () {
 
     beforeEach(async function () {
         [
-            bscContractDeployer,
+            bscBridgeDeployer,
             bscValidator1,
             bscValidator2,
             ethValidator1,
@@ -93,7 +97,7 @@ describe("Bridge", function () {
         bscBridge = await deployBridge(
             "BSC",
             [bscValidator1.address, bscValidator2.address],
-            bscContractDeployer
+            bscBridgeDeployer
         );
 
         ethBridge = await deployBridge(
@@ -1028,6 +1032,179 @@ describe("Bridge", function () {
                     getValidatorSignatures,
                     nftType,
                 });
+            }
+        });
+
+        const getValidatorSignatures_New = async (
+            hash: Uint8Array,
+            validatorSet: [HardhatEthersSigner, HardhatEthersSigner]
+        ): Promise<ReturnType<TGetValidatorSignatures>> => {
+            const promises: [Promise<string>, Promise<string>] = [
+                validatorSet[0].signMessage(hash),
+                validatorSet[1].signMessage(hash),
+            ];
+            return await Promise.all(promises);
+        };
+        it.only("CREATE NAME", async function () {
+            const nftType = 721;
+
+            const {
+                mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                tokenIds,
+            } = await deploy721Collection(bscUser);
+
+            const chainIds = ["MOONBEAM", "ARBI", "POLY", "AVAX", "ay", "Ayo"];
+
+            let chainObj: {
+                chainId: string;
+                bridge: TBridge;
+                validatorSet: [HardhatEthersSigner, HardhatEthersSigner];
+                deployer: HardhatEthersSigner;
+                user: HardhatEthersSigner;
+            }[] = [
+                {
+                    bridge: bscBridge,
+                    chainId: "BSC",
+                    deployer: bscBridgeDeployer,
+                    validatorSet: [bscValidator1, bscValidator2],
+                    user: bscUser,
+                },
+                {
+                    bridge: ethBridge,
+                    chainId: "ETH",
+                    deployer: ethBridgeDeployer,
+                    validatorSet: [ethValidator1, ethValidator2],
+                    user: ethUser,
+                },
+            ];
+
+            for (const [index, chainId] of chainIds.entries()) {
+                const validatorSet: [HardhatEthersSigner, HardhatEthersSigner] =
+                    [addrs[index], addrs[index + 1]];
+
+                const validatorAddressSet: [string, string] = [
+                    addrs[index].address,
+                    addrs[index + 1].address,
+                ];
+
+                const deployer = addrs[index + 2];
+
+                const bridge = await deployBridge(
+                    chainId,
+                    validatorAddressSet,
+                    addrs[index + 2]
+                );
+
+                chainObj.push({
+                    chainId,
+                    bridge,
+                    validatorSet,
+                    deployer,
+                    user: addrs[index + 3],
+                });
+
+                if (index * 4 + 3 >= addrs.length - 1) {
+                    break;
+                }
+            }
+
+            console.log({ chainObj });
+            let lockedEventDatas: TProcessedLogs[] = [],
+                duplicateCollectionAddresses: string[] = [],
+                duplicateCollectionContracts: Contract[] = [];
+
+            for (const [index] of chainObj.entries()) {
+                if (index === 0) {
+                    console.log("CASE 1", index);
+                    [
+                        lockedEventDatas,
+                        duplicateCollectionAddresses,
+                        duplicateCollectionContracts,
+                    ] = await lockOnBSCAndClaimOnEth({
+                        mintedCollectionOnBSC,
+                        tokenIds,
+                        mintedCollectionOnBSCAddress,
+                        nftDetails,
+                        bscUser: chainObj[index].user,
+                        bscBridge: chainObj[index].bridge,
+                        ethUser: chainObj[index + 1].user,
+                        ethBridge: chainObj[index + 1].bridge,
+                        nftType,
+                        getValidatorSignatures,
+                    });
+                    // console.log({ lockedEventDatas });
+                    // console.log({ duplicateCollectionAddresses });
+                    // console.log("LOCK ORIGINAL");
+                    // console.log("CLAIM DUPLICATE");
+                } else {
+                    console.log("CASE 2", index);
+                    console.log("LOCK DUPLICATE");
+                    console.log("CLAIM");
+
+                    console.log({
+                        // A_User: chainObj[index].user,
+                        A_Chain: chainObj[index].chainId,
+                        // B_User: chainObj[index + 1].user,
+                        B_Chain: chainObj[index + 1].chainId,
+                    });
+
+                    console.log({ lockedEventDatas });
+                    console.log({ duplicateCollectionAddresses });
+                    let lockOnEthReceipt1: any, lockOnEthReceipt2: any;
+                    [lockedEventDatas, lockOnEthReceipt1, lockOnEthReceipt2] =
+                        await lock_NEW({
+                            lockedEventDatas,
+                            duplicateCollectionContracts:
+                                duplicateCollectionContracts as any,
+                            duplicateCollectionAddresses,
+                            nftDetails,
+                            bscUser: chainObj[index].user,
+                            bscBridge: chainObj[index].bridge,
+                            ethUser: chainObj[index + 1].user,
+                            ethBridge: chainObj[index + 1].bridge,
+                            nftType,
+                        });
+
+                    console.log({
+                        lockedEventDatas,
+                    });
+
+                    [
+                        duplicateCollectionAddresses,
+                        duplicateCollectionContracts,
+                    ] = await claim_NEW({
+                        lockedOnEthLogData1: lockedEventDatas[0],
+                        lockedOnEthLogData2: lockedEventDatas[1],
+                        lockOnEthReceipt1,
+                        lockOnEthReceipt2,
+                        mintedCollectionOnBSC,
+                        mintedCollectionOnBSCAddress,
+                        nftDetails,
+                        // bscUser: chainObj[index].user,
+                        // bscBridge: chainObj[index].bridge,
+                        // ethUser: chainObj[index + 1].user,
+                        bscUser: chainObj[index + 1].user,
+                        bscBridge: chainObj[index + 1].bridge,
+                        ethUser: chainObj[index].user,
+                        nftType,
+                        getValidatorSignatures: async (hash: Uint8Array) =>
+                            getValidatorSignatures_New(
+                                hash,
+                                chainObj[index + 1].validatorSet
+                            ),
+                    });
+
+                    // ==============================================================
+                    if (index + 1 === chainObj.length - 1) {
+                        console.log("arr.length - 1 === index");
+                        break;
+                    }
+                }
+                console.log(
+                    "================================================="
+                );
             }
         });
     });

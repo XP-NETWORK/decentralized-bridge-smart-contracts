@@ -55,6 +55,12 @@ export type TLockReturn = [
     ContractTransactionReceipt | null
 ];
 
+export type TLockReturn_NEW = [
+    [TProcessedLogs, TProcessedLogs],
+    ContractTransactionReceipt | null,
+    ContractTransactionReceipt | null
+];
+
 export type TNFTType = 721 | 1155;
 export type TContractInstance = Bridge;
 
