@@ -14,7 +14,7 @@ async function main() {
     await bridgeStorage.waitForDeployment();
 
     console.log(
-        `BridgeStorage contract deployed at ${bridgeStorage.target}`
+        `Bridge contract deployed at ${bridgeStorage.target}`
     );
 }
 

@@ -18,13 +18,13 @@ async function main() {
     );
 
     const bootstrapValidator = ["0x67081bD856e29d7D7B3028C34Afb331fa6b3186E"]
-    const chainSymbol = "ETH"
+    const chainSymbol = "MATIC"
     const bridge = await ethers.deployContract("Bridge", [bootstrapValidator, chainSymbol, collectionDeployerContractAddress, storageDeployerContractAddress]);
 
     await bridge.waitForDeployment();
 
     console.log(
-        `BridgeStorage contract deployed at ${bridge.target}`
+        `Bridge contract deployed at ${bridge.target}`
     );
 }
 
