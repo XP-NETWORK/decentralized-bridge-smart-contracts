@@ -826,41 +826,38 @@ type TLockNewArgs = {
     duplicateCollectionContracts: ERC1155Royalty[] | ERC721Royalty[];
     duplicateCollectionAddresses: string[];
     nftDetails: TNFTDetails;
-    bscUser: HardhatEthersSigner;
-    ethUser: HardhatEthersSigner;
-    bscBridge: TBridge;
-    ethBridge: TBridge;
+    sourceUser: HardhatEthersSigner;
+    destinationUser: HardhatEthersSigner;
+    sourceBridge: TBridge;
+    destinationBridge: TBridge;
     nftType: TNFTType;
 };
 
-export async function lock_NEW({
+export async function lock({
     lockedEventDatas,
     duplicateCollectionContracts,
     duplicateCollectionAddresses,
     nftDetails,
-    bscUser,
-    ethUser,
-    bscBridge,
-    ethBridge,
+    sourceUser,
+    destinationUser,
+    sourceBridge,
+    destinationBridge,
     nftType,
 }: TLockNewArgs): Promise<TLockReturn_NEW> {
     const [duplicateCollectionAddress1, duplicateCollectionAddress2] =
         duplicateCollectionAddresses;
 
-    console.log({ bscBridge: bscBridge.chainSymbol }); // MOONBEAM
-    console.log({ ethBridge: ethBridge.chainSymbol }); // ARBI
-
     await Promise.all(
         lockedEventDatas.map(async (data, i) => {
             if (nftType === 721) {
                 return (duplicateCollectionContracts[i] as ERC721Royalty)
-                    .connect(bscUser)
-                    .approve(bscBridge.address, data.tokenId)
+                    .connect(sourceUser)
+                    .approve(sourceBridge.address, data.tokenId)
                     .then((r) => r.wait());
             } else {
                 return (duplicateCollectionContracts[i] as ERC1155Royalty)
-                    .connect(bscUser)
-                    .setApprovalForAll(bscBridge.address, true)
+                    .connect(sourceUser)
+                    .setApprovalForAll(sourceBridge.address, true)
                     .then((r) => r.wait());
             }
         })
@@ -869,22 +866,22 @@ export async function lock_NEW({
     const [lockOnEthReceipt1, lockOnEthReceipt2] = await Promise.all(
         lockedEventDatas.map(async (data, i) => {
             if (nftType === 721) {
-                return bscBridge.bridge
-                    .connect(bscUser)
+                return sourceBridge.bridge
+                    .connect(sourceUser)
                     .lock721(
                         data.tokenId,
-                        ethBridge.chainSymbol,
-                        ethUser.address,
+                        destinationBridge.chainSymbol,
+                        destinationUser.address,
                         duplicateCollectionContracts[i]
                     )
                     .then((r) => r.wait());
             } else {
-                return bscBridge.bridge
-                    .connect(bscUser)
+                return sourceBridge.bridge
+                    .connect(sourceUser)
                     .lock1155(
                         data.tokenId,
-                        ethBridge.chainSymbol,
-                        ethUser.address,
+                        destinationBridge.chainSymbol,
+                        destinationUser.address,
                         duplicateCollectionContracts[i],
                         AMOUNT_TO_LOCK
                     )
@@ -893,29 +890,33 @@ export async function lock_NEW({
         })
     );
 
-    const originalStorageAddressForDuplicateCollectionProm1 = bscBridge.bridge[
-        nftType === 721
-            ? "originalStorageMapping721"
-            : "originalStorageMapping1155"
-    ](duplicateCollectionAddress1, bscBridge.chainSymbol);
+    const originalStorageAddressForDuplicateCollectionProm1 =
+        sourceBridge.bridge[
+            nftType === 721
+                ? "originalStorageMapping721"
+                : "originalStorageMapping1155"
+        ](duplicateCollectionAddress1, sourceBridge.chainSymbol);
 
-    const duplicateStorageAddressForDuplicateCollectionProm1 = bscBridge.bridge[
-        nftType === 721
-            ? "duplicateStorageMapping721"
-            : "duplicateStorageMapping1155"
-    ](duplicateCollectionAddress1, bscBridge.chainSymbol);
+    const duplicateStorageAddressForDuplicateCollectionProm1 =
+        sourceBridge.bridge[
+            nftType === 721
+                ? "duplicateStorageMapping721"
+                : "duplicateStorageMapping1155"
+        ](duplicateCollectionAddress1, sourceBridge.chainSymbol);
 
-    const originalStorageAddressForDuplicateCollectionProm2 = bscBridge.bridge[
-        nftType === 721
-            ? "originalStorageMapping721"
-            : "originalStorageMapping1155"
-    ](duplicateCollectionAddress2, bscBridge.chainSymbol);
+    const originalStorageAddressForDuplicateCollectionProm2 =
+        sourceBridge.bridge[
+            nftType === 721
+                ? "originalStorageMapping721"
+                : "originalStorageMapping1155"
+        ](duplicateCollectionAddress2, sourceBridge.chainSymbol);
 
-    const duplicateStorageAddressForDuplicateCollectionProm2 = bscBridge.bridge[
-        nftType === 721
-            ? "duplicateStorageMapping721"
-            : "duplicateStorageMapping1155"
-    ](duplicateCollectionAddress2, bscBridge.chainSymbol);
+    const duplicateStorageAddressForDuplicateCollectionProm2 =
+        sourceBridge.bridge[
+            nftType === 721
+                ? "duplicateStorageMapping721"
+                : "duplicateStorageMapping1155"
+        ](duplicateCollectionAddress2, sourceBridge.chainSymbol);
 
     const [
         originalStorageAddressForDuplicateCollection1,
@@ -960,18 +961,16 @@ export async function lock_NEW({
         lockOnEthReceipt1!.logs[1] as EventLog
     );
 
-    console.log({ lockedOnEthLogData1 });
-
     const lockedOnEthLogData2 = parseLogs(
         lockOnEthReceipt2!.logs[1] as EventLog
     );
 
     expect(lockedOnEthLogData1.tokenId).to.be.equal(nftDetails.tokenId1.value);
     expect(lockedOnEthLogData1.destinationChain).to.be.equal(
-        ethBridge.chainSymbol
+        destinationBridge.chainSymbol
     );
     expect(lockedOnEthLogData1.destinationUserAddress).to.be.equal(
-        ethUser.address
+        destinationUser.address
     );
     expect(lockedOnEthLogData1.sourceNftContractAddress).to.be.equal(
         nftDetails.collectionAddress
@@ -986,10 +985,10 @@ export async function lock_NEW({
 
     expect(lockedOnEthLogData2.tokenId).to.be.equal(nftDetails.tokenId2.value);
     expect(lockedOnEthLogData2.destinationChain).to.be.equal(
-        ethBridge.chainSymbol
+        destinationBridge.chainSymbol
     );
     expect(lockedOnEthLogData2.destinationUserAddress).to.be.equal(
-        ethUser.address
+        destinationUser.address
     );
     expect(lockedOnEthLogData2.sourceNftContractAddress).to.be.equal(
         nftDetails.collectionAddress
@@ -1014,14 +1013,14 @@ type TClaimNewArgs = {
     mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty;
     mintedCollectionOnBSCAddress: string;
     nftDetails: TNFTDetails;
-    bscUser: HardhatEthersSigner;
-    ethUser: HardhatEthersSigner;
-    bscBridge: TBridge;
+    destinationUser: HardhatEthersSigner;
+    sourceUser: HardhatEthersSigner;
+    destinationBridge: TBridge;
     nftType: TNFTType;
     getValidatorSignatures: TGetValidatorSignatures;
 };
 
-export async function claim_NEW({
+export async function claim({
     lockedOnEthLogData1,
     lockedOnEthLogData2,
     lockOnEthReceipt1,
@@ -1029,41 +1028,31 @@ export async function claim_NEW({
     mintedCollectionOnBSC,
     mintedCollectionOnBSCAddress,
     nftDetails,
-    bscUser,
-    ethUser,
-    bscBridge,
+    destinationUser,
+    sourceUser,
+    destinationBridge,
     nftType,
     getValidatorSignatures,
 }: TClaimNewArgs): Promise<[string[], Contract[]]> {
-    console.log("here");
-
-    console.log({
-        bscBridge: bscBridge.chainSymbol,
-    });
-
-    console.log({ lockedOnEthLogData1 });
     const [claimDataArgs1, dataHash1] = createHash(
         lockedOnEthLogData1,
         lockOnEthReceipt1?.hash,
         nftDetails,
-        ethUser.address
+        sourceUser.address
     );
-    console.log("here1");
 
     const [claimDataArgs2, dataHash2] = createHash(
         lockedOnEthLogData2,
         lockOnEthReceipt2?.hash,
         nftDetails,
-        ethUser.address
+        sourceUser.address
     );
-    console.log("here2");
 
     const signatures = await Promise.all(
         [dataHash1, dataHash2].map((hash) =>
             getValidatorSignatures(hash, "bsc")
         )
     );
-    console.log("here3");
 
     // // ensure that storage is owner of the nft
     // const [originalStorage721a, originalStorage721b] = await Promise.all([
@@ -1079,7 +1068,6 @@ export async function claim_NEW({
     //     ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
     // ]);
 
-    console.log("here4");
     // if (nftType === 721) {
     //     let [owner1, owner2] = await Promise.all([
     //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
@@ -1107,20 +1095,18 @@ export async function claim_NEW({
     //     expect(balance2).to.be.gt(0);
     // }
 
-    console.log({ claimDataArgs1 });
-
     await Promise.all(
         [claimDataArgs1, claimDataArgs2].map(async (args, i) => {
             if (nftType === 721) {
-                return bscBridge.bridge
-                    .connect(bscUser)
+                return destinationBridge.bridge
+                    .connect(destinationUser)
                     .claimNFT721(args, signatures[i], {
                         value: FEE.value,
                     })
                     .then((r) => r.wait());
             } else {
-                return bscBridge.bridge
-                    .connect(bscUser)
+                return destinationBridge.bridge
+                    .connect(destinationUser)
                     .claimNFT1155(args, signatures[i], {
                         value: FEE.value,
                     })
@@ -1129,18 +1115,15 @@ export async function claim_NEW({
         })
     );
 
-    const [
-        [destinationChainId1, duplicateCollectionAddress1],
-        [destinationChainId2, duplicateCollectionAddress2],
-    ] = await Promise.all(
-        [lockedOnEthLogData1, lockedOnEthLogData2].map((d) =>
-            bscBridge.bridge.originalToDuplicateMapping(
-                d.sourceNftContractAddress,
-                d.sourceChain
+    const [[, duplicateCollectionAddress1], [, duplicateCollectionAddress2]] =
+        await Promise.all(
+            [lockedOnEthLogData1, lockedOnEthLogData2].map((d) =>
+                destinationBridge.bridge.originalToDuplicateMapping(
+                    d.sourceNftContractAddress,
+                    d.sourceChain
+                )
             )
-        )
-    );
-    console.log({ duplicateCollectionAddress1, duplicateCollectionAddress2 });
+        );
     const duplicateCollectionAddresses = [
         duplicateCollectionAddress1,
         duplicateCollectionAddress2,

@@ -6,10 +6,15 @@ import {
     ERC1155Royalty,
     ERC721Royalty,
 } from "../contractsTypes";
-import { TBridge, TGetValidatorSignatures, TProcessedLogs } from "./types";
+import {
+    TBridge,
+    TChainArr,
+    TGetValidatorSignatures,
+    TProcessedLogs,
+} from "./types";
 import {
     claimOnBSC,
-    claim_NEW,
+    claim,
     deploy1155Collection,
     deploy721Collection,
     encoder,
@@ -17,9 +22,16 @@ import {
     lockOnBSCAndClaimOnEth,
     lockOnEth,
     lockOnEthAndClaimOnBSC,
-    lock_NEW,
+    lock,
 } from "./utils";
-import { Contract, EventLog, Typed, ZeroAddress, keccak256 } from "ethers";
+import {
+    Contract,
+    ContractTransactionReceipt,
+    EventLog,
+    Typed,
+    ZeroAddress,
+    keccak256,
+} from "ethers";
 
 describe("Bridge", function () {
     let Bridge: Bridge__factory, bscBridge: TBridge, ethBridge: TBridge;
@@ -1045,7 +1057,8 @@ describe("Bridge", function () {
             ];
             return await Promise.all(promises);
         };
-        it.only("CREATE NAME", async function () {
+
+        it.only("should be able to transfer 2 NFTs across multiple chains", async function () {
             const nftType = 721;
 
             const {
@@ -1055,15 +1068,9 @@ describe("Bridge", function () {
                 tokenIds,
             } = await deploy721Collection(bscUser);
 
-            const chainIds = ["MOONBEAM", "ARBI", "POLY", "AVAX", "ay", "Ayo"];
+            const chainIds = ["MOONBEAM", "ARBI", "POLY", "AVAX"];
 
-            let chainObj: {
-                chainId: string;
-                bridge: TBridge;
-                validatorSet: [HardhatEthersSigner, HardhatEthersSigner];
-                deployer: HardhatEthersSigner;
-                user: HardhatEthersSigner;
-            }[] = [
+            let chainArrTemp: TChainArr[] = [
                 {
                     bridge: bscBridge,
                     chainId: "BSC",
@@ -1097,27 +1104,48 @@ describe("Bridge", function () {
                     addrs[index + 2]
                 );
 
-                chainObj.push({
+                chainArrTemp.push({
                     chainId,
                     bridge,
                     validatorSet,
                     deployer,
                     user: addrs[index + 3],
                 });
-
+                /*
+                    index * 4: Since we're using 4 addresses each time, this computes the next starting address index.
+                    + 3: This is added because we're accessing up to addrs[index + 3] within the loop.
+                    >= addrs.length - 1: Checks if we're at or have surpassed the last address in addrs.
+                */
                 if (index * 4 + 3 >= addrs.length - 1) {
                     break;
                 }
             }
 
-            console.log({ chainObj });
+            console.log({ chainArrTemp });
+
+            const chainArr = chainArrTemp.concat(
+                chainArrTemp.slice(0, -1).reverse()
+            );
+
+            /* 
+                from    ['a', 'b', 'c', 'd', 'e']
+                to      ['a', 'b', 'c', 'd', 'e', 'd', 'c', 'b', 'a']
+            */
+
+            console.log({ chainArr });
+
             let lockedEventDatas: TProcessedLogs[] = [],
                 duplicateCollectionAddresses: string[] = [],
                 duplicateCollectionContracts: Contract[] = [];
 
-            for (const [index] of chainObj.entries()) {
+            for (const [index] of chainArr.entries()) {
+                const source = chainArr[index];
+                const destination = chainArr[index + 1];
+
+                console.log("source", source.chainId);
+                console.log("destination", destination.chainId);
+
                 if (index === 0) {
-                    console.log("CASE 1", index);
                     [
                         lockedEventDatas,
                         duplicateCollectionAddresses,
@@ -1127,54 +1155,37 @@ describe("Bridge", function () {
                         tokenIds,
                         mintedCollectionOnBSCAddress,
                         nftDetails,
-                        bscUser: chainObj[index].user,
-                        bscBridge: chainObj[index].bridge,
-                        ethUser: chainObj[index + 1].user,
-                        ethBridge: chainObj[index + 1].bridge,
+                        bscUser: source.user, //           source user
+                        bscBridge: source.bridge, //       source bridge
+                        ethUser: destination.user, //       destination user
+                        ethBridge: destination.bridge, //   destination bridge
                         nftType,
                         getValidatorSignatures,
                     });
-                    // console.log({ lockedEventDatas });
-                    // console.log({ duplicateCollectionAddresses });
-                    // console.log("LOCK ORIGINAL");
-                    // console.log("CLAIM DUPLICATE");
                 } else {
                     console.log("CASE 2", index);
-                    console.log("LOCK DUPLICATE");
-                    console.log("CLAIM");
 
-                    console.log({
-                        // A_User: chainObj[index].user,
-                        A_Chain: chainObj[index].chainId,
-                        // B_User: chainObj[index + 1].user,
-                        B_Chain: chainObj[index + 1].chainId,
-                    });
+                    let lockOnEthReceipt1: ContractTransactionReceipt | null,
+                        lockOnEthReceipt2: ContractTransactionReceipt | null;
 
-                    console.log({ lockedEventDatas });
-                    console.log({ duplicateCollectionAddresses });
-                    let lockOnEthReceipt1: any, lockOnEthReceipt2: any;
                     [lockedEventDatas, lockOnEthReceipt1, lockOnEthReceipt2] =
-                        await lock_NEW({
+                        await lock({
                             lockedEventDatas,
                             duplicateCollectionContracts:
                                 duplicateCollectionContracts as any,
                             duplicateCollectionAddresses,
                             nftDetails,
-                            bscUser: chainObj[index].user,
-                            bscBridge: chainObj[index].bridge,
-                            ethUser: chainObj[index + 1].user,
-                            ethBridge: chainObj[index + 1].bridge,
+                            sourceUser: source.user,
+                            sourceBridge: source.bridge,
+                            destinationUser: destination.user,
+                            destinationBridge: destination.bridge,
                             nftType,
                         });
-
-                    console.log({
-                        lockedEventDatas,
-                    });
 
                     [
                         duplicateCollectionAddresses,
                         duplicateCollectionContracts,
-                    ] = await claim_NEW({
+                    ] = await claim({
                         lockedOnEthLogData1: lockedEventDatas[0],
                         lockedOnEthLogData2: lockedEventDatas[1],
                         lockOnEthReceipt1,
@@ -1182,23 +1193,19 @@ describe("Bridge", function () {
                         mintedCollectionOnBSC,
                         mintedCollectionOnBSCAddress,
                         nftDetails,
-                        // bscUser: chainObj[index].user,
-                        // bscBridge: chainObj[index].bridge,
-                        // ethUser: chainObj[index + 1].user,
-                        bscUser: chainObj[index + 1].user,
-                        bscBridge: chainObj[index + 1].bridge,
-                        ethUser: chainObj[index].user,
+                        destinationUser: destination.user,
+                        destinationBridge: destination.bridge,
+                        sourceUser: source.user,
                         nftType,
                         getValidatorSignatures: async (hash: Uint8Array) =>
                             getValidatorSignatures_New(
                                 hash,
-                                chainObj[index + 1].validatorSet
+                                destination.validatorSet
                             ),
                     });
 
                     // ==============================================================
-                    if (index + 1 === chainObj.length - 1) {
-                        console.log("arr.length - 1 === index");
+                    if (index + 1 === chainArr.length - 1) {
                         break;
                     }
                 }

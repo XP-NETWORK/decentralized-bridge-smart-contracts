@@ -104,3 +104,11 @@ export type TLockOnEthAndClaimOnBSCArgs = {
     getValidatorSignatures: TGetValidatorSignatures;
     nftType: TNFTType;
 };
+
+export type TChainArr = {
+    chainId: string;
+    bridge: TBridge;
+    validatorSet: [HardhatEthersSigner, HardhatEthersSigner];
+    deployer: HardhatEthersSigner;
+    user: HardhatEthersSigner;
+};
