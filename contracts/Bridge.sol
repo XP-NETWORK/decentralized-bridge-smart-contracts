@@ -15,8 +15,13 @@ import "./interfaces/IERC721Royalty.sol";
 import "./interfaces/IERC1155Royalty.sol";
 import "./interfaces/INFTStorageDeployer.sol";
 import "./interfaces/INFTCollectionDeployer.sol";
+import "./AddressUtilityLib.sol";
+struct DuplicateToOriginalContractInfo {
+    string chain;
+    string contractAddress;
+}
 
-struct ContractInfo {
+struct OriginalToDuplicateContractInfo {
     string chain;
     address contractAddress;
 }
@@ -28,6 +33,7 @@ struct Validator {
 
 contract Bridge {
     using ECDSA for bytes32;
+    using AddressUtilityLib for string;
 
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
@@ -40,11 +46,11 @@ contract Bridge {
     // address[] validatorsArray;
 
     // originalCollectionAddress => destinationCollectionAddress
-    mapping(address => mapping(string => ContractInfo))
+    mapping(string => mapping(string => OriginalToDuplicateContractInfo))
         public originalToDuplicateMapping;
 
     // destinationCollectionAddress => originalCollectionAddress
-    mapping(address => mapping(string => ContractInfo))
+    mapping(address => mapping(string => DuplicateToOriginalContractInfo))
         public duplicateToOriginalMapping;
 
     // collectionAddress => source NftStorage721
@@ -70,7 +76,7 @@ contract Bridge {
         string sourceChain; // Chain from where the NFT is being transferred
         string destinationChain; // Chain to where the NFT is being transferred
         address destinationUserAddress; // User's address in the destination chain
-        address sourceNftContractAddress; // Address of the NFT contract in the source chain
+        string sourceNftContractAddress; // Address of the NFT contract in the source chain
         string name; // name of NFT collection
         string symbol; // symbol of nft collection
         uint256 royalty; // royalty of nft collection
@@ -89,7 +95,7 @@ contract Bridge {
         uint256 tokenId, // Unique ID for the NFT transfer
         string destinationChain, // Chain to where the NFT is being transferred
         string destinationUserAddress, // User's address in the destination chain
-        address sourceNftContractAddress, // Address of the NFT contract in the source chain
+        string sourceNftContractAddress, // Address of the NFT contract in the source chain
         uint256 tokenAmount, // Token amount is 1 incase it is ERC721
         string nftType, // NFT type is either 721 or 1155.
         string sourceChain // Name of the chain emitting
@@ -233,13 +239,14 @@ contract Bridge {
             "sourceNftContractAddress cannot be zero address"
         );
         // Check if sourceNftContractAddress is original or duplicate
-        ContractInfo
+        DuplicateToOriginalContractInfo
             memory originalCollectionAddress = duplicateToOriginalMapping[
                 sourceNftContractAddress
             ][selfChain];
 
-        bool isOriginal = originalCollectionAddress.contractAddress ==
-            address(0);
+        bool isOriginal = originalCollectionAddress
+            .contractAddress
+            .compareStrings("");
 
         // isOriginal
         if (isOriginal) {
@@ -255,7 +262,7 @@ contract Bridge {
                 tokenId,
                 destinationChain,
                 destinationUserAddress,
-                address(sourceNftContractAddress),
+                addressToString(sourceNftContractAddress),
                 1,
                 TYPEERC721,
                 selfChain
@@ -271,7 +278,7 @@ contract Bridge {
                 tokenId,
                 destinationChain,
                 destinationUserAddress,
-                address(originalCollectionAddress.contractAddress),
+                originalCollectionAddress.contractAddress,
                 1,
                 TYPEERC721,
                 originalCollectionAddress.chain
@@ -292,13 +299,14 @@ contract Bridge {
         );
         require(tokenAmount > 0, "token amount must be > than zero");
         // Check if sourceNftContractAddress is original or duplicate
-        ContractInfo
+        DuplicateToOriginalContractInfo
             memory originalCollectionAddress = duplicateToOriginalMapping[
                 sourceNftContractAddress
             ][selfChain];
 
-        bool isOriginal = originalCollectionAddress.contractAddress ==
-            address(0);
+        bool isOriginal = originalCollectionAddress
+            .contractAddress
+            .compareStrings("");
 
         if (isOriginal) {
             transferToStorage1155(
@@ -314,7 +322,7 @@ contract Bridge {
                 tokenId,
                 destinationChain,
                 destinationUserAddress,
-                address(sourceNftContractAddress),
+                addressToString(sourceNftContractAddress),
                 tokenAmount,
                 TYPEERC1155,
                 selfChain
@@ -332,7 +340,7 @@ contract Bridge {
                 tokenId,
                 destinationChain,
                 destinationUserAddress,
-                address(originalCollectionAddress.contractAddress),
+                originalCollectionAddress.contractAddress,
                 tokenAmount,
                 TYPEERC1155,
                 originalCollectionAddress.chain
@@ -363,7 +371,7 @@ contract Bridge {
         address[] memory validatorsToReward = verifySignature(hash, signatures);
         rewardValidators(data.fee, validatorsToReward);
 
-        ContractInfo
+        OriginalToDuplicateContractInfo
             memory duplicateCollectionAddress = originalToDuplicateMapping[
                 data.sourceNftContractAddress
             ][data.sourceChain];
@@ -378,7 +386,7 @@ contract Bridge {
             ][selfChain];
         } else {
             storageContract = originalStorageMapping721[
-                data.sourceNftContractAddress
+                data.sourceNftContractAddress.stringToAddress()
             ][data.sourceChain];
         }
 
@@ -439,11 +447,17 @@ contract Bridge {
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
                 data.sourceChain
-            ] = ContractInfo(selfChain, address(newCollectionAddress));
+            ] = OriginalToDuplicateContractInfo(
+                selfChain,
+                address(newCollectionAddress)
+            );
 
             duplicateToOriginalMapping[address(newCollectionAddress)][
                 selfChain
-            ] = ContractInfo(data.sourceChain, data.sourceNftContractAddress);
+            ] = DuplicateToOriginalContractInfo(
+                data.sourceChain,
+                data.sourceNftContractAddress
+            );
 
             newCollectionAddress.mint(
                 data.destinationUserAddress,
@@ -455,7 +469,7 @@ contract Bridge {
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
             IERC721Royalty originalCollection = IERC721Royalty(
-                data.sourceNftContractAddress
+                data.sourceNftContractAddress.stringToAddress()
             );
 
             if (originalCollection.ownerOf(data.tokenId) == storageContract) {
@@ -507,7 +521,7 @@ contract Bridge {
         address[] memory validatorsToReward = verifySignature(hash, signatures);
         rewardValidators(data.fee, validatorsToReward);
 
-        ContractInfo
+        OriginalToDuplicateContractInfo
             memory duplicateCollectionAddress = originalToDuplicateMapping[
                 data.sourceNftContractAddress
             ][data.sourceChain];
@@ -522,7 +536,7 @@ contract Bridge {
             ][selfChain];
         } else {
             storageContract = originalStorageMapping1155[
-                data.sourceNftContractAddress
+                data.sourceNftContractAddress.stringToAddress()
             ][data.sourceChain];
         }
 
@@ -577,10 +591,16 @@ contract Bridge {
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
                 data.sourceChain
-            ] = ContractInfo(selfChain, address(newCollectionAddress));
+            ] = OriginalToDuplicateContractInfo(
+                selfChain,
+                address(newCollectionAddress)
+            );
             duplicateToOriginalMapping[address(newCollectionAddress)][
                 selfChain
-            ] = ContractInfo(data.sourceChain, data.sourceNftContractAddress);
+            ] = DuplicateToOriginalContractInfo(
+                data.sourceChain,
+                data.sourceNftContractAddress
+            );
 
             newCollectionAddress.mint(
                 data.destinationUserAddress,
@@ -593,7 +613,7 @@ contract Bridge {
             // ===============================/ Duplicate && No Storage /=======================
         } else if (!hasDuplicate && hasStorage) {
             IERC1155Royalty collecAddress = IERC1155Royalty(
-                data.sourceNftContractAddress
+                data.sourceNftContractAddress.stringToAddress()
             );
             if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
                 unLock1155(
@@ -840,6 +860,27 @@ contract Bridge {
             abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
         );
         return ECDSA.recover(hash, sig);
+    }
+
+    /**
+     * @dev Converts an Ethereum address to its string representation.
+     * @param _address The Ethereum address to convert.
+     * @return The string representation of the Ethereum address.
+     */
+    function addressToString(
+        address _address
+    ) internal pure returns (string memory) {
+        bytes32 value = bytes32(uint256(uint160(_address))); // Corrected casting
+        bytes memory alphabet = "0123456789abcdef";
+
+        bytes memory str = new bytes(42);
+        str[0] = 0x30; // '0'
+        str[1] = 0x78; // 'x'
+        for (uint256 i = 0; i < 20; i++) {
+            str[2 + i * 2] = alphabet[uint8(value[i + 12] >> 4)];
+            str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
+        }
+        return string(str);
     }
 
     receive() external payable {}

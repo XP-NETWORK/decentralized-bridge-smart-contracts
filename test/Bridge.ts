@@ -9,6 +9,7 @@ import {
 import {
     TBridge,
     TChainArr,
+    TChainArrWithBridge,
     TGetValidatorSignatures,
     TProcessedLogs,
 } from "./types";
@@ -32,6 +33,7 @@ import {
     ZeroAddress,
     keccak256,
 } from "ethers";
+import { assert } from "console";
 
 describe("Bridge", function () {
     let Bridge: Bridge__factory, bscBridge: TBridge, ethBridge: TBridge;
@@ -255,21 +257,21 @@ describe("Bridge", function () {
                 destinationUserAddress:
                     "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
                 sourceNftContractAddress:
-                    "0xE3C0bf45000b24D537D9760adf81718fF197D630",
+                    "0x2c9375211b1a5fd1fb44b2bd2020b368b6ec8aa7",
                 name: "MyCollection",
                 symbol: "MC",
                 royalty: 100,
                 royaltyReceiver: "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
                 metadata: "",
                 transactionHash:
-                    "0x6de34e976f3107b37ed992c8aaa6e5f04b3b5a2f127a3256f5b187ad45103911",
+                    "0xc1bbb33b2192025ccfe64dbc96a8ab3b9e7bcbf991a74e8d896ba533cb58caad",
                 tokenAmount: 1,
                 nftType: "multiple",
                 fee: 5,
             };
             const signatures = [
-                "0x0d43ae15e75d59492c4952bd7465525d16e9970c237d3847d6867fdb4a4a537a525a38ce04e056540ce64fa7ae8aaa7638cd07a5c0fc04ecd78be4e7ac3f99501c",
-                "0x204e0cf223bc114ea2785bdf56e1d9e2b10a299e8e5294cb2d525fd1bbb04fbc369a9edac7684c2e5b5df6715d07b69077593391c3483d580bd4dcd979485a811b",
+                "0x33aad697034440681159f08b64acc740a5db9a22cc2a851ae99e239b601f89993162154f57e0278901e13e33435b38491d0a33cefc6083e61e5c77abf5d127b21c",
+                "0x9bc0a62f184035c0ca7b421434400f21b9e4cabe57ba45224914e98fd6457d0e34b5ab0e239227628ea0cbf9df6aeeee796f3f43991f606cadafcdc8c4eaea191b",
             ];
 
             let [validator1, bridgeBalance, validator_1_balance] =
@@ -628,22 +630,22 @@ describe("Bridge", function () {
             destinationUserAddress:
                 "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
             sourceNftContractAddress:
-                "0xFAd2c09000C681785ECD30C1D0f015Da00E01f7F",
+                "0xba92cf00f301b9fa4cf5ead497d128bdb3e05e1b",
             name: "MyCollection",
             symbol: "MC",
             royalty: 100,
             royaltyReceiver: "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
             metadata: "",
             transactionHash:
-                "0x5e69043c4d5293ca6d223496c89921e8c7dd906118fbff0dd99a5f8d1ce2aa6a",
+                "0x9724e4d237117018e5d2135036d879b25ca36ae4469120b85ef7ebba8fa408d5",
             tokenAmount: 1,
             nftType: "singular",
             fee: 5,
         };
 
         const signatures = [
-            "0xf1e57f6831914782247fc9a14d2b9a59330f9a2d9d6cbe55ac6cf0e1b943e8c87956550f707b0b9ea0974f44b3a1a2f795bcb116e82c92e3356f092a0de0404a1b",
-            "0xbf3b71e57a36d9ddaf30165700f6c4cca5968dcbae0edb7dfb4a5f70fa6664dd13c79809456d8f3404bfdaacde20775cfa236e9326047a8c49dd5d4d03b3e9f51c",
+            "0x90d2b34877bbabe4a6bc401f10db04a3debdfddc2316a1ddfda111968098feec55f6d01bf380e8191f514dd1c7175c461a4849b791389e39217e2bd69d946ec41b",
+            "0x552e322d425e6daba13edfb6c205b07de52a8ce2a40f80be919e582da642d508696c26cd7659c637b812bbb88a9ee69f3d32b9a3abbfabb779706a3f5cbd74bb1c",
         ];
 
         let snapshotId: any;
@@ -788,21 +790,21 @@ describe("Bridge", function () {
             destinationUserAddress:
                 "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
             sourceNftContractAddress:
-                "0xE3C0bf45000b24D537D9760adf81718fF197D630",
+                "0x2c9375211b1a5fd1fb44b2bd2020b368b6ec8aa7",
             name: "MyCollection",
             symbol: "MC",
             royalty: 100,
             royaltyReceiver: "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
             metadata: "",
             transactionHash:
-                "0x6de34e976f3107b37ed992c8aaa6e5f04b3b5a2f127a3256f5b187ad45103911",
+                "0xc1bbb33b2192025ccfe64dbc96a8ab3b9e7bcbf991a74e8d896ba533cb58caad",
             tokenAmount: 1,
             nftType: "multiple",
             fee: 5,
         };
         const signatures = [
-            "0x0d43ae15e75d59492c4952bd7465525d16e9970c237d3847d6867fdb4a4a537a525a38ce04e056540ce64fa7ae8aaa7638cd07a5c0fc04ecd78be4e7ac3f99501c",
-            "0x204e0cf223bc114ea2785bdf56e1d9e2b10a299e8e5294cb2d525fd1bbb04fbc369a9edac7684c2e5b5df6715d07b69077593391c3483d580bd4dcd979485a811b",
+            "0x33aad697034440681159f08b64acc740a5db9a22cc2a851ae99e239b601f89993162154f57e0278901e13e33435b38491d0a33cefc6083e61e5c77abf5d127b21c",
+            "0x9bc0a62f184035c0ca7b421434400f21b9e4cabe57ba45224914e98fd6457d0e34b5ab0e239227628ea0cbf9df6aeeee796f3f43991f606cadafcdc8c4eaea191b",
         ];
 
         let snapshotId: any;
@@ -1058,7 +1060,7 @@ describe("Bridge", function () {
             return await Promise.all(promises);
         };
 
-        it.only("should be able to transfer 2 NFTs across multiple chains", async function () {
+        it("should be able to transfer 2 NFTs across multiple chains", async function () {
             const nftType = 721;
 
             const {
@@ -1068,9 +1070,7 @@ describe("Bridge", function () {
                 tokenIds,
             } = await deploy721Collection(bscUser);
 
-            const chainIds = ["MOONBEAM", "ARBI", "POLY", "AVAX"];
-
-            let chainArrTemp: TChainArr[] = [
+            let chainArr: TChainArr[] = [
                 {
                     bridge: bscBridge,
                     chainId: "BSC",
@@ -1085,62 +1085,85 @@ describe("Bridge", function () {
                     validatorSet: [ethValidator1, ethValidator2],
                     user: ethUser,
                 },
+                {
+                    bridge: null,
+                    chainId: "MOONBEAM",
+                    deployer: addrs[0],
+                    validatorSet: [addrs[1], addrs[2]],
+                    user: addrs[3],
+                },
+                {
+                    bridge: null,
+                    chainId: "ARBI",
+                    deployer: addrs[4],
+                    validatorSet: [addrs[5], addrs[6]],
+                    user: addrs[7],
+                },
+                {
+                    bridge: null,
+                    chainId: "POLY",
+                    deployer: addrs[8],
+                    validatorSet: [addrs[9], addrs[10]],
+                    user: addrs[11],
+                },
+                {
+                    bridge: null,
+                    chainId: "ARBI",
+                    deployer: addrs[4],
+                    validatorSet: [addrs[5], addrs[6]],
+                    user: addrs[7],
+                },
+                {
+                    bridge: null,
+                    chainId: "MOONBEAM",
+                    deployer: addrs[0],
+                    validatorSet: [addrs[1], addrs[2]],
+                    user: addrs[3],
+                },
+                {
+                    bridge: ethBridge,
+                    chainId: "ETH",
+                    deployer: ethBridgeDeployer,
+                    validatorSet: [ethValidator1, ethValidator2],
+                    user: ethUser,
+                },
+                {
+                    bridge: bscBridge,
+                    chainId: "BSC",
+                    deployer: bscBridgeDeployer,
+                    validatorSet: [bscValidator1, bscValidator2],
+                    user: bscUser,
+                },
             ];
 
-            for (const [index, chainId] of chainIds.entries()) {
-                const validatorSet: [HardhatEthersSigner, HardhatEthersSigner] =
-                    [addrs[index], addrs[index + 1]];
+            for (const [index, chain] of chainArr.entries()) {
+                if (chain.bridge !== null) continue;
 
                 const validatorAddressSet: [string, string] = [
-                    addrs[index].address,
-                    addrs[index + 1].address,
+                    chain.validatorSet[0].address,
+                    chain.validatorSet[1].address,
                 ];
 
-                const deployer = addrs[index + 2];
-
                 const bridge = await deployBridge(
-                    chainId,
+                    chain.chainId,
                     validatorAddressSet,
-                    addrs[index + 2]
+                    chain.deployer
                 );
 
-                chainArrTemp.push({
-                    chainId,
-                    bridge,
-                    validatorSet,
-                    deployer,
-                    user: addrs[index + 3],
-                });
-                /*
-                    index * 4: Since we're using 4 addresses each time, this computes the next starting address index.
-                    + 3: This is added because we're accessing up to addrs[index + 3] within the loop.
-                    >= addrs.length - 1: Checks if we're at or have surpassed the last address in addrs.
-                */
-                if (index * 4 + 3 >= addrs.length - 1) {
-                    break;
-                }
+                chainArr[index].bridge = bridge;
             }
-
-            console.log({ chainArrTemp });
-
-            const chainArr = chainArrTemp.concat(
-                chainArrTemp.slice(0, -1).reverse()
-            );
-
-            /* 
-                from    ['a', 'b', 'c', 'd', 'e']
-                to      ['a', 'b', 'c', 'd', 'e', 'd', 'c', 'b', 'a']
-            */
-
-            console.log({ chainArr });
 
             let lockedEventDatas: TProcessedLogs[] = [],
                 duplicateCollectionAddresses: string[] = [],
                 duplicateCollectionContracts: Contract[] = [];
 
             for (const [index] of chainArr.entries()) {
-                const source = chainArr[index];
-                const destination = chainArr[index + 1];
+                const source = chainArr[index] as TChainArrWithBridge;
+                const destination = chainArr[index + 1] as TChainArrWithBridge;
+
+                if (!source.bridge || !destination.bridge) {
+                    throw new Error(`A bridge at index ${index} is null`);
+                }
 
                 console.log("source", source.chainId);
                 console.log("destination", destination.chainId);
@@ -1175,10 +1198,10 @@ describe("Bridge", function () {
                                 duplicateCollectionContracts as any,
                             duplicateCollectionAddresses,
                             nftDetails,
+                            source,
+                            destination,
                             sourceUser: source.user,
-                            sourceBridge: source.bridge,
                             destinationUser: destination.user,
-                            destinationBridge: destination.bridge,
                             nftType,
                         });
 
