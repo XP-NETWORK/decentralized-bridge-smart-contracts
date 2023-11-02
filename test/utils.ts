@@ -31,7 +31,7 @@ export const encoder = new ethers.AbiCoder();
 export const FEE = ethers.Typed.uint256(5);
 export const AMOUNT_TO_LOCK = 1;
 
-const NftTransferDetailsTypes = [
+export const NftTransferDetailsTypes = [
     "uint256", // 0 - tokenId
     "string", // 1 - sourceChain
     "string", // 2 - destinationChain
@@ -317,7 +317,8 @@ export async function lockOnBSC(
         nftType === 721
             ? "originalStorageMapping721"
             : "originalStorageMapping1155"
-    ](nftDetails.collectionAddress, "BSC");
+    ](nftDetails.collectionAddress.toLowerCase(), "BSC");
+
     expect(storageAddressForCollection).to.not.be.equal(ethers.ZeroAddress);
 
     if (nftType === 721) {
@@ -596,25 +597,25 @@ export async function lockOnEth(
         nftType === 721
             ? "originalStorageMapping721"
             : "originalStorageMapping1155"
-    ](duplicateCollectionAddress1, bscBridge.chainSymbol);
+    ](duplicateCollectionAddress1.toLowerCase(), bscBridge.chainSymbol);
 
     const duplicateStorageAddressForDuplicateCollectionProm1 = ethBridge.bridge[
         nftType === 721
             ? "duplicateStorageMapping721"
             : "duplicateStorageMapping1155"
-    ](duplicateCollectionAddress1, ethBridge.chainSymbol);
+    ](duplicateCollectionAddress1.toLowerCase(), ethBridge.chainSymbol);
 
     const originalStorageAddressForDuplicateCollectionProm2 = ethBridge.bridge[
         nftType === 721
             ? "originalStorageMapping721"
             : "originalStorageMapping1155"
-    ](duplicateCollectionAddress2, bscBridge.chainSymbol);
+    ](duplicateCollectionAddress2.toLowerCase(), bscBridge.chainSymbol);
 
     const duplicateStorageAddressForDuplicateCollectionProm2 = ethBridge.bridge[
         nftType === 721
             ? "duplicateStorageMapping721"
             : "duplicateStorageMapping1155"
-    ](duplicateCollectionAddress2, ethBridge.chainSymbol);
+    ](duplicateCollectionAddress2.toLowerCase(), ethBridge.chainSymbol);
 
     const [
         originalStorageAddressForDuplicateCollection1,
@@ -741,12 +742,12 @@ export async function claimOnBSC(
             nftType === 721
                 ? "originalStorageMapping721"
                 : "originalStorageMapping1155"
-        ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+        ](mintedCollectionOnBSCAddress.toLowerCase(), bscBridge.chainSymbol),
         bscBridge.bridge[
             nftType === 721
                 ? "originalStorageMapping721"
                 : "originalStorageMapping1155"
-        ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+        ](mintedCollectionOnBSCAddress.toLowerCase(), bscBridge.chainSymbol),
     ]);
 
     if (nftType === 721) {
@@ -758,6 +759,8 @@ export async function claimOnBSC(
                 lockedOnEthLogData2.tokenId
             ),
         ]);
+        // console.log("owner", owner1);
+        // console.log("originalStorage721b", originalStorage721b);
         expect(owner1).to.be.equal(originalStorage721a);
         expect(owner2).to.be.equal(originalStorage721b);
     } else {
@@ -902,28 +905,28 @@ export async function lock({
             nftType === 721
                 ? "originalStorageMapping721"
                 : "originalStorageMapping1155"
-        ](duplicateCollectionAddress1, sourceBridge.chainSymbol);
+        ](duplicateCollectionAddress1.toLowerCase(), sourceBridge.chainSymbol);
 
     const duplicateStorageAddressForDuplicateCollectionProm1 =
         sourceBridge.bridge[
             nftType === 721
                 ? "duplicateStorageMapping721"
                 : "duplicateStorageMapping1155"
-        ](duplicateCollectionAddress1, sourceBridge.chainSymbol);
+        ](duplicateCollectionAddress1.toLowerCase(), sourceBridge.chainSymbol);
 
     const originalStorageAddressForDuplicateCollectionProm2 =
         sourceBridge.bridge[
             nftType === 721
                 ? "originalStorageMapping721"
                 : "originalStorageMapping1155"
-        ](duplicateCollectionAddress2, sourceBridge.chainSymbol);
+        ](duplicateCollectionAddress2.toLowerCase(), sourceBridge.chainSymbol);
 
     const duplicateStorageAddressForDuplicateCollectionProm2 =
         sourceBridge.bridge[
             nftType === 721
                 ? "duplicateStorageMapping721"
                 : "duplicateStorageMapping1155"
-        ](duplicateCollectionAddress2, sourceBridge.chainSymbol);
+        ](duplicateCollectionAddress2.toLowerCase(), sourceBridge.chainSymbol);
 
     const [
         originalStorageAddressForDuplicateCollection1,

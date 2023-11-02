@@ -54,17 +54,17 @@ contract Bridge {
         public duplicateToOriginalMapping;
 
     // collectionAddress => source NftStorage721
-    mapping(address => mapping(string => address))
+    mapping(string => mapping(string => address))
         public originalStorageMapping721;
     // collectionAddress => source NftStorage1155
-    mapping(address => mapping(string => address))
+    mapping(string => mapping(string => address))
         public originalStorageMapping1155;
 
     // collectionAddress => source NftStorage721
-    mapping(address => mapping(string => address))
+    mapping(string => mapping(string => address))
         public duplicateStorageMapping721;
     // collectionAddress => source NftStorage1155
-    mapping(address => mapping(string => address))
+    mapping(string => mapping(string => address))
         public duplicateStorageMapping1155;
 
     string public selfChain = "";
@@ -382,11 +382,11 @@ contract Bridge {
         address storageContract;
         if (hasDuplicate) {
             storageContract = duplicateStorageMapping721[
-                duplicateCollectionAddress.contractAddress
+                addressToString(duplicateCollectionAddress.contractAddress)
             ][selfChain];
         } else {
             storageContract = originalStorageMapping721[
-                data.sourceNftContractAddress.stringToAddress()
+                data.sourceNftContractAddress
             ][data.sourceChain];
         }
 
@@ -532,11 +532,11 @@ contract Bridge {
         address storageContract;
         if (hasDuplicate) {
             storageContract = duplicateStorageMapping1155[
-                duplicateCollectionAddress.contractAddress
+                addressToString(duplicateCollectionAddress.contractAddress)
             ][selfChain];
         } else {
             storageContract = originalStorageMapping1155[
-                data.sourceNftContractAddress.stringToAddress()
+                data.sourceNftContractAddress
             ][data.sourceChain];
         }
 
@@ -692,14 +692,13 @@ contract Bridge {
     }
 
     function transferToStorage721(
-        mapping(address => mapping(string => address))
-            storage storageMapping721,
+        mapping(string => mapping(string => address)) storage storageMapping721,
         address sourceNftContractAddress,
         uint256 tokenId
     ) private {
-        address storageAddress = storageMapping721[sourceNftContractAddress][
-            selfChain
-        ];
+        address storageAddress = storageMapping721[
+            addressToString(sourceNftContractAddress)
+        ][selfChain];
 
         // NOT hasStorage
         if (storageAddress == address(0)) {
@@ -707,7 +706,7 @@ contract Bridge {
                 sourceNftContractAddress
             );
 
-            storageMapping721[sourceNftContractAddress][
+            storageMapping721[addressToString(sourceNftContractAddress)][
                 selfChain
             ] = storageAddress;
         }
@@ -720,15 +719,15 @@ contract Bridge {
     }
 
     function transferToStorage1155(
-        mapping(address => mapping(string => address))
+        mapping(string => mapping(string => address))
             storage storageMapping1155,
         address sourceNftContractAddress,
         uint256 tokenId,
         uint256 tokenAmount
     ) private {
-        address storageAddress = storageMapping1155[sourceNftContractAddress][
-            selfChain
-        ];
+        address storageAddress = storageMapping1155[
+            addressToString(sourceNftContractAddress)
+        ][selfChain];
 
         // NOT hasStorage
         if (storageAddress == address(0)) {
@@ -737,7 +736,7 @@ contract Bridge {
             );
             // console.log("here %s", storageAddress);
 
-            storageMapping1155[sourceNftContractAddress][
+            storageMapping1155[addressToString(sourceNftContractAddress)][
                 selfChain
             ] = storageAddress;
 

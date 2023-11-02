@@ -14,16 +14,15 @@ import {
     TProcessedLogs,
 } from "./types";
 import {
-    claimOnBSC,
     claim,
     deploy1155Collection,
     deploy721Collection,
     encoder,
     hexStringToByteArray,
     lockOnBSCAndClaimOnEth,
-    lockOnEth,
     lockOnEthAndClaimOnBSC,
     lock,
+    NftTransferDetailsTypes,
 } from "./utils";
 import {
     Contract,
@@ -780,6 +779,71 @@ describe("Bridge", function () {
             expect(validator2.pendingReward).to.be.eq(BigInt("3"));
             expect(bridgeBalance).to.be.eq(BigInt("7"));
         });
+
+        it("should be able to claim and lock a 721 NFT from a non EVM source", async function () {
+            const oldSourceNftContractAddress = data.sourceNftContractAddress;
+
+            // a dummy non evm address (Elrond)
+            data.sourceNftContractAddress =
+                "erd1m229kx85t9jsamjuxpu6sjtu6jws7q4lesne9m5gdex9g8ps6n9scwk2V0";
+
+            const nftTransferDetailsValues = Object.values(data);
+
+            const dataHash = keccak256(
+                encoder.encode(
+                    NftTransferDetailsTypes,
+                    nftTransferDetailsValues
+                )
+            );
+
+            const hexifiedDataHash = hexStringToByteArray(dataHash);
+            const signatures = await getValidatorSignatures(
+                hexifiedDataHash,
+                "eth"
+            );
+
+            await ethBridge.bridge
+                .connect(ethUser)
+                .claimNFT721(data, signatures, {
+                    value: 5,
+                });
+
+            const duplicate = await ethBridge.bridge.originalToDuplicateMapping(
+                data.sourceNftContractAddress,
+                data.sourceChain
+            );
+            const original = await ethBridge.bridge.duplicateToOriginalMapping(
+                duplicate[1],
+                duplicate[0]
+            );
+
+            expect(duplicate[1]).to.not.be.eq("");
+            expect(original[1]).to.be.eq(data.sourceNftContractAddress);
+
+            const duplicateCollectionContract = await ethers.getContractAt(
+                "ERC721Royalty",
+                duplicate[1]
+            );
+            await duplicateCollectionContract
+                .connect(ethUser)
+                .approve(ethBridge.address, data.tokenId);
+
+            const receipt = await ethBridge.bridge
+                .connect(ethUser)
+                .lock721(
+                    data.tokenId,
+                    data.sourceChain,
+                    bscUser.address,
+                    duplicate[1]
+                )
+                .then((r) => r.wait());
+
+            const logs = receipt?.logs[1] as EventLog;
+            expect(logs.args[3]).to.be.eq(data.sourceNftContractAddress);
+
+            // revert the mutation done at the beginning of the test
+            data.sourceNftContractAddress = oldSourceNftContractAddress;
+        });
     });
 
     describe("claimNFT1155", async function () {
@@ -940,22 +1004,74 @@ describe("Bridge", function () {
             expect(validator2.pendingReward).to.be.eq(BigInt("3"));
             expect(bridgeBalance).to.be.eq(BigInt("7"));
         });
+
+        it("should be able to claim and lock a 1155 NFT from a non EVM source", async function () {
+            const oldSourceNftContractAddress = data.sourceNftContractAddress;
+
+            // a dummy non evm address (Elrond)
+            data.sourceNftContractAddress =
+                "erd1m229kx85t9jsamjuxpu6sjtu6jws7q4lesne9m5gdex9g8ps6n9scwk2V0";
+
+            const nftTransferDetailsValues = Object.values(data);
+
+            const dataHash = keccak256(
+                encoder.encode(
+                    NftTransferDetailsTypes,
+                    nftTransferDetailsValues
+                )
+            );
+
+            const hexifiedDataHash = hexStringToByteArray(dataHash);
+            const signatures = await getValidatorSignatures(
+                hexifiedDataHash,
+                "eth"
+            );
+
+            await ethBridge.bridge
+                .connect(ethUser)
+                .claimNFT1155(data, signatures, {
+                    value: 5,
+                });
+
+            const duplicate = await ethBridge.bridge.originalToDuplicateMapping(
+                data.sourceNftContractAddress,
+                data.sourceChain
+            );
+            const original = await ethBridge.bridge.duplicateToOriginalMapping(
+                duplicate[1],
+                duplicate[0]
+            );
+
+            expect(duplicate[1]).to.not.be.eq("");
+            expect(original[1]).to.be.eq(data.sourceNftContractAddress);
+
+            const duplicateCollectionContract = await ethers.getContractAt(
+                "ERC1155Royalty",
+                duplicate[1]
+            );
+            await duplicateCollectionContract
+                .connect(ethUser)
+                .setApprovalForAll(ethBridge.address, true);
+
+            const receipt = await ethBridge.bridge
+                .connect(ethUser)
+                .lock1155(
+                    data.tokenId,
+                    data.sourceChain,
+                    bscUser.address,
+                    duplicate[1],
+                    1
+                )
+                .then((r) => r.wait());
+
+            const logs = receipt?.logs[1] as EventLog;
+            expect(logs.args[3]).to.be.eq(data.sourceNftContractAddress);
+
+            // revert the mutation done at the beginning of the test
+            data.sourceNftContractAddress = oldSourceNftContractAddress;
+        });
     });
 
-    /* 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        */
     describe("Integration Tests; To and Fro between two chains", async function () {
         it("Should successfully run the complete flow to and fro with multiple 1155 NFT", async function () {
             const cycles = 2;
@@ -1049,7 +1165,7 @@ describe("Bridge", function () {
             }
         });
 
-        const getValidatorSignatures_New = async (
+        const _getValidatorSignatures = async (
             hash: Uint8Array,
             validatorSet: [HardhatEthersSigner, HardhatEthersSigner]
         ): Promise<ReturnType<TGetValidatorSignatures>> => {
@@ -1165,8 +1281,8 @@ describe("Bridge", function () {
                     throw new Error(`A bridge at index ${index} is null`);
                 }
 
-                console.log("source", source.chainId);
-                console.log("destination", destination.chainId);
+                // console.log("source", source.chainId);
+                // console.log("destination", destination.chainId);
 
                 if (index === 0) {
                     [
@@ -1186,7 +1302,7 @@ describe("Bridge", function () {
                         getValidatorSignatures,
                     });
                 } else {
-                    console.log("CASE 2", index);
+                    // console.log("CASE 2", index);
 
                     let lockOnEthReceipt1: ContractTransactionReceipt | null,
                         lockOnEthReceipt2: ContractTransactionReceipt | null;
@@ -1221,7 +1337,7 @@ describe("Bridge", function () {
                         sourceUser: source.user,
                         nftType,
                         getValidatorSignatures: async (hash: Uint8Array) =>
-                            getValidatorSignatures_New(
+                            _getValidatorSignatures(
                                 hash,
                                 destination.validatorSet
                             ),
@@ -1232,9 +1348,186 @@ describe("Bridge", function () {
                         break;
                     }
                 }
-                console.log(
-                    "================================================="
+                // console.log(
+                //     "================================================="
+                // );
+            }
+        });
+        it("should be able to transfer 2 NFTs across multiple chains", async function () {
+            const nftType = 1155;
+
+            const {
+                mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                tokenIds,
+            } = await deploy1155Collection(2, bscUser);
+
+            let chainArr: TChainArr[] = [
+                {
+                    bridge: bscBridge,
+                    chainId: "BSC",
+                    deployer: bscBridgeDeployer,
+                    validatorSet: [bscValidator1, bscValidator2],
+                    user: bscUser,
+                },
+                {
+                    bridge: ethBridge,
+                    chainId: "ETH",
+                    deployer: ethBridgeDeployer,
+                    validatorSet: [ethValidator1, ethValidator2],
+                    user: ethUser,
+                },
+                {
+                    bridge: null,
+                    chainId: "MOONBEAM",
+                    deployer: addrs[0],
+                    validatorSet: [addrs[1], addrs[2]],
+                    user: addrs[3],
+                },
+                {
+                    bridge: null,
+                    chainId: "ARBI",
+                    deployer: addrs[4],
+                    validatorSet: [addrs[5], addrs[6]],
+                    user: addrs[7],
+                },
+                {
+                    bridge: null,
+                    chainId: "POLY",
+                    deployer: addrs[8],
+                    validatorSet: [addrs[9], addrs[10]],
+                    user: addrs[11],
+                },
+                {
+                    bridge: null,
+                    chainId: "ARBI",
+                    deployer: addrs[4],
+                    validatorSet: [addrs[5], addrs[6]],
+                    user: addrs[7],
+                },
+                {
+                    bridge: null,
+                    chainId: "MOONBEAM",
+                    deployer: addrs[0],
+                    validatorSet: [addrs[1], addrs[2]],
+                    user: addrs[3],
+                },
+                {
+                    bridge: ethBridge,
+                    chainId: "ETH",
+                    deployer: ethBridgeDeployer,
+                    validatorSet: [ethValidator1, ethValidator2],
+                    user: ethUser,
+                },
+                {
+                    bridge: bscBridge,
+                    chainId: "BSC",
+                    deployer: bscBridgeDeployer,
+                    validatorSet: [bscValidator1, bscValidator2],
+                    user: bscUser,
+                },
+            ];
+
+            for (const [index, chain] of chainArr.entries()) {
+                if (chain.bridge !== null) continue;
+
+                const validatorAddressSet: [string, string] = [
+                    chain.validatorSet[0].address,
+                    chain.validatorSet[1].address,
+                ];
+
+                const bridge = await deployBridge(
+                    chain.chainId,
+                    validatorAddressSet,
+                    chain.deployer
                 );
+
+                chainArr[index].bridge = bridge;
+            }
+
+            let lockedEventDatas: TProcessedLogs[] = [],
+                duplicateCollectionAddresses: string[] = [],
+                duplicateCollectionContracts: Contract[] = [];
+
+            for (const [index] of chainArr.entries()) {
+                const source = chainArr[index] as TChainArrWithBridge;
+                const destination = chainArr[index + 1] as TChainArrWithBridge;
+
+                if (!source.bridge || !destination.bridge) {
+                    throw new Error(`A bridge at index ${index} is null`);
+                }
+
+                // console.log("source", source.chainId);
+                // console.log("destination", destination.chainId);
+
+                if (index === 0) {
+                    [
+                        lockedEventDatas,
+                        duplicateCollectionAddresses,
+                        duplicateCollectionContracts,
+                    ] = await lockOnBSCAndClaimOnEth({
+                        mintedCollectionOnBSC,
+                        tokenIds,
+                        mintedCollectionOnBSCAddress,
+                        nftDetails,
+                        bscUser: source.user, //           source user
+                        bscBridge: source.bridge, //       source bridge
+                        ethUser: destination.user, //       destination user
+                        ethBridge: destination.bridge, //   destination bridge
+                        nftType,
+                        getValidatorSignatures,
+                    });
+                } else {
+                    // console.log("CASE 2", index);
+
+                    let lockOnEthReceipt1: ContractTransactionReceipt | null,
+                        lockOnEthReceipt2: ContractTransactionReceipt | null;
+
+                    [lockedEventDatas, lockOnEthReceipt1, lockOnEthReceipt2] =
+                        await lock({
+                            lockedEventDatas,
+                            duplicateCollectionContracts:
+                                duplicateCollectionContracts as any,
+                            duplicateCollectionAddresses,
+                            nftDetails,
+                            source,
+                            destination,
+                            sourceUser: source.user,
+                            destinationUser: destination.user,
+                            nftType,
+                        });
+
+                    [
+                        duplicateCollectionAddresses,
+                        duplicateCollectionContracts,
+                    ] = await claim({
+                        lockedOnEthLogData1: lockedEventDatas[0],
+                        lockedOnEthLogData2: lockedEventDatas[1],
+                        lockOnEthReceipt1,
+                        lockOnEthReceipt2,
+                        mintedCollectionOnBSC,
+                        mintedCollectionOnBSCAddress,
+                        nftDetails,
+                        destinationUser: destination.user,
+                        destinationBridge: destination.bridge,
+                        sourceUser: source.user,
+                        nftType,
+                        getValidatorSignatures: async (hash: Uint8Array) =>
+                            _getValidatorSignatures(
+                                hash,
+                                destination.validatorSet
+                            ),
+                    });
+
+                    // ==============================================================
+                    if (index + 1 === chainArr.length - 1) {
+                        break;
+                    }
+                }
+                // console.log(
+                //     "================================================="
+                // );
             }
         });
     });
