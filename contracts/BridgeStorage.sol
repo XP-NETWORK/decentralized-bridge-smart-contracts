@@ -101,7 +101,8 @@ contract BridgeStorage {
         uint256 _fee
     ) public onlyValidator {
         require(
-            chainFeeVoted[_chain][_fee][msg.sender][chainEpoch[_chain]] == false,
+            chainFeeVoted[_chain][_fee][msg.sender][chainEpoch[_chain]] ==
+                false,
             "Already voted"
         );
         chainFeeVoted[_chain][_fee][msg.sender][chainEpoch[_chain]] = true;
@@ -143,11 +144,12 @@ contract BridgeStorage {
 
         uint256 twoByThreeValidators = (2 * validatorCount) / 3;
 
-        if (
-            (validatorStatusChangeVotes[_validatorAddress][_status][
-                _validatorEpoch
-            ] >= twoByThreeValidators + 1)
-        ) {
+        uint256 votes = validatorStatusChangeVotes[_validatorAddress][_status][
+            _validatorEpoch
+        ];
+
+        if (votes >= twoByThreeValidators + 1) {
+            // console.log("INSIDE");
             if (_status && validators[_validatorAddress] == false)
                 validatorCount++;
             else if (_status == false && validators[_validatorAddress])

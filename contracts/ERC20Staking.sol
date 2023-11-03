@@ -11,13 +11,12 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @dev A contract for staking a specific amount of XP tokens.
  */
 contract ERC20Staking {
-    
     // The required amount for staking.
     uint256 public stakingAmount;
-    
+
     // The token being staked.
     IERC20 public ERC20Token;
-    
+
     // Mapping to track the staking balances of individual addresses.
     mapping(address => uint256) public stakingBalances;
 
@@ -42,7 +41,7 @@ contract ERC20Staking {
 
         // Transfer the staking amount from the staker to this contract.
         ERC20Token.transferFrom(msg.sender, address(this), stakingAmount);
-        
+
         // Update the staking balance for the staker.
         stakingBalances[msg.sender] += stakingAmount;
 
