@@ -20,7 +20,7 @@ struct Chain {
  */
 struct SignerAndSignature {
     string signerAddress;
-    string signature;
+    bytes signature;
 }
 
 /**
@@ -73,7 +73,7 @@ contract BridgeStorage {
         public lockSignatures;
 
     // Mapping to check if a signature has already been used.
-    mapping(string => bool) public usedSignatures;
+    mapping(bytes => bool) public usedSignatures;
 
     // Mapping to store fee for all chains
     mapping(string => Chain) public chainFee;
@@ -276,7 +276,7 @@ contract BridgeStorage {
     function approveLockNft(
         string calldata _transactionHash,
         string calldata _chain,
-        string calldata _signature,
+        bytes calldata _signature,
         string calldata _signerAddress
     ) public onlyValidator {
         require(!usedSignatures[_signature], "Signature already used");

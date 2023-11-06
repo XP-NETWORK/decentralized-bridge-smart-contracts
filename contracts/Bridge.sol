@@ -16,6 +16,14 @@ import "./interfaces/IERC1155Royalty.sol";
 import "./interfaces/INFTStorageDeployer.sol";
 import "./interfaces/INFTCollectionDeployer.sol";
 import "./AddressUtilityLib.sol";
+/**
+ * @dev Stucture to store signature with signer public address
+ */
+struct SignerAndSignature {
+    string signerAddress;
+    bytes signature;
+}
+
 struct DuplicateToOriginalContractInfo {
     string chain;
     string contractAddress;
@@ -169,7 +177,7 @@ contract Bridge {
 
     function addValidator(
         address _validator,
-        bytes[] memory signatures
+        SignerAndSignature[] memory signatures
     ) external {
         require(_validator != address(0), "Address cannot be zero address!");
         require(signatures.length > 0, "Must have signatures!");
@@ -178,7 +186,7 @@ contract Bridge {
         for (uint256 i = 0; i < signatures.length; i++) {
             address signer = recover(
                 keccak256(abi.encode(_validator)),
-                signatures[i]
+                signatures[i].signature
             );
             if (validators[signer].added) {
                 percentage += 1;
