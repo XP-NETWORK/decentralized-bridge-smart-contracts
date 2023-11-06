@@ -19,7 +19,7 @@ struct Chain {
  * @dev Stucture to store signature with signer public address
  */
 struct SignerAndSignature {
-    string publicAddress;
+    string signerAddress;
     string signature;
 }
 
@@ -35,8 +35,7 @@ contract BridgeStorage {
     mapping(string => uint256) public validatorEpoch;
 
     // Mapping from staker's address to an array of their signatures.
-    mapping(string => mapping(string => SignerAndSignature[]))
-        public stakingSignatures;
+    mapping(string => SignerAndSignature[]) public stakingSignatures;
 
     // Mapping of existing validators.
     mapping(string => bool) public validators;
@@ -223,22 +222,26 @@ contract BridgeStorage {
     /**
      * @dev Approves a stake using a signature.
      * @param _stakerAddress Address of the staker.
-     * @param _signature The signature to be approved.
+     * @param _signatures The signatures to be stored.
      */
     function approveStake(
         string calldata _stakerAddress,
-        string calldata _signature,
-        string calldata _chainSymbol,
-        string calldata _signerAddress
+        SignerAndSignature[] calldata _signatures
     ) public onlyValidator {
-        require(!usedSignatures[_signature], "Signature already used");
-        usedSignatures[_signature] = true;
-        SignerAndSignature memory signerAndSignature;
-        signerAndSignature.publicAddress = _signerAddress;
-        signerAndSignature.signature = _signature;
-        stakingSignatures[_stakerAddress][_chainSymbol].push(
-            signerAndSignature
-        );
+        for (uint256 i = 0; i < _signatures.length; i++) {
+            require(
+                !usedSignatures[_signatures[i].signature],
+                "Signature already used"
+            );
+            usedSignatures[_signatures[i].signature] = true;
+
+            SignerAndSignature memory signerAndSignature;
+
+            signerAndSignature.signerAddress = _signatures[i].signerAddress;
+            signerAndSignature.signature = _signatures[i].signature;
+
+            stakingSignatures[_stakerAddress].push(signerAndSignature);
+        }
         changeValidatorStatus(_stakerAddress, true);
     }
 
@@ -248,10 +251,9 @@ contract BridgeStorage {
      * @return Array of signatures.
      */
     function getStakingSignatures(
-        string memory stakerAddress,
-        string memory chainSymbol
+        string memory stakerAddress
     ) external view returns (SignerAndSignature[] memory) {
-        return stakingSignatures[stakerAddress][chainSymbol];
+        return stakingSignatures[stakerAddress];
     }
 
     /**
@@ -260,10 +262,9 @@ contract BridgeStorage {
      * @return Number of signatures.
      */
     function getStakingSignaturesCount(
-        string calldata stakerAddress,
-        string calldata chainSymbol
+        string calldata stakerAddress
     ) external view returns (uint256) {
-        return stakingSignatures[stakerAddress][chainSymbol].length;
+        return stakingSignatures[stakerAddress].length;
     }
 
     /**
@@ -281,7 +282,7 @@ contract BridgeStorage {
         require(!usedSignatures[_signature], "Signature already used");
         usedSignatures[_signature] = true;
         SignerAndSignature memory signerAndSignatre;
-        signerAndSignatre.publicAddress = _signerAddress;
+        signerAndSignatre.signerAddress = _signerAddress;
         signerAndSignatre.signature = _signature;
         lockSignatures[_transactionHash][_chain].push(signerAndSignatre);
     }
