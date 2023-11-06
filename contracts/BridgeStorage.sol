@@ -10,11 +10,6 @@ struct ChainFee {
     string royaltyReceiver;
 }
 
-struct Chain {
-    uint256 fee;
-    string royaltyReceiver;
-}
-
 /**
  * @dev Stucture to store signature with signer public address
  */
@@ -76,7 +71,11 @@ contract BridgeStorage {
     mapping(bytes => bool) public usedSignatures;
 
     // Mapping to store fee for all chains
-    mapping(string => Chain) public chainFee;
+    // chainFee[chainType][fee]
+    mapping(string => uint256) public chainFee;
+
+    // chainRoyalty[chainType][royaltyReceiver]
+    mapping(string => string) public chainRoyalty;
 
     // Mapping to store royalty receiver and percentage
     // royalties
@@ -95,17 +94,11 @@ contract BridgeStorage {
         validatorCount++;
 
         for (uint256 i = 0; i < _bootstrapChainFee.length; i++) {
-            chainFee[_bootstrapChainFee[i].chain].fee = _bootstrapChainFee[i]
-                .fee;
+            chainFee[_bootstrapChainFee[i].chain] = _bootstrapChainFee[i].fee;
 
-            chainFee[_bootstrapChainFee[i].chain]
-                .royaltyReceiver = _bootstrapChainFee[i].royaltyReceiver;
+            chainRoyalty[_bootstrapChainFee[i].chain] = _bootstrapChainFee[i]
+                .royaltyReceiver;
         }
-
-        // for (uint256 i = 0; i < _royalties.length; i++) {
-        //     royalties[_bootstrapValidator].receiver = _royalties[i].receiver;
-        //     royalties[_bootstrapValidator].amount = _royalties[i].amount;
-        // }
     }
 
     /**
@@ -143,7 +136,7 @@ contract BridgeStorage {
             chainFeeVotes[_chain][_fee][chainEpoch[_chain]] >=
             twoByThreeValidators + 1
         ) {
-            chainFee[_chain].fee = _fee;
+            chainFee[_chain] = _fee;
             chainEpoch[_chain]++;
         }
     }
@@ -175,7 +168,7 @@ contract BridgeStorage {
             chainRoyaltyVotes[_chain][_royaltyReceiver][chainEpoch[_chain]] >=
             twoByThreeValidators + 1
         ) {
-            chainFee[_chain].royaltyReceiver = _royaltyReceiver;
+            chainRoyalty[_chain] = _royaltyReceiver;
             chainEpoch[_chain]++;
         }
     }

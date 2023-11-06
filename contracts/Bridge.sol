@@ -149,7 +149,7 @@ contract Bridge {
 
     constructor(
         address[] memory _validators,
-        string memory _chainSymbol,
+        string memory _chainType,
         address _collectionDeployer,
         address _storageDeployer
     ) {
@@ -168,7 +168,7 @@ contract Bridge {
         collectionDeployer.setOwner(address(this));
         storageDeployer.setOwner(address(this));
 
-        selfChain = _chainSymbol;
+        selfChain = _chainType;
         for (uint256 i = 0; i < _validators.length; i++) {
             validators[_validators[i]].added = true;
             validatorsCount += 1;
