@@ -25,6 +25,7 @@ struct SignerAndSignature {
 contract BridgeStorage {
     // Current epoch for each chain
     mapping(string => uint256) public chainEpoch;
+    mapping(string => uint256) public royaltyEpoch;
 
     // Current epoch for each validator
     mapping(string => uint256) public validatorEpoch;
@@ -146,30 +147,30 @@ contract BridgeStorage {
      * @param _chain  new / old chain.
      * @param _royaltyReceiver  new royalty receiver.
      */
-    function changeChainRoyalty(
+    function changeChainRoyaltyReceiver(
         string calldata _chain,
         string memory _royaltyReceiver
     ) public onlyValidator {
         require(
             chainRoyaltyVoted[_chain][_royaltyReceiver][msg.sender][
-                chainEpoch[_chain]
+                royaltyEpoch[_chain]
             ] == false,
             "Already voted"
         );
         chainRoyaltyVoted[_chain][_royaltyReceiver][msg.sender][
-            chainEpoch[_chain]
+            royaltyEpoch[_chain]
         ] = true;
 
-        chainRoyaltyVotes[_chain][_royaltyReceiver][chainEpoch[_chain]]++;
+        chainRoyaltyVotes[_chain][_royaltyReceiver][royaltyEpoch[_chain]]++;
 
         uint256 twoByThreeValidators = (2 * validatorCount) / 3;
 
         if (
-            chainRoyaltyVotes[_chain][_royaltyReceiver][chainEpoch[_chain]] >=
+            chainRoyaltyVotes[_chain][_royaltyReceiver][royaltyEpoch[_chain]] >=
             twoByThreeValidators + 1
         ) {
             chainRoyalty[_chain] = _royaltyReceiver;
-            chainEpoch[_chain]++;
+            royaltyEpoch[_chain]++;
         }
     }
 
