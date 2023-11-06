@@ -7,6 +7,12 @@ pragma solidity ^0.8.19;
 struct ChainFee {
     string chain;
     uint256 fee;
+    string royaltyReceiver;
+}
+
+struct Chain {
+    uint256 fee;
+    string royaltyReceiver;
 }
 
 /**
@@ -52,6 +58,14 @@ contract BridgeStorage {
     mapping(string => mapping(uint256 => mapping(address => mapping(uint256 => bool))))
         public chainFeeVoted;
 
+    // Mapping of to check if already voted on a chain fee. chainFeeVotes[chain][receiver][address][chainEpoch] = true/false
+    mapping(string => mapping(string => mapping(address => mapping(uint256 => bool))))
+        public chainRoyaltyVoted;
+
+    // Mapping of votes of new chain fee. chainFeeVotes[chain][receiver][chainEpoch] = votes
+    mapping(string => mapping(string => mapping(uint256 => uint256)))
+        public chainRoyaltyVotes;
+
     // total validator count
     uint256 public validatorCount;
 
@@ -63,7 +77,11 @@ contract BridgeStorage {
     mapping(string => bool) public usedSignatures;
 
     // Mapping to store fee for all chains
-    mapping(string => uint256) public chainFee;
+    mapping(string => Chain) public chainFee;
+
+    // Mapping to store royalty receiver and percentage
+    // royalties
+    // mapping(string => Royalty) public royalties;
 
     /**
      * @dev bootstrap the bridge storage with a intial validator and intial fee for chains
@@ -72,14 +90,23 @@ contract BridgeStorage {
      */
     constructor(
         string memory _bootstrapValidator,
-        ChainFee[] memory _bootstrapChainFee
+        ChainFee[] memory _bootstrapChainFee // Royalty[] memory _royalties
     ) {
         validators[_bootstrapValidator] = true;
         validatorCount++;
 
         for (uint256 i = 0; i < _bootstrapChainFee.length; i++) {
-            chainFee[_bootstrapChainFee[i].chain] = _bootstrapChainFee[i].fee;
+            chainFee[_bootstrapChainFee[i].chain].fee = _bootstrapChainFee[i]
+                .fee;
+
+            chainFee[_bootstrapChainFee[i].chain]
+                .royaltyReceiver = _bootstrapChainFee[i].royaltyReceiver;
         }
+
+        // for (uint256 i = 0; i < _royalties.length; i++) {
+        //     royalties[_bootstrapValidator].receiver = _royalties[i].receiver;
+        //     royalties[_bootstrapValidator].amount = _royalties[i].amount;
+        // }
     }
 
     /**
@@ -117,7 +144,39 @@ contract BridgeStorage {
             chainFeeVotes[_chain][_fee][chainEpoch[_chain]] >=
             twoByThreeValidators + 1
         ) {
-            chainFee[_chain] = _fee;
+            chainFee[_chain].fee = _fee;
+            chainEpoch[_chain]++;
+        }
+    }
+
+    /**
+     * @dev change / add a chain with new fee
+     * @param _chain  new / old chain.
+     * @param _royaltyReceiver  new royalty receiver.
+     */
+    function changeChainRoyalty(
+        string calldata _chain,
+        string memory _royaltyReceiver
+    ) public onlyValidator {
+        require(
+            chainRoyaltyVoted[_chain][_royaltyReceiver][msg.sender][
+                chainEpoch[_chain]
+            ] == false,
+            "Already voted"
+        );
+        chainRoyaltyVoted[_chain][_royaltyReceiver][msg.sender][
+            chainEpoch[_chain]
+        ] = true;
+
+        chainRoyaltyVotes[_chain][_royaltyReceiver][chainEpoch[_chain]]++;
+
+        uint256 twoByThreeValidators = (2 * validatorCount) / 3;
+
+        if (
+            chainRoyaltyVotes[_chain][_royaltyReceiver][chainEpoch[_chain]] >=
+            twoByThreeValidators + 1
+        ) {
+            chainFee[_chain].royaltyReceiver = _royaltyReceiver;
             chainEpoch[_chain]++;
         }
     }

@@ -6,7 +6,7 @@ import { BridgeStorage } from "../contractsTypes";
 
 const CHAIN_SYMBOL = "POLY";
 
-describe("BridgeStorage", function () {
+describe.only("BridgeStorage", function () {
     let bridgeStorage: BridgeStorage & {
         deploymentTransaction(): ContractTransactionResponse;
     };
@@ -78,8 +78,16 @@ describe("BridgeStorage", function () {
         bridgeStorage = await BridgeStorage.deploy(
             validator1.address.toLowerCase(),
             [
-                { chain: "ETH", fee: 100 },
-                { chain: "BSC", fee: 200 },
+                {
+                    chain: "ETH",
+                    fee: 100,
+                    royaltyReceiver: "eth_royalty_receiver",
+                },
+                {
+                    chain: "BSC",
+                    fee: 200,
+                    royaltyReceiver: "bsc_royalty_receiver",
+                },
             ]
         );
     });
@@ -91,7 +99,7 @@ describe("BridgeStorage", function () {
             bridgeStorage.validators(validator1.address.toLowerCase()),
         ]);
         // await addValidators(2);
-        expect(chainFee).to.equal(100);
+        expect(chainFee[0]).to.equal(100);
         expect(validatorCount).to.equal(1);
         expect(validatorExists).to.be.eq(true);
     });
@@ -123,7 +131,7 @@ describe("BridgeStorage", function () {
             ]);
 
             const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee).to.equal(150);
+            expect(newChainFee[0]).to.equal(150);
         });
 
         it("should change chain fee with 2/3 + 1 validator votes and taking only the majority decided fee", async function () {
@@ -209,7 +217,7 @@ describe("BridgeStorage", function () {
             ]);
 
             const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee).to.equal(180);
+            expect(newChainFee[0]).to.equal(180);
         });
 
         it("should not change chain fee if no proposed fee is able to get majority votes from validators", async function () {
@@ -272,7 +280,7 @@ describe("BridgeStorage", function () {
             ]);
 
             const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee).to.equal(100);
+            expect(newChainFee[0]).to.equal(100);
         });
 
         it("should not change chain fee with less than 2/3 + 1 validator votes", async function () {
@@ -298,7 +306,7 @@ describe("BridgeStorage", function () {
             await bridgeStorage.connect(validator2).changeChainFee("ETH", 150);
 
             const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee).to.equal(100); // Chain fee should remain unchanged
+            expect(newChainFee[0]).to.equal(100); // Chain fee should remain unchanged
         });
 
         it("should fail if already voted", async function () {
