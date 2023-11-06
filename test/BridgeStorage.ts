@@ -6,7 +6,7 @@ import { BridgeStorage } from "../contractsTypes";
 
 const CHAIN_SYMBOL = "POLY";
 
-describe.only("BridgeStorage", function () {
+describe("BridgeStorage", function () {
     let bridgeStorage: BridgeStorage & {
         deploymentTransaction(): ContractTransactionResponse;
     };
@@ -69,7 +69,8 @@ describe.only("BridgeStorage", function () {
     //     // Return the array of new validators
     //     return existingValidators;
     // }
-
+    let ethRoyaltyReceiver = "eth_royalty_receiver",
+        bscRoyaltyReceiver = "bsc_royalty_receiver";
     beforeEach(async function () {
         [owner, validator1, validator2, validator3, validator4] =
             await ethers.getSigners();
@@ -81,12 +82,12 @@ describe.only("BridgeStorage", function () {
                 {
                     chain: "ETH",
                     fee: 100,
-                    royaltyReceiver: "eth_royalty_receiver",
+                    royaltyReceiver: ethRoyaltyReceiver,
                 },
                 {
                     chain: "BSC",
                     fee: 200,
-                    royaltyReceiver: "bsc_royalty_receiver",
+                    royaltyReceiver: bscRoyaltyReceiver,
                 },
             ]
         );
@@ -365,6 +366,304 @@ describe.only("BridgeStorage", function () {
         it("should fail if not validator", async function () {
             await expect(
                 bridgeStorage.connect(validator2).changeChainFee("ETH", 150)
+            ).to.be.revertedWith("Only validators can call this function");
+        });
+    });
+
+    describe("changeChainRoyalty()", async function () {
+        it("should change chain fee with 2/3 + 1 validator votes", async function () {
+            const newRoyaltyReceiver = "new_royalty_receiver";
+            // add 2 new validators
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator2.address.toLowerCase(),
+                        "signature1",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    ),
+
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    ),
+            ]);
+
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiver),
+                bridgeStorage
+                    .connect(validator2)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiver),
+            ]);
+
+            const newChainFee = await bridgeStorage.chainFee("ETH");
+            expect(newChainFee[1]).to.equal(newRoyaltyReceiver);
+        });
+
+        it("should change chain fee with 2/3 + 1 validator votes and taking only the majority decided fee", async function () {
+            const newRoyaltyReceiver = "new_royalty_receiver";
+
+            // a single validator tries to use this as the new royalty receiver
+            // it should no be updated to this
+            const loneWolfNewRoyaltyReceiver = "lone_wolf_new_royalty_receiver";
+            // add 3 new validators
+            await bridgeStorage
+                .connect(validator1)
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    "signature1",
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
+                )
+                .then((r) => r.wait());
+
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    )
+                    .then((r) => r.wait()),
+
+                bridgeStorage
+                    .connect(validator2)
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature3",
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
+                    )
+                    .then((r) => r.wait()),
+            ]);
+
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature4",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    )
+                    .then((r) => r.wait()),
+
+                bridgeStorage
+                    .connect(validator2)
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature5",
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
+                    )
+                    .then((r) => r.wait()),
+
+                bridgeStorage
+                    .connect(validator3)
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature6",
+                        CHAIN_SYMBOL,
+                        validator3.address.toLowerCase()
+                    )
+                    .then((r) => r.wait()),
+            ]);
+
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+                    .then((r) => r.wait()),
+
+                bridgeStorage
+                    .connect(validator2)
+                    .changeChainRoyalty("ETH", loneWolfNewRoyaltyReceiver)
+                    .then((r) => r.wait()),
+
+                bridgeStorage
+                    .connect(validator3)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+                    .then((r) => r.wait()),
+
+                bridgeStorage
+                    .connect(validator4)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+                    .then((r) => r.wait()),
+            ]);
+
+            const newChainFee = await bridgeStorage.chainFee("ETH");
+            expect(newChainFee[1]).to.equal(newRoyaltyReceiver);
+        });
+
+        it("should not change chain fee if no proposed fee is able to get majority votes from validators", async function () {
+            const newRoyaltyReceiverAttempt1 = "new_royalty_receiver_attempt1";
+            const newRoyaltyReceiverAttempt2 = "new_royalty_receiver_attempt2";
+            const newRoyaltyReceiverAttempt3 = "new_royalty_receiver_attempt3";
+            // add 3 new validators
+            await bridgeStorage
+                .connect(validator1)
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    "signature1",
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
+                );
+
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    ),
+
+                bridgeStorage
+                    .connect(validator2)
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature3",
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
+                    ),
+            ]);
+
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature4",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    ),
+                bridgeStorage
+                    .connect(validator2)
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature5",
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
+                    ),
+                bridgeStorage
+                    .connect(validator3)
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature6",
+                        CHAIN_SYMBOL,
+                        validator3.address.toLowerCase()
+                    ),
+            ]);
+
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiverAttempt1),
+                bridgeStorage
+                    .connect(validator2)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiverAttempt2),
+                bridgeStorage
+                    .connect(validator3)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiverAttempt1),
+                bridgeStorage
+                    .connect(validator4)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiverAttempt3),
+            ]);
+
+            const newChainFee = await bridgeStorage.chainFee("ETH");
+            expect(newChainFee[1]).to.equal(ethRoyaltyReceiver);
+        });
+
+        it("should not change chain fee with less than 2/3 + 1 validator votes", async function () {
+            const newRoyaltyReceiver = "new_royalty_receiver";
+
+            // add 2 new validators
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator2.address.toLowerCase(),
+                        "signature1",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    ),
+
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    ),
+            ]);
+
+            await bridgeStorage
+                .connect(validator2)
+                .changeChainRoyalty("ETH", newRoyaltyReceiver);
+
+            const newChainFee = await bridgeStorage.chainFee("ETH");
+            expect(newChainFee[1]).to.equal(ethRoyaltyReceiver); // Chain fee should remain unchanged
+        });
+
+        it("should fail if already voted", async function () {
+            const newRoyaltyReceiver = "new_royalty_receiver";
+            await bridgeStorage
+                .connect(validator1)
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    "signature1",
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
+                );
+
+            await Promise.all([
+                bridgeStorage
+                    .connect(validator1)
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
+                    ),
+
+                bridgeStorage
+                    .connect(validator2)
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature3",
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
+                    ),
+            ]);
+
+            await bridgeStorage
+                .connect(validator1)
+                .changeChainRoyalty("ETH", newRoyaltyReceiver);
+
+            await expect(
+                bridgeStorage
+                    .connect(validator1)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+            ).to.be.revertedWith("Already voted");
+        });
+
+        it("should fail if not validator", async function () {
+            const newRoyaltyReceiver = "new_royalty_receiver";
+            await expect(
+                bridgeStorage
+                    .connect(validator2)
+                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
             ).to.be.revertedWith("Only validators can call this function");
         });
     });
