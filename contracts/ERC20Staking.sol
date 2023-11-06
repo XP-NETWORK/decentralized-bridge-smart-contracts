@@ -7,8 +7,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // import "hardhat/console.sol";
 
 struct Chain {
-    string chainAddress;
-    uint256 chainId;
+    string validatorAddress;
+    string chainSymbol;
 }
 
 /**
@@ -26,7 +26,7 @@ contract ERC20Staking {
     mapping(address => uint256) public stakingBalances;
 
     // Event emitted when a user stakes tokens.
-    event Staked(address indexed user, uint256 amount, Chain[] otherChains);
+    event Staked(address indexed user, uint256 amount, Chain[] chains);
 
     /**
      * @dev Contract constructor that initializes the staking amount and token contract.
