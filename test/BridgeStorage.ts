@@ -113,7 +113,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator2.address.toLowerCase(),
                         "signature1",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
 
                 bridgeStorage
@@ -121,7 +122,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature2",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
             ]);
 
@@ -141,7 +143,8 @@ describe.only("BridgeStorage", function () {
                 .approveStake(
                     validator2.address.toLowerCase(),
                     "signature1",
-                    CHAIN_SYMBOL
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
                 )
                 .then((r) => r.wait());
 
@@ -151,7 +154,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature2",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     )
                     .then((r) => r.wait()),
 
@@ -160,7 +164,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature3",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
                     )
                     .then((r) => r.wait()),
             ]);
@@ -171,7 +176,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature4",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     )
                     .then((r) => r.wait()),
 
@@ -180,7 +186,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature5",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
                     )
                     .then((r) => r.wait()),
 
@@ -189,7 +196,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature6",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator3.address.toLowerCase()
                     )
                     .then((r) => r.wait()),
             ]);
@@ -227,7 +235,8 @@ describe.only("BridgeStorage", function () {
                 .approveStake(
                     validator2.address.toLowerCase(),
                     "signature1",
-                    CHAIN_SYMBOL
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
                 );
 
             await Promise.all([
@@ -236,7 +245,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature2",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
 
                 bridgeStorage
@@ -244,7 +254,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature3",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
                     ),
             ]);
 
@@ -254,21 +265,24 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature4",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
                 bridgeStorage
                     .connect(validator2)
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature5",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
                     ),
                 bridgeStorage
                     .connect(validator3)
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature6",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator3.address.toLowerCase()
                     ),
             ]);
 
@@ -291,7 +305,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator2.address.toLowerCase(),
                         "signature1",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
 
                 bridgeStorage
@@ -299,7 +314,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature2",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
             ]);
 
@@ -315,7 +331,8 @@ describe.only("BridgeStorage", function () {
                 .approveStake(
                     validator2.address.toLowerCase(),
                     "signature1",
-                    CHAIN_SYMBOL
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
                 );
 
             await Promise.all([
@@ -324,7 +341,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature2",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
 
                 bridgeStorage
@@ -332,7 +350,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature3",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
                     ),
             ]);
 
@@ -358,7 +377,8 @@ describe.only("BridgeStorage", function () {
                 .approveStake(
                     validator2.address.toLowerCase(),
                     "signature1",
-                    CHAIN_SYMBOL
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
                 );
 
             await Promise.all([
@@ -367,7 +387,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature2",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
 
                 bridgeStorage
@@ -375,7 +396,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature3",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
                     ),
             ]);
 
@@ -385,7 +407,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature4",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
 
                 bridgeStorage
@@ -393,7 +416,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature5",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
                     ),
 
                 bridgeStorage
@@ -401,7 +425,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature6",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator3.address.toLowerCase()
                     ),
             ]);
 
@@ -469,7 +494,8 @@ describe.only("BridgeStorage", function () {
                 .approveStake(
                     validator2.address.toLowerCase(),
                     "signature1",
-                    CHAIN_SYMBOL
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
                 );
 
             await Promise.all([
@@ -478,7 +504,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature2",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     ),
 
                 bridgeStorage
@@ -486,7 +513,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator3.address.toLowerCase(),
                         "signature3",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator2.address.toLowerCase()
                     ),
             ]);
 
@@ -495,7 +523,8 @@ describe.only("BridgeStorage", function () {
                 .approveStake(
                     validator4.address.toLowerCase(),
                     "signature4",
-                    CHAIN_SYMBOL
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
                 );
 
             await expect(
@@ -504,7 +533,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         validator4.address.toLowerCase(),
                         "signature5",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     )
             ).to.be.revertedWith("Already voted for this validator");
         });
@@ -521,7 +551,8 @@ describe.only("BridgeStorage", function () {
                 .approveStake(
                     validator2.address.toLowerCase(),
                     signature,
-                    CHAIN_SYMBOL
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
                 );
 
             const isValidatorAfter = await bridgeStorage.validators(
@@ -559,7 +590,8 @@ describe.only("BridgeStorage", function () {
                 .approveStake(
                     owner.address.toLowerCase(),
                     "signature",
-                    CHAIN_SYMBOL
+                    CHAIN_SYMBOL,
+                    validator1.address.toLowerCase()
                 );
             const signaturesCountBefore =
                 await bridgeStorage.getStakingSignaturesCount(
@@ -574,7 +606,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         owner.address.toLowerCase(),
                         "signature",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        validator1.address.toLowerCase()
                     )
             ).to.be.revertedWith("Signature already used");
 
@@ -595,7 +628,8 @@ describe.only("BridgeStorage", function () {
                     .approveStake(
                         owner.address.toLowerCase(),
                         "signature",
-                        CHAIN_SYMBOL
+                        CHAIN_SYMBOL,
+                        owner.address.toLowerCase()
                     )
             ).to.be.rejectedWith("Only validators can call this function");
         });
@@ -609,7 +643,8 @@ describe.only("BridgeStorage", function () {
                     .approveLockNft(
                         "dummy_hash",
                         "dummy_chain",
-                        "dummy_signature"
+                        "dummy_signature",
+                        owner.address.toLowerCase()
                     )
             ).to.be.revertedWith("Only validators can call this function");
         });
@@ -617,7 +652,12 @@ describe.only("BridgeStorage", function () {
         it("should fail if signature is already used", async function () {
             await bridgeStorage
                 .connect(validator1)
-                .approveLockNft("dummy_hash", "dummy_chain", "dummy_signature")
+                .approveLockNft(
+                    "dummy_hash",
+                    "dummy_chain",
+                    "dummy_signature",
+                    validator1.address.toLowerCase()
+                )
                 .then((r) => r.wait());
 
             await expect(
@@ -626,7 +666,8 @@ describe.only("BridgeStorage", function () {
                     .approveLockNft(
                         "dummy_hash",
                         "dummy_chain",
-                        "dummy_signature"
+                        "dummy_signature",
+                        validator1.address.toLowerCase()
                     )
                     .then((r) => r.wait())
             ).to.be.revertedWith("Signature already used");
@@ -642,7 +683,12 @@ describe.only("BridgeStorage", function () {
 
             await bridgeStorage
                 .connect(validator1)
-                .approveLockNft(hash, chain, signature)
+                .approveLockNft(
+                    hash,
+                    chain,
+                    signature,
+                    validator1.address.toLowerCase()
+                )
                 .then((r) => r.wait());
 
             const [validatorAddress, storedSignature] = await bridgeStorage

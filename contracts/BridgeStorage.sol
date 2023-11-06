@@ -19,7 +19,7 @@ struct Chain {
  * @dev Stucture to store signature with signer public address
  */
 struct SignerAndSignature {
-    address publicAddress;
+    string publicAddress;
     string signature;
 }
 
@@ -226,16 +226,19 @@ contract BridgeStorage {
      * @param _signature The signature to be approved.
      */
     function approveStake(
-        string memory _stakerAddress,
+        string calldata _stakerAddress,
         string calldata _signature,
-        string memory _chainSymbol
+        string calldata _chainSymbol,
+        string calldata _signerAddress
     ) public onlyValidator {
         require(!usedSignatures[_signature], "Signature already used");
         usedSignatures[_signature] = true;
-        SignerAndSignature memory signerAndSignatre;
-        signerAndSignatre.publicAddress = msg.sender;
-        signerAndSignatre.signature = _signature;
-        stakingSignatures[_stakerAddress][_chainSymbol].push(signerAndSignatre);
+        SignerAndSignature memory signerAndSignature;
+        signerAndSignature.publicAddress = _signerAddress;
+        signerAndSignature.signature = _signature;
+        stakingSignatures[_stakerAddress][_chainSymbol].push(
+            signerAndSignature
+        );
         changeValidatorStatus(_stakerAddress, true);
     }
 
@@ -257,8 +260,8 @@ contract BridgeStorage {
      * @return Number of signatures.
      */
     function getStakingSignaturesCount(
-        string memory stakerAddress,
-        string memory chainSymbol
+        string calldata stakerAddress,
+        string calldata chainSymbol
     ) external view returns (uint256) {
         return stakingSignatures[stakerAddress][chainSymbol].length;
     }
@@ -272,12 +275,13 @@ contract BridgeStorage {
     function approveLockNft(
         string calldata _transactionHash,
         string calldata _chain,
-        string calldata _signature
+        string calldata _signature,
+        string calldata _signerAddress
     ) public onlyValidator {
         require(!usedSignatures[_signature], "Signature already used");
         usedSignatures[_signature] = true;
         SignerAndSignature memory signerAndSignatre;
-        signerAndSignatre.publicAddress = msg.sender;
+        signerAndSignatre.publicAddress = _signerAddress;
         signerAndSignatre.signature = _signature;
         lockSignatures[_transactionHash][_chain].push(signerAndSignatre);
     }
