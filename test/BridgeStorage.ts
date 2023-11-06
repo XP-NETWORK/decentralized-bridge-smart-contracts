@@ -1,13 +1,10 @@
-import { expect } from "chai";
-import { ethers } from "hardhat";
-import ethersOriginal from "ethers";
-import { BridgeStorage } from "../contractsTypes";
-import {
-    ContractTransactionReceipt,
-    ContractTransactionResponse,
-    HDNodeWallet,
-} from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ContractTransactionResponse } from "ethers";
+import { ethers } from "hardhat";
+import { BridgeStorage } from "../contractsTypes";
+
+const CHAIN_SYMBOL = "POLY";
 
 describe("BridgeStorage", function () {
     let bridgeStorage: BridgeStorage & {
@@ -43,7 +40,7 @@ describe("BridgeStorage", function () {
     //             ethers.provider
     //         );
 
-    //         await setBalance(newValidator.address, "5");
+    //         await setBalance(newValidator.address.toLowerCase(), "5");
 
     //         // Generate or assign the signatures for approving the stake here.
     //         const signature = `signature${i + 1}`; // Replace this with actual signature generation or retrieval logic.
@@ -52,7 +49,7 @@ describe("BridgeStorage", function () {
     //         existingValidators.forEach((existingValidator, i) => {
     //             const approvalPromise = bridgeStorage
     //                 .connect(existingValidator)
-    //                 .approveStake(newValidator.address, signature + i)
+    //                 .approveStake(newValidator.address.toLowerCase(), signature + i)
     //                 .then((r) => r.wait());
     //             approvalPromises.push(approvalPromise);
     //         });
@@ -78,17 +75,20 @@ describe("BridgeStorage", function () {
             await ethers.getSigners();
 
         const BridgeStorage = await ethers.getContractFactory("BridgeStorage");
-        bridgeStorage = await BridgeStorage.deploy(validator1.address, [
-            { chain: "ETH", fee: 100 },
-            { chain: "BSC", fee: 200 },
-        ]);
+        bridgeStorage = await BridgeStorage.deploy(
+            validator1.address.toLowerCase(),
+            [
+                { chain: "ETH", fee: 100 },
+                { chain: "BSC", fee: 200 },
+            ]
+        );
     });
 
     it("should initialize the contract correctly", async function () {
         const [chainFee, validatorCount, validatorExists] = await Promise.all([
             bridgeStorage.chainFee("ETH"),
             bridgeStorage.validatorCount(),
-            bridgeStorage.validators(validator1.address),
+            bridgeStorage.validators(validator1.address.toLowerCase()),
         ]);
         // await addValidators(2);
         expect(chainFee).to.equal(100);
@@ -102,11 +102,19 @@ describe("BridgeStorage", function () {
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator2.address, "signature1"),
+                    .approveStake(
+                        validator2.address.toLowerCase(),
+                        "signature1",
+                        CHAIN_SYMBOL
+                    ),
 
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator3.address, "signature2"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL
+                    ),
             ]);
 
             await Promise.all([
@@ -122,35 +130,59 @@ describe("BridgeStorage", function () {
             // add 3 new validators
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(validator2.address, "signature1")
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    "signature1",
+                    CHAIN_SYMBOL
+                )
                 .then((r) => r.wait());
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator3.address, "signature2")
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL
+                    )
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(validator3.address, "signature3")
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature3",
+                        CHAIN_SYMBOL
+                    )
                     .then((r) => r.wait()),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator4.address, "signature4")
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature4",
+                        CHAIN_SYMBOL
+                    )
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(validator4.address, "signature5")
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature5",
+                        CHAIN_SYMBOL
+                    )
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator3)
-                    .approveStake(validator4.address, "signature6")
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature6",
+                        CHAIN_SYMBOL
+                    )
                     .then((r) => r.wait()),
             ]);
 
@@ -184,28 +216,52 @@ describe("BridgeStorage", function () {
             // add 3 new validators
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(validator2.address, "signature1");
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    "signature1",
+                    CHAIN_SYMBOL
+                );
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator3.address, "signature2"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL
+                    ),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(validator3.address, "signature3"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature3",
+                        CHAIN_SYMBOL
+                    ),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator4.address, "signature4"),
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature4",
+                        CHAIN_SYMBOL
+                    ),
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(validator4.address, "signature5"),
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature5",
+                        CHAIN_SYMBOL
+                    ),
                 bridgeStorage
                     .connect(validator3)
-                    .approveStake(validator4.address, "signature6"),
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature6",
+                        CHAIN_SYMBOL
+                    ),
             ]);
 
             await Promise.all([
@@ -224,11 +280,19 @@ describe("BridgeStorage", function () {
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator2.address, "signature1"),
+                    .approveStake(
+                        validator2.address.toLowerCase(),
+                        "signature1",
+                        CHAIN_SYMBOL
+                    ),
 
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator3.address, "signature2"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL
+                    ),
             ]);
 
             await bridgeStorage.connect(validator2).changeChainFee("ETH", 150);
@@ -240,16 +304,28 @@ describe("BridgeStorage", function () {
         it("should fail if already voted", async function () {
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(validator2.address, "signature1");
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    "signature1",
+                    CHAIN_SYMBOL
+                );
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator3.address, "signature2"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL
+                    ),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(validator3.address, "signature3"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature3",
+                        CHAIN_SYMBOL
+                    ),
             ]);
 
             await bridgeStorage.connect(validator1).changeChainFee("ETH", 150);
@@ -271,30 +347,54 @@ describe("BridgeStorage", function () {
             // // increase validator count to 3
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(validator2.address, "signature1");
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    "signature1",
+                    CHAIN_SYMBOL
+                );
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator3.address, "signature2"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL
+                    ),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(validator3.address, "signature3"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature3",
+                        CHAIN_SYMBOL
+                    ),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator4.address, "signature4"),
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature4",
+                        CHAIN_SYMBOL
+                    ),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(validator4.address, "signature5"),
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature5",
+                        CHAIN_SYMBOL
+                    ),
 
                 bridgeStorage
                     .connect(validator3)
-                    .approveStake(validator4.address, "signature6"),
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature6",
+                        CHAIN_SYMBOL
+                    ),
             ]);
 
             const beforeValidatorsCount = await bridgeStorage.validatorCount();
@@ -308,13 +408,22 @@ describe("BridgeStorage", function () {
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .changeValidatorStatus(validator2.address, false),
+                    .changeValidatorStatus(
+                        validator2.address.toLowerCase(),
+                        false
+                    ),
                 bridgeStorage
                     .connect(validator3)
-                    .changeValidatorStatus(validator2.address, false),
+                    .changeValidatorStatus(
+                        validator2.address.toLowerCase(),
+                        false
+                    ),
                 bridgeStorage
                     .connect(validator4)
-                    .changeValidatorStatus(validator2.address, false),
+                    .changeValidatorStatus(
+                        validator2.address.toLowerCase(),
+                        false
+                    ),
             ]);
 
             const afterValidatorCount = await bridgeStorage.validatorCount();
@@ -325,13 +434,22 @@ describe("BridgeStorage", function () {
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .changeValidatorStatus(validator2.address, true),
+                    .changeValidatorStatus(
+                        validator2.address.toLowerCase(),
+                        true
+                    ),
                 bridgeStorage
                     .connect(validator3)
-                    .changeValidatorStatus(validator2.address, true),
+                    .changeValidatorStatus(
+                        validator2.address.toLowerCase(),
+                        true
+                    ),
                 bridgeStorage
                     .connect(validator4)
-                    .changeValidatorStatus(validator2.address, true),
+                    .changeValidatorStatus(
+                        validator2.address.toLowerCase(),
+                        true
+                    ),
             ]);
 
             expect(await bridgeStorage.validatorCount()).to.be.eq(4n);
@@ -340,26 +458,46 @@ describe("BridgeStorage", function () {
         it("Should fail to vote if already voted", async function () {
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(validator2.address, "signature1");
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    "signature1",
+                    CHAIN_SYMBOL
+                );
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator3.address, "signature2"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature2",
+                        CHAIN_SYMBOL
+                    ),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(validator3.address, "signature3"),
+                    .approveStake(
+                        validator3.address.toLowerCase(),
+                        "signature3",
+                        CHAIN_SYMBOL
+                    ),
             ]);
 
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(validator4.address, "signature4");
+                .approveStake(
+                    validator4.address.toLowerCase(),
+                    "signature4",
+                    CHAIN_SYMBOL
+                );
 
             await expect(
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(validator4.address, "signature5")
+                    .approveStake(
+                        validator4.address.toLowerCase(),
+                        "signature5",
+                        CHAIN_SYMBOL
+                    )
             ).to.be.revertedWith("Already voted for this validator");
         });
     });
@@ -368,28 +506,39 @@ describe("BridgeStorage", function () {
         it("should approve stake and change validator status", async function () {
             const signature = "signature";
             const isValidatorBefore = await bridgeStorage.validators(
-                validator2.address
+                validator2.address.toLowerCase()
             );
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(validator2.address, signature);
+                .approveStake(
+                    validator2.address.toLowerCase(),
+                    signature,
+                    CHAIN_SYMBOL
+                );
 
             const isValidatorAfter = await bridgeStorage.validators(
-                validator2.address
+                validator2.address.toLowerCase()
             );
             const signaturesCount =
                 await bridgeStorage.getStakingSignaturesCount(
-                    validator2.address
+                    validator2.address.toLowerCase(),
+                    CHAIN_SYMBOL
                 );
             const validatorCount = await bridgeStorage.validatorCount();
 
             const [storedValidatorAddress, storedSignature] =
                 await bridgeStorage
                     .connect(validator1)
-                    .stakingSignatures(validator2.address, 0);
+                    .stakingSignatures(
+                        validator2.address.toLowerCase(),
+                        CHAIN_SYMBOL,
+                        0
+                    );
 
             expect(storedSignature).to.be.eq(signature);
-            expect(storedValidatorAddress).to.be.eq(validator1.address);
+            expect(storedValidatorAddress.toLowerCase()).to.be.eq(
+                validator1.address.toLowerCase()
+            );
             expect(isValidatorAfter).to.equal(true);
             expect(isValidatorBefore).to.equal(false);
             expect(signaturesCount).to.equal(1);
@@ -399,19 +548,33 @@ describe("BridgeStorage", function () {
         it("should not approve stake with a used signature", async function () {
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(owner.address, "signature");
+                .approveStake(
+                    owner.address.toLowerCase(),
+                    "signature",
+                    CHAIN_SYMBOL
+                );
             const signaturesCountBefore =
-                await bridgeStorage.getStakingSignaturesCount(owner.address);
+                await bridgeStorage.getStakingSignaturesCount(
+                    owner.address.toLowerCase(),
+                    CHAIN_SYMBOL
+                );
 
             // Attempt to approve stake with the same signature again
             await expect(
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(owner.address, "signature")
+                    .approveStake(
+                        owner.address.toLowerCase(),
+                        "signature",
+                        CHAIN_SYMBOL
+                    )
             ).to.be.revertedWith("Signature already used");
 
             const signaturesCountAfter =
-                await bridgeStorage.getStakingSignaturesCount(owner.address);
+                await bridgeStorage.getStakingSignaturesCount(
+                    owner.address.toLowerCase(),
+                    CHAIN_SYMBOL
+                );
 
             expect(signaturesCountBefore).to.equal(1);
             expect(signaturesCountAfter).to.equal(1); // Signature count should remain the same
@@ -421,7 +584,11 @@ describe("BridgeStorage", function () {
             await expect(
                 bridgeStorage
                     .connect(owner)
-                    .approveStake(owner.address, "signature")
+                    .approveStake(
+                        owner.address.toLowerCase(),
+                        "signature",
+                        CHAIN_SYMBOL
+                    )
             ).to.be.rejectedWith("Only validators can call this function");
         });
     });
@@ -475,7 +642,9 @@ describe("BridgeStorage", function () {
                 .lockSignatures(hash, chain, index);
 
             expect(storedSignature).to.be.eq(signature);
-            expect(validatorAddress).to.be.eq(validator1.address);
+            expect(validatorAddress.toLowerCase()).to.be.eq(
+                validator1.address.toLowerCase()
+            );
         });
     });
 });

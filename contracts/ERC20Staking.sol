@@ -6,6 +6,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // Uncomment the following line if you want to use the hardhat console.log for debugging purposes.
 // import "hardhat/console.sol";
 
+struct Chain {
+    string chainAddress;
+    uint256 chainId;
+}
+
 /**
  * @title ERC20Staking
  * @dev A contract for staking a specific amount of XP tokens.
@@ -21,7 +26,7 @@ contract ERC20Staking {
     mapping(address => uint256) public stakingBalances;
 
     // Event emitted when a user stakes tokens.
-    event Staked(address indexed user, uint256 amount);
+    event Staked(address indexed user, uint256 amount, Chain[] otherChains);
 
     /**
      * @dev Contract constructor that initializes the staking amount and token contract.
@@ -36,7 +41,7 @@ contract ERC20Staking {
     /**
      * @dev Allows users to stake a specific amount of XP tokens.
      */
-    function stakeERC20() public {
+    function stakeERC20(Chain[] memory chains) public {
         require(stakingBalances[msg.sender] == 0, "You can only stake once");
 
         // Transfer the staking amount from the staker to this contract.
@@ -46,6 +51,6 @@ contract ERC20Staking {
         stakingBalances[msg.sender] += stakingAmount;
 
         // Emit a staking event.
-        emit Staked(msg.sender, stakingAmount);
+        emit Staked(msg.sender, stakingAmount, chains);
     }
 }

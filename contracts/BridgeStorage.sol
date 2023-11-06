@@ -26,20 +26,22 @@ contract BridgeStorage {
     mapping(string => uint256) public chainEpoch;
 
     // Current epoch for each validator
-    mapping(address => uint256) public validatorEpoch;
+    mapping(string => uint256) public validatorEpoch;
 
     // Mapping from staker's address to an array of their signatures.
-    mapping(address => SignerAndSignature[]) public stakingSignatures;
+    mapping(string => mapping(string => SignerAndSignature[]))
+        public stakingSignatures;
 
     // Mapping of existing validators.
-    mapping(address => bool) public validators;
+    mapping(string => bool) public validators;
+    // stakingSignatures[][chainSymbol][SignerAndSignature]
 
     // Mapping of votes of new validators. validatorStatusChangeVotes[validatorAddress][status][validatorEpoch] = numberOfVotes
-    mapping(address => mapping(bool => mapping(uint256 => uint256)))
+    mapping(string => mapping(bool => mapping(uint256 => uint256)))
         public validatorStatusChangeVotes;
 
     // Mapping to check if already voted on newValidator  validatorVoted[validatorAddress][senderAddress][validatorEpoch] = true/ false
-    mapping(address => mapping(address => mapping(uint256 => bool)))
+    mapping(string => mapping(address => mapping(uint256 => bool)))
         public validatorVoted;
 
     // Mapping of votes of new chain fee. chainFeeVotes[chain][fee][chainEpoch] = votes
@@ -69,7 +71,7 @@ contract BridgeStorage {
      * @param _bootstrapChainFee array of chain fee
      */
     constructor(
-        address _bootstrapValidator,
+        string memory _bootstrapValidator,
         ChainFee[] memory _bootstrapChainFee
     ) {
         validators[_bootstrapValidator] = true;
@@ -85,7 +87,7 @@ contract BridgeStorage {
      */
     modifier onlyValidator() {
         require(
-            validators[msg.sender],
+            validators[addressToString(msg.sender)],
             "Only validators can call this function"
         );
         _;
@@ -126,7 +128,7 @@ contract BridgeStorage {
      * @param _status new validator address.
      */
     function changeValidatorStatus(
-        address _validatorAddress,
+        string memory _validatorAddress,
         bool _status
     ) public onlyValidator {
         uint256 _validatorEpoch = validatorEpoch[_validatorAddress];
@@ -165,15 +167,16 @@ contract BridgeStorage {
      * @param _signature The signature to be approved.
      */
     function approveStake(
-        address _stakerAddress,
-        string calldata _signature
+        string memory _stakerAddress,
+        string calldata _signature,
+        string memory _chainSymbol
     ) public onlyValidator {
         require(!usedSignatures[_signature], "Signature already used");
         usedSignatures[_signature] = true;
         SignerAndSignature memory signerAndSignatre;
         signerAndSignatre.publicAddress = msg.sender;
         signerAndSignatre.signature = _signature;
-        stakingSignatures[_stakerAddress].push(signerAndSignatre);
+        stakingSignatures[_stakerAddress][_chainSymbol].push(signerAndSignatre);
         changeValidatorStatus(_stakerAddress, true);
     }
 
@@ -183,9 +186,10 @@ contract BridgeStorage {
      * @return Array of signatures.
      */
     function getStakingSignatures(
-        address stakerAddress
+        string memory stakerAddress,
+        string memory chainSymbol
     ) external view returns (SignerAndSignature[] memory) {
-        return stakingSignatures[stakerAddress];
+        return stakingSignatures[stakerAddress][chainSymbol];
     }
 
     /**
@@ -194,9 +198,10 @@ contract BridgeStorage {
      * @return Number of signatures.
      */
     function getStakingSignaturesCount(
-        address stakerAddress
+        string memory stakerAddress,
+        string memory chainSymbol
     ) external view returns (uint256) {
-        return stakingSignatures[stakerAddress].length;
+        return stakingSignatures[stakerAddress][chainSymbol].length;
     }
 
     /**
@@ -242,5 +247,26 @@ contract BridgeStorage {
         string calldata chain
     ) external view returns (uint256) {
         return lockSignatures[transactionHash][chain].length;
+    }
+
+    /**
+     * @dev Converts an Ethereum address to its string representation.
+     * @param _address The Ethereum address to convert.
+     * @return The string representation of the Ethereum address.
+     */
+    function addressToString(
+        address _address
+    ) internal pure returns (string memory) {
+        bytes32 value = bytes32(uint256(uint160(_address))); // Corrected casting
+        bytes memory alphabet = "0123456789abcdef";
+
+        bytes memory str = new bytes(42);
+        str[0] = 0x30; // '0'
+        str[1] = 0x78; // 'x'
+        for (uint256 i = 0; i < 20; i++) {
+            str[2 + i * 2] = alphabet[uint8(value[i + 12] >> 4)];
+            str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
+        }
+        return string(str);
     }
 }
