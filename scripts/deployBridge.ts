@@ -1,8 +1,9 @@
 import { ethers } from "hardhat";
 
 async function main() {
-
+    console.log(await ethers.provider.getBalance("0x67081bD856e29d7D7B3028C34Afb331fa6b3186E"))
     const collectionDeployerContract = await ethers.deployContract("NFTCollectionDeployer");
+    console.log({collectionDeployerContract})
     await collectionDeployerContract.waitForDeployment();
     const collectionDeployerContractAddress = collectionDeployerContract.target
     console.log(
@@ -18,7 +19,7 @@ async function main() {
     );
 
     const bootstrapValidator = ["0x67081bD856e29d7D7B3028C34Afb331fa6b3186E"]
-    const chainSymbol = "MATIC"
+    const chainSymbol = "ETH"
     const bridge = await ethers.deployContract("Bridge", [bootstrapValidator, chainSymbol, collectionDeployerContractAddress, storageDeployerContractAddress]);
 
     await bridge.waitForDeployment();

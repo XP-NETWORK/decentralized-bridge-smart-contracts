@@ -323,25 +323,4 @@ contract BridgeStorage {
     ) external view returns (uint256) {
         return lockSignatures[transactionHash][chain].length;
     }
-
-    /**
-     * @dev Converts an Ethereum address to its string representation.
-     * @param _address The Ethereum address to convert.
-     * @return The string representation of the Ethereum address.
-     */
-    function addressToString(
-        address _address
-    ) internal pure returns (string memory) {
-        bytes32 value = bytes32(uint256(uint160(_address))); // Corrected casting
-        bytes memory alphabet = "0123456789abcdef";
-
-        bytes memory str = new bytes(42);
-        str[0] = 0x30; // '0'
-        str[1] = 0x78; // 'x'
-        for (uint256 i = 0; i < 20; i++) {
-            str[2 + i * 2] = alphabet[uint8(value[i + 12] >> 4)];
-            str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
-        }
-        return string(str);
-    }
 }
