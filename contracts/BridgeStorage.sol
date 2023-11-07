@@ -18,6 +18,11 @@ struct SignerAndSignature {
     bytes signature;
 }
 
+struct ValidatorAddressWithSignerAndSignature {
+    string validatorAddress;
+    SignerAndSignature signerAndSignature;
+}
+
 /**
  * @title BridgeStorage
  * @dev A contract to store and manage cross-chain transfer signatures and details.
@@ -28,21 +33,21 @@ contract BridgeStorage {
     mapping(string => uint256) public royaltyEpoch;
 
     // Current epoch for each validator
-    mapping(string => uint256) public validatorEpoch;
+    mapping(address => uint256) public validatorEpoch;
 
     // Mapping from staker's address to an array of their signatures.
     mapping(string => SignerAndSignature[]) public stakingSignatures;
 
     // Mapping of existing validators.
-    mapping(string => bool) public validators;
+    mapping(address => bool) public validators;
     // stakingSignatures[][chainSymbol][SignerAndSignature]
 
     // Mapping of votes of new validators. validatorStatusChangeVotes[validatorAddress][status][validatorEpoch] = numberOfVotes
-    mapping(string => mapping(bool => mapping(uint256 => uint256)))
+    mapping(address => mapping(bool => mapping(uint256 => uint256)))
         public validatorStatusChangeVotes;
 
     // Mapping to check if already voted on newValidator  validatorVoted[validatorAddress][senderAddress][validatorEpoch] = true/ false
-    mapping(string => mapping(address => mapping(uint256 => bool)))
+    mapping(address => mapping(address => mapping(uint256 => bool)))
         public validatorVoted;
 
     // Mapping of votes of new chain fee. chainFeeVotes[chain][fee][chainEpoch] = votes
@@ -88,7 +93,7 @@ contract BridgeStorage {
      * @param _bootstrapChainFee array of chain fee
      */
     constructor(
-        string memory _bootstrapValidator,
+        address _bootstrapValidator,
         ChainFee[] memory _bootstrapChainFee // Royalty[] memory _royalties
     ) {
         validators[_bootstrapValidator] = true;
@@ -107,7 +112,7 @@ contract BridgeStorage {
      */
     modifier onlyValidator() {
         require(
-            validators[addressToString(msg.sender)],
+            validators[msg.sender],
             "Only validators can call this function"
         );
         _;
@@ -180,7 +185,7 @@ contract BridgeStorage {
      * @param _status new validator address.
      */
     function changeValidatorStatus(
-        string memory _validatorAddress,
+        address _validatorAddress,
         bool _status
     ) public onlyValidator {
         uint256 _validatorEpoch = validatorEpoch[_validatorAddress];
@@ -214,27 +219,39 @@ contract BridgeStorage {
     }
 
     /**
-     * @dev Approves a stake using a signature.
-     * @param _stakerAddress Address of the staker.
-     * @param _signatures The signatures to be stored.
+     * @dev Approves a stake.
+     * @param _validatorAddressWithSignerAndSignature Address of the staker.
      */
     function approveStake(
-        string calldata _stakerAddress,
-        SignerAndSignature[] calldata _signatures
+        address _stakerAddress,
+        ValidatorAddressWithSignerAndSignature[]
+            calldata _validatorAddressWithSignerAndSignature
     ) public onlyValidator {
-        for (uint256 i = 0; i < _signatures.length; i++) {
+        for (
+            uint256 i = 0;
+            i < _validatorAddressWithSignerAndSignature.length;
+            i++
+        ) {
             require(
-                !usedSignatures[_signatures[i].signature],
+                !usedSignatures[
+                    _validatorAddressWithSignerAndSignature[i]
+                        .signerAndSignature
+                        .signature
+                ],
                 "Signature already used"
             );
-            usedSignatures[_signatures[i].signature] = true;
+            usedSignatures[
+                _validatorAddressWithSignerAndSignature[i]
+                    .signerAndSignature
+                    .signature
+            ] = true;
 
-            SignerAndSignature memory signerAndSignature;
-
-            signerAndSignature.signerAddress = _signatures[i].signerAddress;
-            signerAndSignature.signature = _signatures[i].signature;
-
-            stakingSignatures[_stakerAddress].push(signerAndSignature);
+            stakingSignatures[
+                _validatorAddressWithSignerAndSignature[i].validatorAddress
+            ].push(
+                    _validatorAddressWithSignerAndSignature[i]
+                        .signerAndSignature
+                );
         }
         changeValidatorStatus(_stakerAddress, true);
     }
