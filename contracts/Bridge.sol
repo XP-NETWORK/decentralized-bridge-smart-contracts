@@ -555,20 +555,26 @@ contract Bridge {
             IERC1155Royalty collecAddress = IERC1155Royalty(
                 duplicateCollectionAddress.contractAddress
             );
-            if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
-                // console.log("should come here");
+            uint256 balanceOfTokens = collecAddress.balanceOf(
+                storageContract,
+                data.tokenId
+            );
+            uint256 amountToMint = data.tokenAmount - balanceOfTokens;
+
+            if (balanceOfTokens > 0) {
                 unLock1155(
                     data.destinationUserAddress,
                     data.tokenId,
                     storageContract,
-                    data.tokenAmount
+                    balanceOfTokens
                 );
-            } else {
-                // console.log("should NOT come here");
+            }
+
+            if (amountToMint > 0) {
                 collecAddress.mint(
                     data.destinationUserAddress,
                     data.tokenId,
-                    data.tokenAmount,
+                    amountToMint,
                     data.royalty,
                     data.royaltyReceiver,
                     data.metadata
@@ -623,18 +629,27 @@ contract Bridge {
             IERC1155Royalty collecAddress = IERC1155Royalty(
                 data.sourceNftContractAddress.stringToAddress()
             );
-            if (collecAddress.balanceOf(storageContract, data.tokenId) > 0) {
+
+            uint256 balanceOfTokens = collecAddress.balanceOf(
+                storageContract,
+                data.tokenId
+            );
+            uint256 amountToMint = data.tokenAmount - balanceOfTokens;
+
+            if (balanceOfTokens > 0) {
                 unLock1155(
                     data.destinationUserAddress,
                     data.tokenId,
                     storageContract,
-                    data.tokenAmount
+                    balanceOfTokens
                 );
-            } else {
+            }
+
+            if (amountToMint > 0) {
                 collecAddress.mint(
                     data.destinationUserAddress,
                     data.tokenId,
-                    data.tokenAmount,
+                    amountToMint,
                     data.royalty,
                     data.royaltyReceiver,
                     data.metadata
