@@ -5,9 +5,7 @@ import { ethers } from "hardhat";
 import { BridgeStorage } from "../contractsTypes";
 import { makeBytesLike } from "./utils";
 
-const CHAIN_SYMBOL = "POLY";
-
-describe.only("BridgeStorage", function () {
+describe("BridgeStorage", function () {
     let bridgeStorage: BridgeStorage & {
         deploymentTransaction(): ContractTransactionResponse;
     };

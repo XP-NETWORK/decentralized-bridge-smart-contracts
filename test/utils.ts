@@ -1265,3 +1265,14 @@ export async function lockOnEthAndClaimOnBSC({
 export function makeBytesLike(signature: string): string {
     return ethers.hexlify(ethers.toUtf8Bytes(signature));
 }
+
+export function formatSignatures(
+    signatures: [string, string]
+): { signature: string; signerAddress: string }[] {
+    return signatures.map((sig, i) => {
+        return {
+            signature: makeBytesLike(sig),
+            signerAddress: `signerAddress${i}`,
+        };
+    });
+}

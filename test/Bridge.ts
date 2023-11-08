@@ -1,5 +1,13 @@
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import {
+    Contract,
+    ContractTransactionReceipt,
+    EventLog,
+    Typed,
+    ZeroAddress,
+    keccak256,
+} from "ethers";
 import { ethers } from "hardhat";
 import {
     Bridge__factory,
@@ -14,25 +22,17 @@ import {
     TProcessedLogs,
 } from "./types";
 import {
+    NftTransferDetailsTypes,
     claim,
     deploy1155Collection,
     deploy721Collection,
     encoder,
+    formatSignatures,
     hexStringToByteArray,
+    lock,
     lockOnBSCAndClaimOnEth,
     lockOnEthAndClaimOnBSC,
-    lock,
-    NftTransferDetailsTypes,
 } from "./utils";
-import {
-    Contract,
-    ContractTransactionReceipt,
-    EventLog,
-    Typed,
-    ZeroAddress,
-    keccak256,
-} from "ethers";
-import { assert } from "console";
 
 describe("Bridge", function () {
     let Bridge: Bridge__factory, bscBridge: TBridge, ethBridge: TBridge;
@@ -331,10 +331,9 @@ describe("Bridge", function () {
         };
         it("Should fail if zero address for validator is provided", async function () {
             const signatures = await createAddValidatorHash(ZeroAddress);
-
             await expect(
                 bscBridge.bridge
-                    .addValidator(ZeroAddress, signatures)
+                    .addValidator(ZeroAddress, formatSignatures(signatures))
                     .then((r) => r.wait())
             ).to.be.revertedWith("Address cannot be zero address!");
         });
@@ -357,7 +356,9 @@ describe("Bridge", function () {
 
             await expect(
                 bscBridge.bridge
-                    .addValidator(newValidator.address, [signatures[0]])
+                    .addValidator(newValidator.address, [
+                        { signature: signatures[0], signerAddress: "" },
+                    ])
                     .then((r) => r.wait())
             ).to.be.revertedWith("Threshold not reached!");
         });
@@ -371,8 +372,13 @@ describe("Bridge", function () {
                     bscBridge.bridge.validatorsCount(),
                 ]);
 
+            const formattedSignatures = signatures.map((sig) => ({
+                signature: sig,
+                signerAddress: "",
+            }));
+
             const receipt = await bscBridge.bridge
-                .addValidator(newValidator.address, signatures)
+                .addValidator(newValidator.address, formattedSignatures)
                 .then((r) => r.wait());
 
             const logs = receipt?.logs?.[0] as EventLog;
