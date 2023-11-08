@@ -3,10 +3,11 @@ import { expect } from "chai";
 import { ContractTransactionResponse } from "ethers";
 import { ethers } from "hardhat";
 import { BridgeStorage } from "../contractsTypes";
+import { makeBytesLike } from "./utils";
 
 const CHAIN_SYMBOL = "POLY";
 
-describe("BridgeStorage", function () {
+describe.only("BridgeStorage", function () {
     let bridgeStorage: BridgeStorage & {
         deploymentTransaction(): ContractTransactionResponse;
     };
@@ -100,7 +101,7 @@ describe("BridgeStorage", function () {
             bridgeStorage.validators(validator1.address.toLowerCase()),
         ]);
         // await addValidators(2);
-        expect(chainFee[0]).to.equal(100);
+        expect(chainFee).to.equal(100);
         expect(validatorCount).to.equal(1);
         expect(validatorExists).to.be.eq(true);
     });
@@ -111,21 +112,27 @@ describe("BridgeStorage", function () {
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator2.address.toLowerCase(),
-                        "signature1",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator2.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature1"),
+                                signerAddress: "signerAddress1",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
             ]);
 
             await Promise.all([
@@ -134,72 +141,90 @@ describe("BridgeStorage", function () {
             ]);
 
             const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee[0]).to.equal(150);
+            expect(newChainFee).to.equal(150);
         });
 
         it("should change chain fee with 2/3 + 1 validator votes and taking only the majority decided fee", async function () {
             // add 3 new validators
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    "signature1",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                )
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature1"),
+                            signerAddress: "signerAddress1",
+                        },
+                    },
+                ])
                 .then((r) => r.wait());
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    )
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature3",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    )
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature3"),
+                                signerAddress: "signerAddress3",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature4",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    )
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature4"),
+                                signerAddress: "signerAddress4",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature5",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    )
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature5"),
+                                signerAddress: "signerAddress5",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator3)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature6",
-                        CHAIN_SYMBOL,
-                        validator3.address.toLowerCase()
-                    )
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature6"),
+                                signerAddress: "signerAddress6",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
             ]);
 
@@ -226,65 +251,83 @@ describe("BridgeStorage", function () {
             ]);
 
             const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee[0]).to.equal(180);
+            expect(newChainFee).to.equal(180);
         });
 
         it("should not change chain fee if no proposed fee is able to get majority votes from validators", async function () {
             // add 3 new validators
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    "signature1",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature1"),
+                            signerAddress: "signerAddress1",
+                        },
+                    },
+                ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature3",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature3"),
+                                signerAddress: "signerAddress3",
+                            },
+                        },
+                    ]),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature4",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature4"),
+                                signerAddress: "signerAddress4",
+                            },
+                        },
+                    ]),
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature5",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature5"),
+                                signerAddress: "signerAddress5",
+                            },
+                        },
+                    ]),
                 bridgeStorage
                     .connect(validator3)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature6",
-                        CHAIN_SYMBOL,
-                        validator3.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature6"),
+                                signerAddress: "signerAddress6",
+                            },
+                        },
+                    ]),
             ]);
 
             await Promise.all([
@@ -295,7 +338,7 @@ describe("BridgeStorage", function () {
             ]);
 
             const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee[0]).to.equal(100);
+            expect(newChainFee).to.equal(100);
         });
 
         it("should not change chain fee with less than 2/3 + 1 validator votes", async function () {
@@ -303,57 +346,72 @@ describe("BridgeStorage", function () {
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator2.address.toLowerCase(),
-                        "signature1",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator2.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature1"),
+                                signerAddress: "signerAddress1",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
             ]);
 
             await bridgeStorage.connect(validator2).changeChainFee("ETH", 150);
 
             const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee[0]).to.equal(100); // Chain fee should remain unchanged
+            expect(newChainFee).to.equal(100); // Chain fee should remain unchanged
         });
 
         it("should fail if already voted", async function () {
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    "signature1",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature1"),
+                            signerAddress: "signerAddress1",
+                        },
+                    },
+                ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature3",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature3"),
+                                signerAddress: "signerAddress3",
+                            },
+                        },
+                    ]),
             ]);
 
             await bridgeStorage.connect(validator1).changeChainFee("ETH", 150);
@@ -370,41 +428,47 @@ describe("BridgeStorage", function () {
         });
     });
 
-    describe("changeChainRoyalty()", async function () {
+    describe("changeChainRoyaltyReceiver()", async function () {
         it("should change chain fee with 2/3 + 1 validator votes", async function () {
             const newRoyaltyReceiver = "new_royalty_receiver";
             // add 2 new validators
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator2.address.toLowerCase(),
-                        "signature1",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator2.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature1"),
+                                signerAddress: "signerAddress1",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiver),
+                    .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver),
                 bridgeStorage
                     .connect(validator2)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiver),
+                    .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver),
             ]);
 
-            const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee[1]).to.equal(newRoyaltyReceiver);
+            const chainRoyalty = await bridgeStorage.chainRoyalty("ETH");
+            expect(chainRoyalty).to.equal(newRoyaltyReceiver);
         });
 
         it("should change chain fee with 2/3 + 1 validator votes and taking only the majority decided fee", async function () {
@@ -416,92 +480,113 @@ describe("BridgeStorage", function () {
             // add 3 new validators
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    "signature1",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                )
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature1"),
+                            signerAddress: "signerAddress1",
+                        },
+                    },
+                ])
                 .then((r) => r.wait());
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    )
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature3",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    )
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature3"),
+                                signerAddress: "signerAddress3",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature4",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    )
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature4"),
+                                signerAddress: "signerAddress4",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature5",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    )
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature5"),
+                                signerAddress: "signerAddress5",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator3)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature6",
-                        CHAIN_SYMBOL,
-                        validator3.address.toLowerCase()
-                    )
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature6"),
+                                signerAddress: "signerAddress6",
+                            },
+                        },
+                    ])
                     .then((r) => r.wait()),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+                    .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver)
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator2)
-                    .changeChainRoyalty("ETH", loneWolfNewRoyaltyReceiver)
+                    .changeChainRoyaltyReceiver(
+                        "ETH",
+                        loneWolfNewRoyaltyReceiver
+                    )
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator3)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+                    .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver)
                     .then((r) => r.wait()),
 
                 bridgeStorage
                     .connect(validator4)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+                    .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver)
                     .then((r) => r.wait()),
             ]);
 
-            const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee[1]).to.equal(newRoyaltyReceiver);
+            const chainRoyalty = await bridgeStorage.chainRoyalty("ETH");
+            expect(chainRoyalty).to.equal(newRoyaltyReceiver);
         });
 
         it("should not change chain fee if no proposed fee is able to get majority votes from validators", async function () {
@@ -511,77 +596,107 @@ describe("BridgeStorage", function () {
             // add 3 new validators
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    "signature1",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature1"),
+                            signerAddress: "signerAddress1",
+                        },
+                    },
+                ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature3",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature3"),
+                                signerAddress: "signerAddress3",
+                            },
+                        },
+                    ]),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature4",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature4"),
+                                signerAddress: "signerAddress4",
+                            },
+                        },
+                    ]),
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature5",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature5"),
+                                signerAddress: "signerAddress5",
+                            },
+                        },
+                    ]),
                 bridgeStorage
                     .connect(validator3)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature6",
-                        CHAIN_SYMBOL,
-                        validator3.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature6"),
+                                signerAddress: "signerAddress6",
+                            },
+                        },
+                    ]),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiverAttempt1),
+                    .changeChainRoyaltyReceiver(
+                        "ETH",
+                        newRoyaltyReceiverAttempt1
+                    ),
                 bridgeStorage
                     .connect(validator2)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiverAttempt2),
+                    .changeChainRoyaltyReceiver(
+                        "ETH",
+                        newRoyaltyReceiverAttempt2
+                    ),
                 bridgeStorage
                     .connect(validator3)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiverAttempt1),
+                    .changeChainRoyaltyReceiver(
+                        "ETH",
+                        newRoyaltyReceiverAttempt1
+                    ),
                 bridgeStorage
                     .connect(validator4)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiverAttempt3),
+                    .changeChainRoyaltyReceiver(
+                        "ETH",
+                        newRoyaltyReceiverAttempt3
+                    ),
             ]);
 
-            const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee[1]).to.equal(ethRoyaltyReceiver);
+            const chainRoyalty = await bridgeStorage.chainRoyalty("ETH");
+            expect(chainRoyalty).to.equal(ethRoyaltyReceiver);
         });
 
         it("should not change chain fee with less than 2/3 + 1 validator votes", async function () {
@@ -591,70 +706,85 @@ describe("BridgeStorage", function () {
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator2.address.toLowerCase(),
-                        "signature1",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator2.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature1"),
+                                signerAddress: "signerAddress1",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
             ]);
 
             await bridgeStorage
                 .connect(validator2)
-                .changeChainRoyalty("ETH", newRoyaltyReceiver);
+                .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver);
 
-            const newChainFee = await bridgeStorage.chainFee("ETH");
-            expect(newChainFee[1]).to.equal(ethRoyaltyReceiver); // Chain fee should remain unchanged
+            const chainRoyalty = await bridgeStorage.chainRoyalty("ETH");
+            expect(chainRoyalty).to.equal(ethRoyaltyReceiver); // Chain fee should remain unchanged
         });
 
         it("should fail if already voted", async function () {
             const newRoyaltyReceiver = "new_royalty_receiver";
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    "signature1",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature1"),
+                            signerAddress: "signerAddress1",
+                        },
+                    },
+                ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature3",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature3"),
+                                signerAddress: "signerAddress3",
+                            },
+                        },
+                    ]),
             ]);
 
             await bridgeStorage
                 .connect(validator1)
-                .changeChainRoyalty("ETH", newRoyaltyReceiver);
+                .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver);
 
             await expect(
                 bridgeStorage
                     .connect(validator1)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+                    .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver)
             ).to.be.revertedWith("Already voted");
         });
 
@@ -663,7 +793,7 @@ describe("BridgeStorage", function () {
             await expect(
                 bridgeStorage
                     .connect(validator2)
-                    .changeChainRoyalty("ETH", newRoyaltyReceiver)
+                    .changeChainRoyaltyReceiver("ETH", newRoyaltyReceiver)
             ).to.be.revertedWith("Only validators can call this function");
         });
     });
@@ -673,60 +803,78 @@ describe("BridgeStorage", function () {
             // // increase validator count to 3
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    "signature1",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature1"),
+                            signerAddress: "signerAddress1",
+                        },
+                    },
+                ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature3",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature3"),
+                                signerAddress: "signerAddress3",
+                            },
+                        },
+                    ]),
             ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature4",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature4"),
+                                signerAddress: "signerAddress4",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature5",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature5"),
+                                signerAddress: "signerAddress5",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator3)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature6",
-                        CHAIN_SYMBOL,
-                        validator3.address.toLowerCase()
-                    ),
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature6"),
+                                signerAddress: "signerAddress6",
+                            },
+                        },
+                    ]),
             ]);
 
             const beforeValidatorsCount = await bridgeStorage.validatorCount();
@@ -790,92 +938,105 @@ describe("BridgeStorage", function () {
         it("Should fail to vote if already voted", async function () {
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    "signature1",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature1"),
+                            signerAddress: "signerAddress1",
+                        },
+                    },
+                ]);
 
             await Promise.all([
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature2",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature2"),
+                                signerAddress: "signerAddress2",
+                            },
+                        },
+                    ]),
 
                 bridgeStorage
                     .connect(validator2)
-                    .approveStake(
-                        validator3.address.toLowerCase(),
-                        "signature3",
-                        CHAIN_SYMBOL,
-                        validator2.address.toLowerCase()
-                    ),
+                    .approveStake(validator3.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature3"),
+                                signerAddress: "signerAddress3",
+                            },
+                        },
+                    ]),
             ]);
 
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator4.address.toLowerCase(),
-                    "signature4",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(validator4.address.toLowerCase(), [
+                    {
+                        validatorAddress: "",
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature4"),
+                            signerAddress: "signerAddress4",
+                        },
+                    },
+                ]);
 
             await expect(
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        validator4.address.toLowerCase(),
-                        "signature5",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    )
+                    .approveStake(validator4.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature5"),
+                                signerAddress: "signerAddress5",
+                            },
+                        },
+                    ])
             ).to.be.revertedWith("Already voted for this validator");
         });
     });
 
     describe("approveStake()", async function () {
         it("should approve stake and change validator status", async function () {
-            const signature = "signature";
+            const signature = makeBytesLike("signature");
             const isValidatorBefore = await bridgeStorage.validators(
                 validator2.address.toLowerCase()
             );
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    validator2.address.toLowerCase(),
-                    signature,
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(validator2.address.toLowerCase(), [
+                    {
+                        validatorAddress: validator2.address.toLowerCase(),
+                        signerAndSignature: {
+                            signature,
+                            signerAddress: validator2.address.toLowerCase(),
+                        },
+                    },
+                ]);
 
             const isValidatorAfter = await bridgeStorage.validators(
                 validator2.address.toLowerCase()
             );
             const signaturesCount =
                 await bridgeStorage.getStakingSignaturesCount(
-                    validator2.address.toLowerCase(),
-                    CHAIN_SYMBOL
+                    validator2.address.toLowerCase()
                 );
             const validatorCount = await bridgeStorage.validatorCount();
 
-            const [storedValidatorAddress, storedSignature] =
-                await bridgeStorage
-                    .connect(validator1)
-                    .stakingSignatures(
-                        validator2.address.toLowerCase(),
-                        CHAIN_SYMBOL,
-                        0
-                    );
+            const response = await bridgeStorage
+                .connect(validator1)
+                .stakingSignatures(validator2.address.toLowerCase(), 0);
 
+            const [storedValidatorAddress, storedSignature] = response;
             expect(storedSignature).to.be.eq(signature);
             expect(storedValidatorAddress.toLowerCase()).to.be.eq(
-                validator1.address.toLowerCase()
+                validator2.address.toLowerCase()
             );
             expect(isValidatorAfter).to.equal(true);
             expect(isValidatorBefore).to.equal(false);
@@ -886,34 +1047,38 @@ describe("BridgeStorage", function () {
         it("should not approve stake with a used signature", async function () {
             await bridgeStorage
                 .connect(validator1)
-                .approveStake(
-                    owner.address.toLowerCase(),
-                    "signature",
-                    CHAIN_SYMBOL,
-                    validator1.address.toLowerCase()
-                );
+                .approveStake(owner.address.toLowerCase(), [
+                    {
+                        validatorAddress: owner.address.toLowerCase(),
+                        signerAndSignature: {
+                            signature: makeBytesLike("signature"),
+                            signerAddress: owner.address.toLowerCase(),
+                        },
+                    },
+                ]);
             const signaturesCountBefore =
                 await bridgeStorage.getStakingSignaturesCount(
-                    owner.address.toLowerCase(),
-                    CHAIN_SYMBOL
+                    owner.address.toLowerCase()
                 );
 
             // Attempt to approve stake with the same signature again
             await expect(
                 bridgeStorage
                     .connect(validator1)
-                    .approveStake(
-                        owner.address.toLowerCase(),
-                        "signature",
-                        CHAIN_SYMBOL,
-                        validator1.address.toLowerCase()
-                    )
+                    .approveStake(owner.address.toLowerCase(), [
+                        {
+                            validatorAddress: owner.address.toLowerCase(),
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature"),
+                                signerAddress: owner.address.toLowerCase(),
+                            },
+                        },
+                    ])
             ).to.be.revertedWith("Signature already used");
 
             const signaturesCountAfter =
                 await bridgeStorage.getStakingSignaturesCount(
-                    owner.address.toLowerCase(),
-                    CHAIN_SYMBOL
+                    owner.address.toLowerCase()
                 );
 
             expect(signaturesCountBefore).to.equal(1);
@@ -924,12 +1089,15 @@ describe("BridgeStorage", function () {
             await expect(
                 bridgeStorage
                     .connect(owner)
-                    .approveStake(
-                        owner.address.toLowerCase(),
-                        "signature",
-                        CHAIN_SYMBOL,
-                        owner.address.toLowerCase()
-                    )
+                    .approveStake(owner.address.toLowerCase(), [
+                        {
+                            validatorAddress: "",
+                            signerAndSignature: {
+                                signature: makeBytesLike("signature"),
+                                signerAddress: "signerAddress",
+                            },
+                        },
+                    ])
             ).to.be.rejectedWith("Only validators can call this function");
         });
     });
@@ -942,7 +1110,7 @@ describe("BridgeStorage", function () {
                     .approveLockNft(
                         "dummy_hash",
                         "dummy_chain",
-                        "dummy_signature",
+                        makeBytesLike("dummy_signature"),
                         owner.address.toLowerCase()
                     )
             ).to.be.revertedWith("Only validators can call this function");
@@ -954,7 +1122,7 @@ describe("BridgeStorage", function () {
                 .approveLockNft(
                     "dummy_hash",
                     "dummy_chain",
-                    "dummy_signature",
+                    makeBytesLike("dummy_signature"),
                     validator1.address.toLowerCase()
                 )
                 .then((r) => r.wait());
@@ -965,7 +1133,7 @@ describe("BridgeStorage", function () {
                     .approveLockNft(
                         "dummy_hash",
                         "dummy_chain",
-                        "dummy_signature",
+                        makeBytesLike("dummy_signature"),
                         validator1.address.toLowerCase()
                     )
                     .then((r) => r.wait())
@@ -975,7 +1143,7 @@ describe("BridgeStorage", function () {
         it("should successfully update the state", async function () {
             const hash = "dummy_hash";
             const chain = "dummy_chain";
-            const signature = "dummy_signature";
+            const signature = makeBytesLike("dummy_signature");
 
             // no items initially so item at index
             const index = 0;

@@ -1261,3 +1261,7 @@ export async function lockOnEthAndClaimOnBSC({
         getValidatorSignatures
     );
 }
+
+export function makeBytesLike(signature: string): string {
+    return ethers.hexlify(ethers.toUtf8Bytes(signature));
+}
