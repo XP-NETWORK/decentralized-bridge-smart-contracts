@@ -559,22 +559,25 @@ contract Bridge {
                 storageContract,
                 data.tokenId
             );
-            uint256 amountToMint = data.tokenAmount - balanceOfTokens;
-
-            if (balanceOfTokens > 0) {
+            if (balanceOfTokens >= data.tokenAmount) {
+                unLock1155(
+                    data.destinationUserAddress,
+                    data.tokenId,
+                    storageContract,
+                    data.tokenAmount
+                );
+            } else {
+                uint256 toMint = data.tokenAmount - balanceOfTokens;
                 unLock1155(
                     data.destinationUserAddress,
                     data.tokenId,
                     storageContract,
                     balanceOfTokens
                 );
-            }
-
-            if (amountToMint > 0) {
                 collecAddress.mint(
                     data.destinationUserAddress,
                     data.tokenId,
-                    amountToMint,
+                    toMint,
                     data.royalty,
                     data.royaltyReceiver,
                     data.metadata
@@ -634,22 +637,26 @@ contract Bridge {
                 storageContract,
                 data.tokenId
             );
-            uint256 amountToMint = data.tokenAmount - balanceOfTokens;
 
-            if (balanceOfTokens > 0) {
+            if (balanceOfTokens >= data.tokenAmount) {
+                unLock1155(
+                    data.destinationUserAddress,
+                    data.tokenId,
+                    storageContract,
+                    data.tokenAmount
+                );
+            } else {
+                uint256 toMint = data.tokenAmount - balanceOfTokens;
                 unLock1155(
                     data.destinationUserAddress,
                     data.tokenId,
                     storageContract,
                     balanceOfTokens
                 );
-            }
-
-            if (amountToMint > 0) {
                 collecAddress.mint(
                     data.destinationUserAddress,
                     data.tokenId,
-                    amountToMint,
+                    toMint,
                     data.royalty,
                     data.royaltyReceiver,
                     data.metadata

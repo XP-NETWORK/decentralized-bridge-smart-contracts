@@ -89,6 +89,7 @@ export type TLockOnBSCAndClaimOnEthArgs = {
     ethBridge: TBridge;
     nftType: TNFTType;
     getValidatorSignatures: TGetValidatorSignatures;
+    amountToLock?: number;
 };
 
 export type TLockOnEthAndClaimOnBSCArgs = {
@@ -104,6 +105,7 @@ export type TLockOnEthAndClaimOnBSCArgs = {
     ethBridge: TBridge;
     getValidatorSignatures: TGetValidatorSignatures;
     nftType: TNFTType;
+    amountToLock?: number;
 };
 
 export type TChainArr = {

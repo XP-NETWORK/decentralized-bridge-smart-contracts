@@ -1076,6 +1076,90 @@ describe("Bridge", function () {
             // revert the mutation done at the beginning of the test
             data.sourceNftContractAddress = oldSourceNftContractAddress;
         });
+
+        it("should successfully claim partial NFTs", async function () {
+            const nftType = 1155;
+            const {
+                mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                tokenIds,
+            } = await deploy1155Collection(150, bscUser);
+
+            const [
+                lockedEventDatas,
+                duplicateCollectionAddresses,
+                duplicateCollectionContracts,
+            ] = await lockOnBSCAndClaimOnEth({
+                mintedCollectionOnBSC,
+                tokenIds,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                bscUser,
+                ethUser,
+                bscBridge,
+                ethBridge,
+                nftType,
+                getValidatorSignatures,
+                amountToLock: 100,
+            });
+            await lockOnEthAndClaimOnBSC({
+                lockedEventDatas,
+                duplicateCollectionContracts,
+                duplicateCollectionAddresses,
+                mintedCollectionOnBSC,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                bscUser,
+                ethUser,
+                bscBridge,
+                ethBridge,
+                getValidatorSignatures,
+                nftType,
+                amountToLock: 100,
+            });
+
+            const secondUserOnBSC = addrs[10];
+            const secondUserOnETH = addrs[9];
+
+            await Promise.all([
+                mintedCollectionOnBSC
+                    .connect(bscUser)
+                    .mint(
+                        secondUserOnBSC.address,
+                        /*  id      */ ethers.Typed.uint256(1),
+                        /*  amount  */ ethers.Typed.uint256(200),
+                        /*  royalty */ ethers.Typed.uint256(100),
+                        secondUserOnBSC.address,
+                        ""
+                    ),
+
+                mintedCollectionOnBSC
+                    .connect(bscUser)
+                    .mint(
+                        secondUserOnBSC.address,
+                        /*  id      */ ethers.Typed.uint256(2),
+                        /*  amount  */ ethers.Typed.uint256(200),
+                        /*  royalty */ ethers.Typed.uint256(100),
+                        secondUserOnBSC.address,
+                        ""
+                    ),
+            ]);
+
+            await lockOnBSCAndClaimOnEth({
+                mintedCollectionOnBSC,
+                tokenIds,
+                mintedCollectionOnBSCAddress,
+                nftDetails,
+                bscUser: secondUserOnBSC,
+                ethUser: secondUserOnETH,
+                bscBridge,
+                ethBridge,
+                nftType,
+                getValidatorSignatures,
+                amountToLock: 50,
+            });
+        });
     });
 
     describe("Integration Tests; To and Fro between two chains", async function () {
