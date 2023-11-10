@@ -7,14 +7,20 @@ pragma solidity ^0.8.19;
 struct ChainFee {
     string chain;
     uint256 fee;
+    string royaltyReceiver;
 }
 
 /**
  * @dev Stucture to store signature with signer public address
  */
 struct SignerAndSignature {
-    address publicAddress;
-    string signature;
+    string signerAddress;
+    bytes signature;
+}
+
+struct ValidatorAddressWithSignerAndSignature {
+    string validatorAddress;
+    SignerAndSignature signerAndSignature;
 }
 
 /**
@@ -24,15 +30,17 @@ struct SignerAndSignature {
 contract BridgeStorage {
     // Current epoch for each chain
     mapping(string => uint256) public chainEpoch;
+    mapping(string => uint256) public royaltyEpoch;
 
     // Current epoch for each validator
     mapping(address => uint256) public validatorEpoch;
 
     // Mapping from staker's address to an array of their signatures.
-    mapping(address => SignerAndSignature[]) public stakingSignatures;
+    mapping(string => SignerAndSignature[]) public stakingSignatures;
 
     // Mapping of existing validators.
     mapping(address => bool) public validators;
+    // stakingSignatures[][chainSymbol][SignerAndSignature]
 
     // Mapping of votes of new validators. validatorStatusChangeVotes[validatorAddress][status][validatorEpoch] = numberOfVotes
     mapping(address => mapping(bool => mapping(uint256 => uint256)))
@@ -50,6 +58,14 @@ contract BridgeStorage {
     mapping(string => mapping(uint256 => mapping(address => mapping(uint256 => bool))))
         public chainFeeVoted;
 
+    // Mapping of to check if already voted on a chain fee. chainFeeVotes[chain][receiver][address][chainEpoch] = true/false
+    mapping(string => mapping(string => mapping(address => mapping(uint256 => bool))))
+        public chainRoyaltyVoted;
+
+    // Mapping of votes of new chain fee. chainFeeVotes[chain][receiver][chainEpoch] = votes
+    mapping(string => mapping(string => mapping(uint256 => uint256)))
+        public chainRoyaltyVotes;
+
     // total validator count
     uint256 public validatorCount;
 
@@ -58,10 +74,18 @@ contract BridgeStorage {
         public lockSignatures;
 
     // Mapping to check if a signature has already been used.
-    mapping(string => bool) public usedSignatures;
+    mapping(bytes => bool) public usedSignatures;
 
     // Mapping to store fee for all chains
+    // chainFee[chainType][fee]
     mapping(string => uint256) public chainFee;
+
+    // chainRoyalty[chainType][royaltyReceiver]
+    mapping(string => string) public chainRoyalty;
+
+    // Mapping to store royalty receiver and percentage
+    // royalties
+    // mapping(string => Royalty) public royalties;
 
     /**
      * @dev bootstrap the bridge storage with a intial validator and intial fee for chains
@@ -70,13 +94,16 @@ contract BridgeStorage {
      */
     constructor(
         address _bootstrapValidator,
-        ChainFee[] memory _bootstrapChainFee
+        ChainFee[] memory _bootstrapChainFee // Royalty[] memory _royalties
     ) {
         validators[_bootstrapValidator] = true;
         validatorCount++;
 
         for (uint256 i = 0; i < _bootstrapChainFee.length; i++) {
             chainFee[_bootstrapChainFee[i].chain] = _bootstrapChainFee[i].fee;
+
+            chainRoyalty[_bootstrapChainFee[i].chain] = _bootstrapChainFee[i]
+                .royaltyReceiver;
         }
     }
 
@@ -101,7 +128,8 @@ contract BridgeStorage {
         uint256 _fee
     ) public onlyValidator {
         require(
-            chainFeeVoted[_chain][_fee][msg.sender][chainEpoch[_chain]] == false,
+            chainFeeVoted[_chain][_fee][msg.sender][chainEpoch[_chain]] ==
+                false,
             "Already voted"
         );
         chainFeeVoted[_chain][_fee][msg.sender][chainEpoch[_chain]] = true;
@@ -116,6 +144,38 @@ contract BridgeStorage {
         ) {
             chainFee[_chain] = _fee;
             chainEpoch[_chain]++;
+        }
+    }
+
+    /**
+     * @dev change / add a chain with new fee
+     * @param _chain  new / old chain.
+     * @param _royaltyReceiver  new royalty receiver.
+     */
+    function changeChainRoyaltyReceiver(
+        string calldata _chain,
+        string memory _royaltyReceiver
+    ) public onlyValidator {
+        require(
+            chainRoyaltyVoted[_chain][_royaltyReceiver][msg.sender][
+                royaltyEpoch[_chain]
+            ] == false,
+            "Already voted"
+        );
+        chainRoyaltyVoted[_chain][_royaltyReceiver][msg.sender][
+            royaltyEpoch[_chain]
+        ] = true;
+
+        chainRoyaltyVotes[_chain][_royaltyReceiver][royaltyEpoch[_chain]]++;
+
+        uint256 twoByThreeValidators = (2 * validatorCount) / 3;
+
+        if (
+            chainRoyaltyVotes[_chain][_royaltyReceiver][royaltyEpoch[_chain]] >=
+            twoByThreeValidators + 1
+        ) {
+            chainRoyalty[_chain] = _royaltyReceiver;
+            royaltyEpoch[_chain]++;
         }
     }
 
@@ -143,11 +203,12 @@ contract BridgeStorage {
 
         uint256 twoByThreeValidators = (2 * validatorCount) / 3;
 
-        if (
-            (validatorStatusChangeVotes[_validatorAddress][_status][
-                _validatorEpoch
-            ] >= twoByThreeValidators + 1)
-        ) {
+        uint256 votes = validatorStatusChangeVotes[_validatorAddress][_status][
+            _validatorEpoch
+        ];
+
+        if (votes >= twoByThreeValidators + 1) {
+            // console.log("INSIDE");
             if (_status && validators[_validatorAddress] == false)
                 validatorCount++;
             else if (_status == false && validators[_validatorAddress])
@@ -158,20 +219,40 @@ contract BridgeStorage {
     }
 
     /**
-     * @dev Approves a stake using a signature.
-     * @param _stakerAddress Address of the staker.
-     * @param _signature The signature to be approved.
+     * @dev Approves a stake.
+     * @param _validatorAddressWithSignerAndSignature Address of the staker.
      */
     function approveStake(
         address _stakerAddress,
-        string calldata _signature
+        ValidatorAddressWithSignerAndSignature[]
+            calldata _validatorAddressWithSignerAndSignature
     ) public onlyValidator {
-        require(!usedSignatures[_signature], "Signature already used");
-        usedSignatures[_signature] = true;
-        SignerAndSignature memory signerAndSignatre;
-        signerAndSignatre.publicAddress = msg.sender;
-        signerAndSignatre.signature = _signature;
-        stakingSignatures[_stakerAddress].push(signerAndSignatre);
+        for (
+            uint256 i = 0;
+            i < _validatorAddressWithSignerAndSignature.length;
+            i++
+        ) {
+            require(
+                !usedSignatures[
+                    _validatorAddressWithSignerAndSignature[i]
+                        .signerAndSignature
+                        .signature
+                ],
+                "Signature already used"
+            );
+            usedSignatures[
+                _validatorAddressWithSignerAndSignature[i]
+                    .signerAndSignature
+                    .signature
+            ] = true;
+
+            stakingSignatures[
+                _validatorAddressWithSignerAndSignature[i].validatorAddress
+            ].push(
+                    _validatorAddressWithSignerAndSignature[i]
+                        .signerAndSignature
+                );
+        }
         changeValidatorStatus(_stakerAddress, true);
     }
 
@@ -181,7 +262,7 @@ contract BridgeStorage {
      * @return Array of signatures.
      */
     function getStakingSignatures(
-        address stakerAddress
+        string memory stakerAddress
     ) external view returns (SignerAndSignature[] memory) {
         return stakingSignatures[stakerAddress];
     }
@@ -192,7 +273,7 @@ contract BridgeStorage {
      * @return Number of signatures.
      */
     function getStakingSignaturesCount(
-        address stakerAddress
+        string calldata stakerAddress
     ) external view returns (uint256) {
         return stakingSignatures[stakerAddress].length;
     }
@@ -206,12 +287,13 @@ contract BridgeStorage {
     function approveLockNft(
         string calldata _transactionHash,
         string calldata _chain,
-        string calldata _signature
+        bytes calldata _signature,
+        string calldata _signerAddress
     ) public onlyValidator {
         require(!usedSignatures[_signature], "Signature already used");
         usedSignatures[_signature] = true;
         SignerAndSignature memory signerAndSignatre;
-        signerAndSignatre.publicAddress = msg.sender;
+        signerAndSignatre.signerAddress = _signerAddress;
         signerAndSignatre.signature = _signature;
         lockSignatures[_transactionHash][_chain].push(signerAndSignatre);
     }

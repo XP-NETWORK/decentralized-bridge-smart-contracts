@@ -22,6 +22,7 @@ export type TNFTDetails = {
     collectionAddress: string;
     name: string;
     symbol: string;
+    chainSymbolOfNFT: string;
 };
 
 export type TProcessedLogs = {
@@ -55,6 +56,12 @@ export type TLockReturn = [
     ContractTransactionReceipt | null
 ];
 
+export type TLockReturn2 = [
+    [TProcessedLogs, TProcessedLogs],
+    ContractTransactionReceipt | null,
+    ContractTransactionReceipt | null
+];
+
 export type TNFTType = 721 | 1155;
 export type TContractInstance = Bridge;
 
@@ -82,6 +89,7 @@ export type TLockOnBSCAndClaimOnEthArgs = {
     ethBridge: TBridge;
     nftType: TNFTType;
     getValidatorSignatures: TGetValidatorSignatures;
+    amountToLock?: number;
 };
 
 export type TLockOnEthAndClaimOnBSCArgs = {
@@ -97,4 +105,21 @@ export type TLockOnEthAndClaimOnBSCArgs = {
     ethBridge: TBridge;
     getValidatorSignatures: TGetValidatorSignatures;
     nftType: TNFTType;
+    amountToLock?: number;
+};
+
+export type TChainArr = {
+    chainId: string;
+    bridge: TBridge | null;
+    validatorSet: [HardhatEthersSigner, HardhatEthersSigner];
+    deployer: HardhatEthersSigner;
+    user: HardhatEthersSigner;
+};
+
+export type TChainArrWithBridge = {
+    chainId: string;
+    bridge: TBridge;
+    validatorSet: [HardhatEthersSigner, HardhatEthersSigner];
+    deployer: HardhatEthersSigner;
+    user: HardhatEthersSigner;
 };

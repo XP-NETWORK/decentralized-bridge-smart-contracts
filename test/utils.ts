@@ -13,12 +13,14 @@ import { ethers as hardhatEthers } from "hardhat";
 import { ERC1155Royalty, ERC721Royalty } from "../contractsTypes";
 import {
     TBridge,
+    TChainArrWithBridge,
     TCreateHashReturn,
     TGetValidatorSignatures,
     TLockOnBSCAndClaimOnEthArgs,
     TLockOnBSCAndClaimOnEthReturn,
     TLockOnEthAndClaimOnBSCArgs,
     TLockReturn,
+    TLockReturn2,
     TLockedEventData,
     TNFTDetails,
     TNFTType,
@@ -29,12 +31,12 @@ export const encoder = new ethers.AbiCoder();
 export const FEE = ethers.Typed.uint256(5);
 export const AMOUNT_TO_LOCK = 1;
 
-const NftTransferDetailsTypes = [
+export const NftTransferDetailsTypes = [
     "uint256", // 0 - tokenId
     "string", // 1 - sourceChain
     "string", // 2 - destinationChain
     "address", // 3 - destinationUserAddress
-    "address", // 4 - sourceNftContractAddress
+    "string", // 4 - sourceNftContractAddress
     "string", // 5 - name
     "string", // 6 - symbol
     "uint256", // 7 - royalty
@@ -57,7 +59,8 @@ export const createHash = function (
         sourceChain: lockedEventData.sourceChain,
         destinationChain: lockedEventData.destinationChain,
         destinationUserAddress: lockedEventData.destinationUserAddress,
-        sourceNftContractAddress: lockedEventData.sourceNftContractAddress,
+        sourceNftContractAddress:
+            lockedEventData.sourceNftContractAddress.toLowerCase(),
         name: nftDetails.name,
         symbol: nftDetails.symbol,
         royalty: nftDetails.royalty.value,
@@ -141,7 +144,7 @@ export async function deploy721Collection(bscUser: HardhatEthersSigner) {
     const royaltyReceiver = bscUser.address;
     const tokenURI = "";
 
-    const nftDetails = {
+    const nftDetails: TNFTDetails = {
         toAddress,
         tokenId1,
         tokenId2,
@@ -151,6 +154,7 @@ export async function deploy721Collection(bscUser: HardhatEthersSigner) {
         collectionAddress: newCollectionAddress,
         name,
         symbol,
+        chainSymbolOfNFT: "BSC",
     };
 
     const mintPromises = tokenIds.map((id) => {
@@ -215,7 +219,7 @@ export async function deploy1155Collection(
     const royaltyReceiver = bscUser.address;
     const tokenURI = "";
 
-    const nftDetails = {
+    const nftDetails: TNFTDetails = {
         toAddress,
         tokenId1,
         tokenId2,
@@ -225,6 +229,7 @@ export async function deploy1155Collection(
         collectionAddress: newCollectionAddress,
         name,
         symbol,
+        chainSymbolOfNFT: "BSC",
     };
 
     const mintPromises = tokenIds.map((id) => {
@@ -262,8 +267,11 @@ export async function lockOnBSC(
     ethUser: HardhatEthersSigner,
     bscBridge: TBridge,
     ethBridge: TBridge,
-    nftType: TNFTType
+    nftType: TNFTType,
+    amountToLock?: number
 ): Promise<TLockReturn> {
+    const toLock = amountToLock === undefined ? AMOUNT_TO_LOCK : amountToLock;
+
     await Promise.all(
         tokenIds.map(async (id) => {
             if (nftType === 721) {
@@ -300,7 +308,7 @@ export async function lockOnBSC(
                         ethBridge.chainSymbol,
                         ethUser.address,
                         nftDetails.collectionAddress,
-                        ethers.Typed.uint256(AMOUNT_TO_LOCK)
+                        toLock
                     )
                     .then((r) => r.wait());
             }
@@ -312,7 +320,8 @@ export async function lockOnBSC(
         nftType === 721
             ? "originalStorageMapping721"
             : "originalStorageMapping1155"
-    ](nftDetails.collectionAddress, "BSC");
+    ](nftDetails.collectionAddress.toLowerCase(), "BSC");
+
     expect(storageAddressForCollection).to.not.be.equal(ethers.ZeroAddress);
 
     if (nftType === 721) {
@@ -349,23 +358,24 @@ export async function lockOnBSC(
     expect(parsedLogs1.tokenId).to.be.equal(nftDetails.tokenId1.value);
     expect(parsedLogs1.destinationChain).to.be.equal(ethBridge.chainSymbol);
     expect(parsedLogs1.destinationUserAddress).to.be.equal(ethUser.address);
-    expect(parsedLogs1.sourceNftContractAddress).to.be.equal(
-        mintedCollectionOnBSCAddress
+    expect(parsedLogs1.sourceNftContractAddress.toLowerCase()).to.be.equal(
+        mintedCollectionOnBSCAddress.toLowerCase()
     );
-    expect(parsedLogs1.tokenAmount).to.be.equal(1);
+    expect(parsedLogs1.tokenAmount).to.be.equal(toLock);
     expect(parsedLogs1.nftType).to.be.equal(getNftType(nftType));
     expect(parsedLogs1.sourceChain).to.be.equal(bscBridge.chainSymbol);
 
     expect(parsedLogs2.tokenId).to.be.equal(nftDetails.tokenId2.value);
     expect(parsedLogs2.destinationChain).to.be.equal(ethBridge.chainSymbol);
     expect(parsedLogs2.destinationUserAddress).to.be.equal(ethUser.address);
-    expect(parsedLogs2.sourceNftContractAddress).to.be.equal(
-        mintedCollectionOnBSCAddress
+    expect(parsedLogs2.sourceNftContractAddress.toLowerCase()).to.be.equal(
+        mintedCollectionOnBSCAddress.toLowerCase()
     );
-    expect(parsedLogs2.tokenAmount).to.be.equal(1);
+    expect(parsedLogs2.tokenAmount).to.be.equal(toLock);
     expect(parsedLogs2.nftType).to.be.equal(getNftType(nftType));
     expect(parsedLogs2.sourceChain).to.be.equal(bscBridge.chainSymbol);
 
+    // @ts-ignore
     return [parsedLogs1, parsedLogs2, lockedReceipt1, lockedReceipt2];
 }
 
@@ -515,10 +525,8 @@ export async function claimOnEth(
         ]);
 
         expect(duplicateNFTOwner1).to.be.gt(0);
-        expect(royaltyInfo1[0]).to.be.equal(ethUser.address); // receiver
         expect(royaltyInfo1[1]).to.be.equal(nftDetails.royalty.value); // value
         expect(duplicateNFTOwner2).to.be.gt(0);
-        expect(royaltyInfo2[0]).to.be.equal(ethUser.address); // receiver
         expect(royaltyInfo2[1]).to.be.equal(nftDetails.royalty.value); // value
     }
 
@@ -538,8 +546,11 @@ export async function lockOnEth(
     ethUser: HardhatEthersSigner,
     bscBridge: TBridge,
     ethBridge: TBridge,
-    nftType: TNFTType
+    nftType: TNFTType,
+    amountToLock?: number
 ): Promise<TLockReturn> {
+    const toLock = amountToLock === undefined ? AMOUNT_TO_LOCK : amountToLock;
+
     const [duplicateCollectionAddress1, duplicateCollectionAddress2] =
         duplicateCollectionAddresses;
 
@@ -579,7 +590,7 @@ export async function lockOnEth(
                         bscBridge.chainSymbol,
                         bscUser.address,
                         duplicateCollectionContracts[i],
-                        AMOUNT_TO_LOCK
+                        toLock
                     )
                     .then((r) => r.wait());
             }
@@ -590,25 +601,25 @@ export async function lockOnEth(
         nftType === 721
             ? "originalStorageMapping721"
             : "originalStorageMapping1155"
-    ](duplicateCollectionAddress1, bscBridge.chainSymbol);
+    ](duplicateCollectionAddress1.toLowerCase(), bscBridge.chainSymbol);
 
     const duplicateStorageAddressForDuplicateCollectionProm1 = ethBridge.bridge[
         nftType === 721
             ? "duplicateStorageMapping721"
             : "duplicateStorageMapping1155"
-    ](duplicateCollectionAddress1, ethBridge.chainSymbol);
+    ](duplicateCollectionAddress1.toLowerCase(), ethBridge.chainSymbol);
 
     const originalStorageAddressForDuplicateCollectionProm2 = ethBridge.bridge[
         nftType === 721
             ? "originalStorageMapping721"
             : "originalStorageMapping1155"
-    ](duplicateCollectionAddress2, bscBridge.chainSymbol);
+    ](duplicateCollectionAddress2.toLowerCase(), bscBridge.chainSymbol);
 
     const duplicateStorageAddressForDuplicateCollectionProm2 = ethBridge.bridge[
         nftType === 721
             ? "duplicateStorageMapping721"
             : "duplicateStorageMapping1155"
-    ](duplicateCollectionAddress2, ethBridge.chainSymbol);
+    ](duplicateCollectionAddress2.toLowerCase(), ethBridge.chainSymbol);
 
     const [
         originalStorageAddressForDuplicateCollection1,
@@ -664,10 +675,10 @@ export async function lockOnEth(
     expect(lockedOnEthLogData1.destinationUserAddress).to.be.equal(
         bscUser.address
     );
-    expect(lockedOnEthLogData1.sourceNftContractAddress).to.be.equal(
-        nftDetails.collectionAddress
-    );
-    expect(lockedOnEthLogData1.tokenAmount).to.be.equal(1);
+    expect(
+        lockedOnEthLogData1.sourceNftContractAddress.toLowerCase()
+    ).to.be.equal(nftDetails.collectionAddress.toLowerCase());
+    expect(lockedOnEthLogData1.tokenAmount).to.be.equal(toLock);
     expect(lockedOnEthLogData1.nftType).to.be.equal(getNftType(nftType));
     expect(lockedOnEthLogData1.sourceChain).to.be.equal(bscBridge.chainSymbol);
 
@@ -680,10 +691,10 @@ export async function lockOnEth(
     expect(lockedOnEthLogData2.destinationUserAddress).to.be.equal(
         bscUser.address
     );
-    expect(lockedOnEthLogData2.sourceNftContractAddress).to.be.equal(
-        nftDetails.collectionAddress
-    );
-    expect(lockedOnEthLogData2.tokenAmount).to.be.equal(1);
+    expect(
+        lockedOnEthLogData2.sourceNftContractAddress.toLowerCase()
+    ).to.be.equal(nftDetails.collectionAddress.toLowerCase());
+    expect(lockedOnEthLogData2.tokenAmount).to.be.equal(toLock);
     expect(lockedOnEthLogData2.nftType).to.be.equal(getNftType(nftType));
     expect(lockedOnEthLogData2.sourceChain).to.be.equal(bscBridge.chainSymbol);
 
@@ -735,12 +746,12 @@ export async function claimOnBSC(
             nftType === 721
                 ? "originalStorageMapping721"
                 : "originalStorageMapping1155"
-        ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+        ](mintedCollectionOnBSCAddress.toLowerCase(), bscBridge.chainSymbol),
         bscBridge.bridge[
             nftType === 721
                 ? "originalStorageMapping721"
                 : "originalStorageMapping1155"
-        ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+        ](mintedCollectionOnBSCAddress.toLowerCase(), bscBridge.chainSymbol),
     ]);
 
     if (nftType === 721) {
@@ -818,6 +829,357 @@ export async function claimOnBSC(
         expect(balance2).to.be.gt(0);
     }
 }
+
+type TLockNewArgs = {
+    lockedEventDatas: TProcessedLogs[];
+    duplicateCollectionContracts: ERC1155Royalty[] | ERC721Royalty[];
+    duplicateCollectionAddresses: string[];
+    nftDetails: TNFTDetails;
+    sourceUser: HardhatEthersSigner;
+    destinationUser: HardhatEthersSigner;
+    source: TChainArrWithBridge;
+    destination: TChainArrWithBridge;
+    nftType: TNFTType;
+};
+
+export async function lock({
+    lockedEventDatas,
+    duplicateCollectionContracts,
+    duplicateCollectionAddresses,
+    nftDetails,
+    sourceUser,
+    destinationUser,
+    source,
+    destination,
+    nftType,
+}: TLockNewArgs): Promise<TLockReturn2> {
+    const sourceBridge = source.bridge;
+    const destinationBridge = destination.bridge;
+
+    const [duplicateCollectionAddress1, duplicateCollectionAddress2] =
+        duplicateCollectionAddresses;
+
+    await Promise.all(
+        lockedEventDatas.map(async (data, i) => {
+            if (nftType === 721) {
+                return (duplicateCollectionContracts[i] as ERC721Royalty)
+                    .connect(sourceUser)
+                    .approve(sourceBridge.address, data.tokenId)
+                    .then((r) => r.wait());
+            } else {
+                return (duplicateCollectionContracts[i] as ERC1155Royalty)
+                    .connect(sourceUser)
+                    .setApprovalForAll(sourceBridge.address, true)
+                    .then((r) => r.wait());
+            }
+        })
+    );
+
+    const [lockOnEthReceipt1, lockOnEthReceipt2] = await Promise.all(
+        lockedEventDatas.map(async (data, i) => {
+            if (nftType === 721) {
+                return sourceBridge.bridge
+                    .connect(sourceUser)
+                    .lock721(
+                        data.tokenId,
+                        destinationBridge.chainSymbol,
+                        destinationUser.address,
+                        duplicateCollectionContracts[i]
+                    )
+                    .then((r) => r.wait());
+            } else {
+                return sourceBridge.bridge
+                    .connect(sourceUser)
+                    .lock1155(
+                        data.tokenId,
+                        destinationBridge.chainSymbol,
+                        destinationUser.address,
+                        duplicateCollectionContracts[i],
+                        AMOUNT_TO_LOCK
+                    )
+                    .then((r) => r.wait());
+            }
+        })
+    );
+
+    const originalStorageAddressForDuplicateCollectionProm1 =
+        sourceBridge.bridge[
+            nftType === 721
+                ? "originalStorageMapping721"
+                : "originalStorageMapping1155"
+        ](duplicateCollectionAddress1.toLowerCase(), sourceBridge.chainSymbol);
+
+    const duplicateStorageAddressForDuplicateCollectionProm1 =
+        sourceBridge.bridge[
+            nftType === 721
+                ? "duplicateStorageMapping721"
+                : "duplicateStorageMapping1155"
+        ](duplicateCollectionAddress1.toLowerCase(), sourceBridge.chainSymbol);
+
+    const originalStorageAddressForDuplicateCollectionProm2 =
+        sourceBridge.bridge[
+            nftType === 721
+                ? "originalStorageMapping721"
+                : "originalStorageMapping1155"
+        ](duplicateCollectionAddress2.toLowerCase(), sourceBridge.chainSymbol);
+
+    const duplicateStorageAddressForDuplicateCollectionProm2 =
+        sourceBridge.bridge[
+            nftType === 721
+                ? "duplicateStorageMapping721"
+                : "duplicateStorageMapping1155"
+        ](duplicateCollectionAddress2.toLowerCase(), sourceBridge.chainSymbol);
+
+    const [
+        originalStorageAddressForDuplicateCollection1,
+        duplicateStorageAddressForDuplicateCollection1,
+        originalStorageAddressForDuplicateCollection2,
+        duplicateStorageAddressForDuplicateCollection2,
+    ] = await Promise.all([
+        originalStorageAddressForDuplicateCollectionProm1,
+        duplicateStorageAddressForDuplicateCollectionProm1,
+        originalStorageAddressForDuplicateCollectionProm2,
+        duplicateStorageAddressForDuplicateCollectionProm2,
+    ]);
+
+    // ======================= LOCK ON ETH - VERIFY ===================
+    expect(originalStorageAddressForDuplicateCollection1).to.be.equal(
+        ZeroAddress
+    );
+    expect(duplicateStorageAddressForDuplicateCollection1).to.not.be.equal(
+        ZeroAddress
+    );
+
+    expect(originalStorageAddressForDuplicateCollection2).to.be.equal(
+        ZeroAddress
+    );
+    expect(duplicateStorageAddressForDuplicateCollection2).to.not.be.equal(
+        ZeroAddress
+    );
+
+    /**
+     *  emit Locked(
+            tokenId,
+            destinationChain,
+            destinationUserAddress,
+            address(originalCollectionAddress.contractAddress),
+            1,
+            TYPEERC721,
+            originalCollectionAddress.chain
+        );
+     */
+    const lockedOnEthLogData1 = parseLogs(
+        lockOnEthReceipt1!.logs[1] as EventLog
+    );
+
+    const lockedOnEthLogData2 = parseLogs(
+        lockOnEthReceipt2!.logs[1] as EventLog
+    );
+
+    expect(lockedOnEthLogData1.tokenId).to.be.equal(nftDetails.tokenId1.value);
+    expect(lockedOnEthLogData1.destinationChain).to.be.equal(
+        destinationBridge.chainSymbol
+    );
+    expect(lockedOnEthLogData1.destinationUserAddress).to.be.equal(
+        destinationUser.address
+    );
+    expect(
+        lockedOnEthLogData1.sourceNftContractAddress.toLowerCase()
+    ).to.be.equal(nftDetails.collectionAddress.toLowerCase());
+    expect(lockedOnEthLogData1.tokenAmount).to.be.equal(1);
+    expect(lockedOnEthLogData1.nftType).to.be.equal(getNftType(nftType));
+
+    expect(lockedOnEthLogData1.sourceChain).to.be.equal(
+        nftDetails.chainSymbolOfNFT
+    );
+
+    // ---
+
+    expect(lockedOnEthLogData2.tokenId).to.be.equal(nftDetails.tokenId2.value);
+    expect(lockedOnEthLogData2.destinationChain).to.be.equal(
+        destinationBridge.chainSymbol
+    );
+    expect(lockedOnEthLogData2.destinationUserAddress).to.be.equal(
+        destinationUser.address
+    );
+    expect(
+        lockedOnEthLogData2.sourceNftContractAddress.toLowerCase()
+    ).to.be.equal(nftDetails.collectionAddress.toLowerCase());
+    expect(lockedOnEthLogData2.tokenAmount).to.be.equal(1);
+    expect(lockedOnEthLogData2.nftType).to.be.equal(getNftType(nftType));
+
+    expect(lockedOnEthLogData2.sourceChain).to.be.equal(
+        nftDetails.chainSymbolOfNFT
+    );
+
+    const parsedLogs1 = parseLogs(lockOnEthReceipt1?.logs[1] as EventLog);
+    const parsedLogs2 = parseLogs(lockOnEthReceipt2?.logs[1] as EventLog);
+
+    return [[parsedLogs1, parsedLogs2], lockOnEthReceipt1, lockOnEthReceipt2];
+}
+
+type TClaimNewArgs = {
+    lockedOnEthLogData1: TProcessedLogs;
+    lockedOnEthLogData2: TProcessedLogs;
+    lockOnEthReceipt1: ContractTransactionReceipt | null;
+    lockOnEthReceipt2: ContractTransactionReceipt | null;
+    mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty;
+    mintedCollectionOnBSCAddress: string;
+    nftDetails: TNFTDetails;
+    destinationUser: HardhatEthersSigner;
+    sourceUser: HardhatEthersSigner;
+    destinationBridge: TBridge;
+    nftType: TNFTType;
+    getValidatorSignatures: TGetValidatorSignatures;
+};
+
+export async function claim({
+    lockedOnEthLogData1,
+    lockedOnEthLogData2,
+    lockOnEthReceipt1,
+    lockOnEthReceipt2,
+    mintedCollectionOnBSC,
+    mintedCollectionOnBSCAddress,
+    nftDetails,
+    destinationUser,
+    sourceUser,
+    destinationBridge,
+    nftType,
+    getValidatorSignatures,
+}: TClaimNewArgs): Promise<[string[], Contract[]]> {
+    const [claimDataArgs1, dataHash1] = createHash(
+        lockedOnEthLogData1,
+        lockOnEthReceipt1?.hash,
+        nftDetails,
+        sourceUser.address
+    );
+
+    const [claimDataArgs2, dataHash2] = createHash(
+        lockedOnEthLogData2,
+        lockOnEthReceipt2?.hash,
+        nftDetails,
+        sourceUser.address
+    );
+
+    const signatures = await Promise.all(
+        [dataHash1, dataHash2].map((hash) =>
+            getValidatorSignatures(hash, "bsc")
+        )
+    );
+
+    // // ensure that storage is owner of the nft
+    // const [originalStorage721a, originalStorage721b] = await Promise.all([
+    //     bscBridge.bridge[
+    //         nftType === 721
+    //             ? "originalStorageMapping721"
+    //             : "originalStorageMapping1155"
+    //     ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+    //     bscBridge.bridge[
+    //         nftType === 721
+    //             ? "originalStorageMapping721"
+    //             : "originalStorageMapping1155"
+    //     ](mintedCollectionOnBSCAddress, bscBridge.chainSymbol),
+    // ]);
+
+    // if (nftType === 721) {
+    //     let [owner1, owner2] = await Promise.all([
+    //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+    //             lockedOnEthLogData1.tokenId
+    //         ),
+    //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+    //             lockedOnEthLogData2.tokenId
+    //         ),
+    //     ]);
+    //     expect(owner1).to.be.equal(originalStorage721a);
+    //     expect(owner2).to.be.equal(originalStorage721b);
+    // } else {
+    //     const [balance1, balance2] = await Promise.all([
+    //         (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+    //             originalStorage721a,
+    //             nftDetails.tokenId1
+    //         ),
+    //         (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+    //             originalStorage721b,
+    //             nftDetails.tokenId2
+    //         ),
+    //     ]);
+    //     // Check if storageAddressForCollection has at least one of each token
+    //     expect(balance1).to.be.gt(0);
+    //     expect(balance2).to.be.gt(0);
+    // }
+
+    await Promise.all(
+        [claimDataArgs1, claimDataArgs2].map(async (args, i) => {
+            if (nftType === 721) {
+                return destinationBridge.bridge
+                    .connect(destinationUser)
+                    .claimNFT721(args, signatures[i], {
+                        value: FEE.value,
+                    })
+                    .then((r) => r.wait());
+            } else {
+                return destinationBridge.bridge
+                    .connect(destinationUser)
+                    .claimNFT1155(args, signatures[i], {
+                        value: FEE.value,
+                    })
+                    .then((r) => r.wait());
+            }
+        })
+    );
+
+    const [[, duplicateCollectionAddress1], [, duplicateCollectionAddress2]] =
+        await Promise.all(
+            [lockedOnEthLogData1, lockedOnEthLogData2].map((d) =>
+                destinationBridge.bridge.originalToDuplicateMapping(
+                    d.sourceNftContractAddress,
+                    d.sourceChain
+                )
+            )
+        );
+    const duplicateCollectionAddresses = [
+        duplicateCollectionAddress1,
+        duplicateCollectionAddress2,
+    ];
+
+    const duplicateCollectionContracts = await Promise.all(
+        duplicateCollectionAddresses.map((contractAddress) =>
+            hardhatEthers.getContractAt(
+                nftType === 721 ? "ERC721Royalty" : "ERC1155Royalty",
+                contractAddress
+            )
+        )
+    );
+    return [duplicateCollectionAddresses, duplicateCollectionContracts];
+
+    // ensure that bsc user is the owner after claiming
+    // if (nftType === 721) {
+    //     let [owner1, owner2] = await Promise.all([
+    //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+    //             lockedOnEthLogData1.tokenId
+    //         ),
+    //         (mintedCollectionOnBSC as ERC721Royalty).ownerOf(
+    //             lockedOnEthLogData2.tokenId
+    //         ),
+    //     ]);
+    //     expect(owner1).to.be.equal(bscUser.address);
+    //     expect(owner2).to.be.equal(bscUser.address);
+    // } else {
+    //     const [balance1, balance2] = await Promise.all([
+    //         (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+    //             bscUser.address,
+    //             nftDetails.tokenId1
+    //         ),
+    //         (mintedCollectionOnBSC as ERC1155Royalty).balanceOf(
+    //             bscUser.address,
+    //             nftDetails.tokenId2
+    //         ),
+    //     ]);
+    //     // Check if storageAddressForCollection has at least one of each token
+    //     expect(balance1).to.be.gt(0);
+    //     expect(balance2).to.be.gt(0);
+    // }
+}
 export async function lockOnBSCAndClaimOnEth({
     mintedCollectionOnBSC,
     tokenIds,
@@ -829,6 +1191,7 @@ export async function lockOnBSCAndClaimOnEth({
     ethBridge,
     nftType,
     getValidatorSignatures,
+    amountToLock,
 }: TLockOnBSCAndClaimOnEthArgs) {
     const [parsedLogs1, parsedLogs2, lockedReceipt1, lockedReceipt2] =
         await lockOnBSC(
@@ -840,8 +1203,10 @@ export async function lockOnBSCAndClaimOnEth({
             ethUser,
             bscBridge,
             ethBridge,
-            nftType
+            nftType,
+            amountToLock
         );
+
     return await claimOnEth(
         parsedLogs1,
         parsedLogs2,
@@ -868,6 +1233,7 @@ export async function lockOnEthAndClaimOnBSC({
     ethBridge,
     getValidatorSignatures,
     nftType,
+    amountToLock,
 }: TLockOnEthAndClaimOnBSCArgs) {
     const [
         lockedOnEthLogData1,
@@ -883,7 +1249,8 @@ export async function lockOnEthAndClaimOnBSC({
         ethUser,
         bscBridge,
         ethBridge,
-        nftType
+        nftType,
+        amountToLock
     );
 
     await claimOnBSC(
@@ -900,4 +1267,19 @@ export async function lockOnEthAndClaimOnBSC({
         nftType,
         getValidatorSignatures
     );
+}
+
+export function makeBytesLike(signature: string): string {
+    return ethers.hexlify(ethers.toUtf8Bytes(signature));
+}
+
+export function formatSignatures(
+    signatures: [string, string]
+): { signature: string; signerAddress: string }[] {
+    return signatures.map((sig, i) => {
+        return {
+            signature: makeBytesLike(sig),
+            signerAddress: `signerAddress${i}`,
+        };
+    });
 }

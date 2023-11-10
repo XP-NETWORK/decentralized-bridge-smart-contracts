@@ -55,7 +55,7 @@ interface IERC1155Royalty {
         uint256 salePrice
     ) external view returns (address receiver, uint256 royaltyAmount);
 
-     /**
+    /**
      * @dev Retrieve the balance of tokens held by an address.
      *
      * @param account the address of the token holder.
@@ -63,5 +63,15 @@ interface IERC1155Royalty {
      *
      * @return the balance of the specified token ID for the account.
      */
-    function balanceOf(address account, uint256 id) external view returns (uint256);
+    function balanceOf(
+        address account,
+        uint256 id
+    ) external view returns (uint256);
+
+    /**
+     * @dev Gets the owner's address of the contract (standard OpenZeppelin Ownable).
+     *
+     * @return The address of the owner.
+     */
+    function owner() external view returns (address);
 }
