@@ -12,3 +12,6 @@ artifacts
 contractsTypes
 
 .DS_Store
+output
+target
+meta/target
