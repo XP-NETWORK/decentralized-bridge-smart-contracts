@@ -1,9 +1,11 @@
 import "@stdlib/deploy";
 import "./nftErc721Storage.tact";
-
 message DeployNFT721Storage {
     collectionAddress: Address;
+    isOriginal: Bool;
+    key: Int;
 }
+
 contract NFTStorageDeployer {
     owner: Address;
     init(bridgeAddress: Address){
@@ -30,6 +32,12 @@ contract NFTStorageDeployer {
                 body: "StorageDeploy".asComment()
             }
         );
-        self.reply(HiFromDeployNFT721Storage{storageAddress: nftStorageERC721Address}.toCell());
+        self.reply(HiFromDeployNFT721Storage{
+                sourceNftContractAddress: msg.collectionAddress,
+                storageAddress: nftStorageERC721Address,
+                isOriginal: msg.isOriginal,
+                key: msg.key
+            }.toCell()
+        );
     }
 }

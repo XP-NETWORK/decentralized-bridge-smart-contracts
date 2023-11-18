@@ -12,108 +12,20 @@ exports[`wallet should deploy 1`] = `
         "$type": "received",
         "message": {
           "body": {
-            "text": "Deploy",
-            "type": "text",
+            "cell": "x{4DA28EC08002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A2883_}
+ x{544F4E}",
+            "type": "cell",
           },
           "bounce": true,
           "from": "@treasure(treasure)",
-          "to": "kQCa_8q2aCKR2vEdamw3vdCIPrO_R4b09DVuxLGytF4Kbuty",
+          "to": "kQD7-ob3eGMc9BP5XzGAF5NcVZpu19Wi1oQrYRvQShxQzVP6",
           "type": "internal",
-          "value": 10000000000n,
+          "value": 50000000n,
         },
       },
       {
         "$type": "processed",
-        "gasUsed": 40284n,
-      },
-      {
-        "$type": "sent",
-        "messages": [
-          {
-            "body": {
-              "text": "Deploy",
-              "type": "text",
-            },
-            "bounce": true,
-            "from": "kQCa_8q2aCKR2vEdamw3vdCIPrO_R4b09DVuxLGytF4Kbuty",
-            "to": "kQBYgDoKu1zj-2wD_r_6N-Bkm6-Nxt-thRKo1soY6it57ExE",
-            "type": "internal",
-            "value": 60296000n,
-          },
-        ],
-      },
-      {
-        "$type": "sent",
-        "messages": [
-          {
-            "body": {
-              "text": "Deploy",
-              "type": "text",
-            },
-            "bounce": true,
-            "from": "kQCa_8q2aCKR2vEdamw3vdCIPrO_R4b09DVuxLGytF4Kbuty",
-            "to": "kQCD4KwiykOv76qsOYgNufd75plzROOCsnCZIL2QE2M-Eq9o",
-            "type": "internal",
-            "value": 80144000n,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    "$seq": 1,
-    "events": [
-      {
-        "$type": "received",
-        "message": {
-          "body": {
-            "text": "Lock721",
-            "type": "text",
-          },
-          "bounce": true,
-          "from": "@treasure(treasure)",
-          "to": "kQCa_8q2aCKR2vEdamw3vdCIPrO_R4b09DVuxLGytF4Kbuty",
-          "type": "internal",
-          "value": 10000000000n,
-        },
-      },
-      {
-        "$type": "processed",
-        "gasUsed": 26919n,
-      },
-      {
-        "$type": "sent",
-        "messages": [
-          {
-            "body": {
-              "cell": "x{CD1602E88014EF470C91BF7FBF94E00B941A04904464C0C80B7F22958105CA586DE304BF08F_}",
-              "type": "cell",
-            },
-            "bounce": false,
-            "from": "kQCa_8q2aCKR2vEdamw3vdCIPrO_R4b09DVuxLGytF4Kbuty",
-            "to": "kQAqkxG7sCAM2EzbB9CvCRlpEexybWCa5et5yF3y-QhSuMpi",
-            "type": "internal",
-            "value": 98601000n,
-          },
-        ],
-      },
-      {
-        "$type": "sent",
-        "messages": [
-          {
-            "body": {
-              "cell": "x{FF8EFBAC80135FF956CD04523B5E23AD4D86F7BA1107D677E8F0DE9E86ADD89636568BC14DD_}
- x{}
- x{000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000016004D7FE55B341148ED788EB5361BDEE8441F59DFA3C37A7A1AB76258D95A2F05374_}",
-              "type": "cell",
-            },
-            "bounce": false,
-            "from": "kQCa_8q2aCKR2vEdamw3vdCIPrO_R4b09DVuxLGytF4Kbuty",
-            "to": "kQBYgDoKu1zj-2wD_r_6N-Bkm6-Nxt-thRKo1soY6it57ExE",
-            "type": "internal",
-            "value": 97620000n,
-          },
-        ],
+        "gasUsed": 9240n,
       },
     ],
   },

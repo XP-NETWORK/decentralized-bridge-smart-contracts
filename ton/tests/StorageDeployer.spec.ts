@@ -4,6 +4,7 @@ import { Address, beginCell, toNano } from "ton-core";
 import { sign } from "ton-crypto";
 import { NFTStorageDeployer } from "../build/Bridge/tact_NFTStorageDeployer";
 import { NFTCollectionDeployer } from "../build/Bridge/tact_NFTCollectionDeployer";
+import { Gando, Gnado, storeGnado } from "../build/Bridge/tact_Gando";
 
 describe('wallet', () => {
     it('should deploy', async () => {
@@ -13,9 +14,12 @@ describe('wallet', () => {
         let publicKey = beginCell().storeBuffer(key.publicKey).endCell().beginParse().loadUintBig(256);
         let system = await ContractSystem.create();
         let treasure = system.treasure('treasure');
-        let contract = system.open(await Bridge.fromInit(publicKey, "TON"));
+        let g: Gnado = {
+            $$type: "Gnado", address: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address, chain: "TON"
+        }
+        let contract = system.open(await Gando.fromInit(g));
         let tracker = system.track(contract.address);
-        await contract.send(treasure, { value: toNano('10') }, 'Deploy');
+        // await contract.send(treasure, { value: toNano('10') }, 'Deploy');
         await system.run();
 
         // Create executor
@@ -24,10 +28,24 @@ describe('wallet', () => {
         // expect(await contract.getSeqno()).toBe(0n);
         console.log(toNano('10').toString());
         console.log(contract.address)
-        console.log(await contract.getCollectionDeployer());
-        console.log(await contract.getStorageDeployer());
+        // console.log(await contract.getCollectionDeployer());
+        // console.log(await contract.getStorageDeployer());
 
-        await contract.send(treasure, { value: toNano('10') }, 'Lock721');
+
+
+
+
+
+
+        await contract.send(treasure,
+            {
+                value: toNano('0.05'),
+            },
+            {
+                $$type: "Gnado", address: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address, chain: "TON"
+            },)
+
+        // await contract.send(treasure, { value: toNano('10') }, 'Lock721');
 
 
         // Send transfer and check seqno

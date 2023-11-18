@@ -49,7 +49,10 @@ struct GetNftData {
     individual_content: Cell;
 }
 message HiFromDeployNFT721Storage {
+    sourceNftContractAddress: Address;
     storageAddress: Address;
+    isOriginal: Bool;
+    key: Int;
 }
 message HiFromDeployNFT721Collection {
     collectionAddress: Address;
