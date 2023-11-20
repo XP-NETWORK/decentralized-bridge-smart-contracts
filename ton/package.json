@@ -16,8 +16,6 @@
         "jest": "^29.5.0",
         "prettier": "^2.8.6",
         "ton": "~13.6.0",
-        "ton-core": "^0.51.0",
-        "ton-crypto": "^3.2.0",
         "ts-jest": "^29.0.5",
         "ts-node": "^10.9.1",
         "typescript": "^4.9.5"
@@ -25,6 +23,10 @@
     "dependencies": {
         "@eversdk/core": "^1.45.0",
         "@eversdk/lib-node": "^1.45.0",
+        "@ton/core": "^0.53.0",
+        "@ton/crypto": "^3.2.0",
+        "@ton/ton": "^13.9.0",
+        "buffer": "^6.0.3",
         "tonweb": "^0.0.62"
     }
 }

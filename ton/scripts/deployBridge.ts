@@ -8,23 +8,26 @@ import { sign } from 'ton-crypto';
 
 export async function run(provider: NetworkProvider) {
 
-    let key = testKey('firstValidator');
+    let key = testKey('firstValidator1234454556');
     console.log("key", key.publicKey.toString("hex"));
     console.log("key", key.secretKey.toString("hex"));
 
     let publicKey = beginCell().storeBuffer(key.publicKey).endCell().beginParse().loadUintBig(256);
 
     const bridge = provider.open(await Bridge.fromInit(publicKey, Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address, "TON"));
+    // const bridge = provider.open(await Bridge.fromInit());
 
-    await bridge.send(
-        provider.sender(),
-        {
-            value: toNano('0.3'),
-        },
-        'Deploy',
-    );
+    // await bridge.send(
+    //     provider.sender(),
+    //     {
+    //         value: toNano('0.3'),
+    //     },
+    //     'Deploy',
+    // );
 
-    await provider.waitForDeploy(bridge.address);
+    // await provider.waitForDeploy(bridge.address);
+
+    // return;
 
     const OFFCHAIN_CONTENT_PREFIX = 0x01;
 
@@ -36,53 +39,89 @@ export async function run(provider: NetworkProvider) {
     let body = beginCell().storeUint(0, 32).storeStringTail("Mint").endCell();
 
 
+    let claimData: ClaimData = {
+        $$type: "ClaimData",
+        data1: {
+            $$type: 'ClaimData1',
+            tokenId: 64n,
+            sourceChain: 'BSC',
+            destinationChain: 'TON',
+            destinationUserAddress: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address,
+            tokenAmount: 1n
+        },
+        data2: {
+            $$type: 'ClaimData2',
+            name: 'Gando',
+            symbol: 'Gando',
+            nftType: 'singular',
+        },
+        data3: {
+            $$type: 'ClaimData3',
+            sourceNftContractAddress: '0x6f7C0c6A6dd6E435b0EEc1c9F7Bce01A1908f386',
+            fee: toNano("0.1"),
+            royaltyReceiver: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address,
+            metadata: 'https://s.getgems.io/nft-staging/c/628f6ab8077060a7a8d52d63/0.json',
+        },
+        data4: {
+            $$type: 'ClaimData4',
+            transactionHash: '0x6f7C0c6A6dd6E435b0EEc1c9F7Bce01A1908f386',
+            royalty: {
+                $$type: 'RoyaltyParams',
+                numerator: 1000n,
+                denominator: 350n,
+                destination: bridge.address
+            }
+        }
+    }
+
+
     // let claimData: ClaimData = {
     //     $$type: "ClaimData",
-    //     destinationChain: "TON",
-    //     destinationUserAddress: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address,
+    //     destinationChain: "",
+    //     destinationUserAddress: ,
     //     fee: 0n,
-    //     metadata: "https://s.getgems.io/nft-staging/c/628f6ab8077060a7a8d52d63/0.json",
-    //     name: "Gando",
-    //     nftType: "singular",
+    //     metadata: "",
+    //     name: "",
+    //     nftType: "",
     //     royalty: {
     //         $$type: "RoyaltyParams",
-    //         denominator: 1000n,
-    //         destination: bridge.address,
+    //         denominator: ,
+    //         destination: ,
     //         numerator: 350n
     //     },
     //     royaltyReceiver: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address,
-    //     sourceChain: "BSC",
-    //     sourceNftContractAddress: "0x6f7C0c6A6dd6E435b0EEc1c9F7Bce01A1908f386",
+    //     sourceChain: "",
+    //     sourceNftContractAddress: "",
     //     symbol: "Gando",
     //     tokenAmount: 1n,
     //     tokenId: 64n,
-    //     transactionHash: "0x6f7C0c6A6dd6E435b0EEc1c9F7Bce01A1908f386"
+    //     transactionHash: ""
     // }
 
-    // let signature = sign(beginCell().store(storeClaimData(claimData)).endCell().hash(), key.secretKey);
+    let signature = sign(beginCell().store(storeClaimData(claimData)).endCell().hash(), key.secretKey);
 
-    // let sig: SignerAndSignature = {
-    //     $$type: 'SignerAndSignature',
-    //     key: publicKey,
-    //     signature: beginCell().storeBuffer(signature).endCell()
-    // };
+    let sig: SignerAndSignature = {
+        $$type: 'SignerAndSignature',
+        key: publicKey,
+        signature: beginCell().storeBuffer(signature).endCell()
+    };
 
-    // let dictA = Dictionary.empty<bigint, SignerAndSignature>().set(0n, sig);
+    let dictA = Dictionary.empty<bigint, SignerAndSignature>().set(0n, sig);
 
 
 
-    // console.log(storeClaimData(claimData).toString());
-    
-    // await bridge.send(
-    //     provider.sender(),
-    //     {
-    //         value: toNano('0.3')
-    //     }, {
-    //     $$type: "ClaimNFT721",
-    //     data: claimData,
-    //     len: 1n,
-    //     signatures: dictA
-    // });
+    console.log(storeClaimData(claimData).toString());
+
+    await bridge.send(
+        provider.sender(),
+        {
+            value: toNano('0.3')
+        }, {
+        $$type: "ClaimNFT721",
+        data: claimData,
+        len: 1n,
+        signatures: dictA
+    });
 
 
     // const Collection = provider.open(await NftCollection.fromInit(Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address, newContent, {
@@ -114,11 +153,11 @@ export async function run(provider: NetworkProvider) {
     //     }
     // );
 
-    // await provider.waitForDeploy(bridge.address);
+    await provider.waitForDeploy(bridge.address);
 
 
-    console.log(await bridge.getCollectionDeployer());
+    // console.log(await bridge.getCollectionDeployer());
 
-    console.log(await bridge.getStorageDeployer());
+    // console.log(await bridge.getStorageDeployer());
 
 }
