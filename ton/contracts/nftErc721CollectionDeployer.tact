@@ -1,11 +1,13 @@
 import "@stdlib/deploy";
 import "./message.tact";
 import "./nftErc721.tact";
-
 message DeployNFT721Collection {
     owner_address: Address;
     collection_content: Cell;
     royalty_params: RoyaltyParams;
+    destination_user_address: Address;
+    source_chain: String;
+    source_nft_contract_address: String;
 }
 message CreatedCollection {
     collectionAddress: Address;
@@ -25,10 +27,7 @@ contract NFTCollectionDeployer {
 
     receive(msg: DeployNFT721Collection){
         self.onlyOwner(context().sender);
-        let collectionInit: StateInit = initOf NftCollection(myAddress(),
-            msg.collection_content,
-            msg.royalty_params
-        );
+        let collectionInit: StateInit = initOf NftCollection(myAddress(), msg.collection_content, msg.royalty_params);
         let collectionAddress: Address = contractAddress(collectionInit);
         send(SendParameters{
                 value: ton("0.08"), // pay for message and potential deployment
@@ -41,6 +40,13 @@ contract NFTCollectionDeployer {
             }
         );
         // emit(CreatedCollection{collectionAddress: collectionAddress}.toCell());
-        self.reply(HiFromDeployNFT721Collection{collectionAddress: collectionAddress}.toCell());
+        self.reply(HiFromDeployNFT721Collection{
+                collectionAddress: collectionAddress,
+                collectionContent: msg.collection_content,
+                destinationUserAddress: msg.destination_user_address,
+                sourceChain: msg.source_chain,
+                sourceNftContractAddress: msg.source_nft_contract_address
+            }.toCell()
+        );
     }
 }
