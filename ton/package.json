@@ -23,6 +23,7 @@
     "dependencies": {
         "@eversdk/core": "^1.45.0",
         "@eversdk/lib-node": "^1.45.0",
+        "@tact-lang/compiler": "^1.1.4",
         "@ton/core": "^0.53.0",
         "@ton/crypto": "^3.2.0",
         "@ton/ton": "^13.9.0",

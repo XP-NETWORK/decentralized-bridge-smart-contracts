@@ -1,4 +1,5 @@
 import "./message.tact";
+import "@stdlib/deploy";
 const minTonsForStorage: Int = ton("0.03");
 const gasConsumption: Int = ton("0.03");
 
@@ -7,16 +8,29 @@ contract NftCollection {
     owner_address: Address;
     royalty_params: RoyaltyParams;
     collection_content: Cell;
-
     init(owner_address: Address, collection_content: Cell, royalty_params: RoyaltyParams){
         self.owner_address = owner_address;
         self.collection_content = collection_content;
         self.royalty_params = royalty_params;
     }
 
-    receive("CollectionDeploy"){
-        
+    receive(msg: CollectionDeploy){
+        // send(SendParameters{
+        //         value: ton("1.5"),
+        //         to: myAddress(),
+        //         mode: SendIgnoreErrors,
+        //         bounce: false,
+        //         body: "Mint".asComment()
+        //     }
+        // );
+        let ctx: Context = context(); // get sender Info
+        let msgValue: Int = ctx.value;
+        let tonBalanceBeforeMsg: Int = (myBalance() - msgValue);
+        let storageFee: Int = (minTonsForStorage - min(tonBalanceBeforeMsg, minTonsForStorage));
+        msgValue = (msgValue - (storageFee + gasConsumption));
+        self.mint(msg.newOwner, msgValue);
     }
+
     receive("Mint"){
         let ctx: Context = context(); // get sender Info
         let msgValue: Int = ctx.value;

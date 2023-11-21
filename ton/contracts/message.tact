@@ -55,9 +55,14 @@ message HiFromDeployNFT721Storage {
     key: Int;
 }
 message HiFromDeployNFT721Collection {
-    collectionAddress: Address;
     collectionContent: Cell;
     destinationUserAddress: Address;
     sourceChain: String;
     sourceNftContractAddress: String;
+}
+message OK {
+    ok: String;
+}
+message CollectionDeploy{
+    newOwner: Address;
 }

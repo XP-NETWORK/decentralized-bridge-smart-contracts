@@ -12,20 +12,134 @@ exports[`wallet should deploy 1`] = `
         "$type": "received",
         "message": {
           "body": {
-            "cell": "x{4DA28EC08002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A2883_}
- x{544F4E}",
-            "type": "cell",
+            "text": "Deploy",
+            "type": "text",
           },
           "bounce": true,
           "from": "@treasure(treasure)",
-          "to": "kQD7-ob3eGMc9BP5XzGAF5NcVZpu19Wi1oQrYRvQShxQzVP6",
+          "to": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
           "type": "internal",
-          "value": 50000000n,
+          "value": 10000000000n,
         },
       },
       {
         "$type": "processed",
-        "gasUsed": 9240n,
+        "gasUsed": 45488n,
+      },
+      {
+        "$type": "sent",
+        "messages": [
+          {
+            "body": {
+              "text": "CollectionDeployer",
+              "type": "text",
+            },
+            "bounce": true,
+            "from": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
+            "to": "kQALnqOWM6kyN--mEaFYAsGnd3cB3YYaNb_9kiYYG_dKcvfl",
+            "type": "internal",
+            "value": 32016000n,
+          },
+        ],
+      },
+      {
+        "$type": "sent",
+        "messages": [
+          {
+            "body": {
+              "text": "StorageDeployer",
+              "type": "text",
+            },
+            "bounce": true,
+            "from": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
+            "to": "kQDjdVQpnA-qaVRBIiNZN1ZIjEGFMuRy6Qy7xAqja2OMMT0T",
+            "type": "internal",
+            "value": 50384000n,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "$seq": 1,
+    "events": [
+      {
+        "$type": "received",
+        "message": {
+          "body": {
+            "cell": "x{C0BCD39A00000000000000408002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A288200000000000000030000000000000000000000000000000000000000000000000000000000000001}
+ x{425343}
+ x{544F4E}
+ x{}
+  x{47616E646F}
+  x{47616E646F}
+  x{73696E67756C6172}
+  x{0000000005F5E1008002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A2883_}
+   x{307836663743306336413664643645343335623045456331633946374263653031413139303866333836}
+   x{68747470733A2F2F732E67657467656D732E696F2F6E66742D73746167696E672F632F3632386636616238303737303630613761386435326436332F302E6A736F6E}
+   x{00000000000000000000000000000000000000000000000000000000000001F40000000000000000000000000000000000000000000000000000000000000057A007E4C2184D944C3C1C4912CC0F60D843DDBF4A6FC3F60DDC50A0BB68F176DC1F14_}
+    x{01}
+     x{68747470733A2F2F732E67657467656D732E696F2F6E66742D73746167696E672F632F3632386636616238303737303630613761386435326436332F}
+    x{307836663743306336413664643645343335623045456331633946374263653031413139303866333836}
+ x{D01}
+  x{B1BDE1672FBC4D1629C8F28B3092929200A075ACC0D383B933207FAF71E8B46A}
+   x{636FB9A96C826244C8BDDE604C35D74F821D680C9D7B3E54FF6E2CAD6AA67CF532FB10E8098C9F6BA229BD4F5A2C5C2B762ED108BF688895C9BFA894400D5C0F}",
+            "type": "cell",
+          },
+          "bounce": true,
+          "from": "@treasure(treasure)",
+          "to": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
+          "type": "internal",
+          "value": 2800000000n,
+        },
+      },
+      {
+        "$type": "processed",
+        "gasUsed": 59469n,
+      },
+      {
+        "$type": "sent",
+        "messages": [
+          {
+            "body": {
+              "cell": "x{F0EAF4A400000000000000000000000000000000000000000000000000000000000001F40000000000000000000000000000000000000000000000000000000000000057A007E4C2184D944C3C1C4912CC0F60D843DDBF4A6FC3F60DDC50A0BB68F176DC1F14_}
+ x{01}
+  x{68747470733A2F2F732E67657467656D732E696F2F6E66742D73746167696E672F632F3632386636616238303737303630613761386435326436332F}
+ x{8002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A2883_}
+  x{425343}
+  x{307836663743306336413664643645343335623045456331633946374263653031413139303866333836}",
+              "type": "cell",
+            },
+            "bounce": true,
+            "from": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
+            "to": "kQALnqOWM6kyN--mEaFYAsGnd3cB3YYaNb_9kiYYG_dKcvfl",
+            "type": "internal",
+            "value": 1996472000n,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "$seq": 2,
+    "events": [
+      {
+        "$type": "received",
+        "message": {
+          "body": {
+            "cell": "x{D53276DB0000000000000000}",
+            "type": "cell",
+          },
+          "bounce": true,
+          "from": "kQCkDI-M6EQ6do3Rr8Uf8I2EcA5zk9_KW3ZB09RZFEjpRwrG",
+          "to": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
+          "type": "internal",
+          "value": 1439265000n,
+        },
+      },
+      {
+        "$type": "processed",
+        "gasUsed": 10548n,
       },
     ],
   },
