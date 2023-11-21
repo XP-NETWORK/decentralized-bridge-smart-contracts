@@ -13,7 +13,7 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 pub trait BridgeContract {
     #[view(tokens)]
     #[storage_mapper("tokens")]
-    fn tokens(&self) -> BiDiMapper<TokenInfo<Self::Api>, u64>;
+    fn tokens(&self) -> BiDiMapper<TokenInfo<Self::Api>, TokenInfo<Self::Api>>;
 
     #[view(validators)]
     #[storage_mapper("validators")]
@@ -274,8 +274,16 @@ pub trait BridgeContract {
 
         let is_token_exists = self
             .tokens()
-            .contains_value(&nonce)
-            .then(|| self.tokens().get_id(&nonce));
+            .contains_value(&TokenInfo {
+                token_id: nonce,
+                chain: self_chain_buffer.clone(),
+                contract_address: source_nft_contract_address.as_managed_buffer().clone(),
+            })
+            .then(|| self.tokens().get_id(&TokenInfo {
+                token_id: nonce,
+                chain: self_chain_buffer.clone(),
+                contract_address: source_nft_contract_address.as_managed_buffer().clone(),
+            }));
 
         let mut mut_token_id: u64 = 0;
 
@@ -291,7 +299,11 @@ pub trait BridgeContract {
                         chain: self_chain_buffer.clone(),
                         contract_address: source_nft_contract_address.as_managed_buffer().clone(),
                     },
-                    nonce,
+                    TokenInfo {
+                        token_id: nonce,
+                        chain: self_chain_buffer.clone(),
+                        contract_address: source_nft_contract_address.as_managed_buffer().clone(),
+                    },
                 );
             }
         }
@@ -354,8 +366,16 @@ pub trait BridgeContract {
 
         let is_token_exists = self
             .tokens()
-            .contains_value(&nonce)
-            .then(|| self.tokens().get_id(&nonce));
+            .contains_value(&TokenInfo {
+                token_id: nonce,
+                chain: self_chain_buffer.clone(),
+                contract_address: source_nft_contract_address.as_managed_buffer().clone(),
+            })
+            .then(|| self.tokens().get_id(&TokenInfo {
+                token_id: nonce,
+                chain: self_chain_buffer.clone(),
+                contract_address: source_nft_contract_address.as_managed_buffer().clone(),
+            }));
 
         let mut mut_token_id: u64 = 0;
 
@@ -371,7 +391,11 @@ pub trait BridgeContract {
                         chain: self_chain_buffer.clone(),
                         contract_address: source_nft_contract_address.as_managed_buffer().clone(),
                     },
-                    nonce,
+                    TokenInfo {
+                        token_id: nonce,
+                        chain: self_chain_buffer.clone(),
+                        contract_address: source_nft_contract_address.as_managed_buffer().clone(),
+                    },
                 );
             }
         }
@@ -465,7 +489,7 @@ pub trait BridgeContract {
                     Some(v) => {
                         let _ = self.unlock721(
                             data.destination_user_address,
-                            v,
+                            v.token_id,
                             data.source_nft_contract_address.into(),
                         );
                     }
@@ -495,7 +519,7 @@ pub trait BridgeContract {
                     Some(v) => {
                         let _ = self.unlock721(
                             data.destination_user_address,
-                            v,
+                            v.token_id,
                             data.source_nft_contract_address.into(),
                         );
                     }
@@ -586,7 +610,7 @@ pub trait BridgeContract {
                         if balance_of_tokens >= data.token_amount {
                             let _ = self.unlock1155(
                                 data.destination_user_address,
-                                vnonce,
+                                vnonce.token_id,
                                 data.source_nft_contract_address.into(),
                                 data.token_amount,
                             );
@@ -594,7 +618,7 @@ pub trait BridgeContract {
                             let to_mint = data.token_amount - balance_of_tokens.clone();
                             let _ = self.unlock1155(
                                 data.destination_user_address.clone(),
-                                vnonce,
+                                vnonce.token_id,
                                 data.source_nft_contract_address.into(),
                                 balance_of_tokens.into(),
                             );
@@ -656,7 +680,7 @@ pub trait BridgeContract {
                         if balance_of_tokens >= data.token_amount {
                             let _ = self.unlock1155(
                                 data.destination_user_address,
-                                vnonce,
+                                vnonce.token_id,
                                 data.source_nft_contract_address.into(),
                                 data.token_amount,
                             );
@@ -664,7 +688,7 @@ pub trait BridgeContract {
                             let to_mint = data.token_amount - balance_of_tokens.clone();
                             let _ = self.unlock1155(
                                 data.destination_user_address.clone(),
-                                vnonce,
+                                vnonce.token_id,
                                 data.source_nft_contract_address.clone().into(),
                                 balance_of_tokens.into(),
                             );
@@ -972,7 +996,11 @@ pub trait BridgeContract {
                         chain: data.source_chain.clone(),
                         contract_address: data.source_nft_contract_address.clone(),
                     },
-                    nonce,
+                    TokenInfo {
+                        token_id: nonce,
+                        chain: ManagedBuffer::from(SELF_CHAIN),
+                        contract_address: tid.as_managed_buffer().clone(),
+                    },
                 );
 
                 self.send().transfer_esdt_via_async_call(
