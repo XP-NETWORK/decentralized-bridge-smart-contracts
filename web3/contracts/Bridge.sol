@@ -181,6 +181,8 @@ contract Bridge {
     ) external {
         require(_validator != address(0), "Address cannot be zero address!");
         require(signatures.length > 0, "Must have signatures!");
+        require(!validators[_validator].added, "Validator already added");
+        
 
         uint256 percentage = 0;
         for (uint256 i = 0; i < signatures.length; i++) {
