@@ -4,6 +4,11 @@ message DeployNFT721Storage {
     collectionAddress: Address;
     isOriginal: Bool;
     key: Int;
+    tokenId: Int;
+    destinationChain: String;
+    destinationUserAddress: String;
+    sourceNftContractAddressLock: Slice;
+    sourceChain: String;
 }
 
 contract NFTStorageDeployer {
@@ -12,7 +17,7 @@ contract NFTStorageDeployer {
         self.owner = bridgeAddress;
     }
 
-     fun onlyOwner(sender: Address) {
+    fun onlyOwner(sender: Address) {
         require(sender == self.owner, "Only owner can call");
     }
 
@@ -29,15 +34,17 @@ contract NFTStorageDeployer {
                 bounce: true,
                 code: nftStorageERC721Init.code, // if child is not deployed, also deploy it
                 data: nftStorageERC721Init.data,
-                body: "StorageDeploy".asComment()
+                body: StorageDeploy{
+                    sourceNftContractAddress: msg.collectionAddress,
+                    isOriginal: msg.isOriginal,
+                    key: msg.key,
+                    tokenId: msg.tokenId,
+                    destinationChain: msg.destinationChain,
+                    destinationUserAddress: msg.destinationUserAddress,
+                    sourceNftContractAddressLock: msg.sourceNftContractAddressLock,
+                    sourceChain: msg.sourceChain
+                }.toCell()
             }
-        );
-        self.reply(HiFromDeployNFT721Storage{
-                sourceNftContractAddress: msg.collectionAddress,
-                storageAddress: nftStorageERC721Address,
-                isOriginal: msg.isOriginal,
-                key: msg.key
-            }.toCell()
         );
     }
 }

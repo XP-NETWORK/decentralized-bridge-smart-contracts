@@ -17,14 +17,14 @@ exports[`wallet should deploy 1`] = `
           },
           "bounce": true,
           "from": "@treasure(treasure)",
-          "to": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
+          "to": "kQDljBveCiTW2W3lWp5p7GiPDPQsm693C1xnhnxipum2XxJ5",
           "type": "internal",
           "value": 10000000000n,
         },
       },
       {
         "$type": "processed",
-        "gasUsed": 45488n,
+        "gasUsed": 45442n,
       },
       {
         "$type": "sent",
@@ -35,10 +35,10 @@ exports[`wallet should deploy 1`] = `
               "type": "text",
             },
             "bounce": true,
-            "from": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
-            "to": "kQALnqOWM6kyN--mEaFYAsGnd3cB3YYaNb_9kiYYG_dKcvfl",
+            "from": "kQDljBveCiTW2W3lWp5p7GiPDPQsm693C1xnhnxipum2XxJ5",
+            "to": "kQC9OO1shf-vpBFHEz5VGM6Ufoyw_Yv7FJpE6Lbh9_Qj9SpJ",
             "type": "internal",
-            "value": 32016000n,
+            "value": 31572000n,
           },
         ],
       },
@@ -51,10 +51,10 @@ exports[`wallet should deploy 1`] = `
               "type": "text",
             },
             "bounce": true,
-            "from": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
-            "to": "kQDjdVQpnA-qaVRBIiNZN1ZIjEGFMuRy6Qy7xAqja2OMMT0T",
+            "from": "kQDljBveCiTW2W3lWp5p7GiPDPQsm693C1xnhnxipum2XxJ5",
+            "to": "kQCPckGCax8azkDf1Lq_U1daU1g_28UvieLfRqZ_YRGWpTDY",
             "type": "internal",
-            "value": 50384000n,
+            "value": 48416000n,
           },
         ],
       },
@@ -67,7 +67,7 @@ exports[`wallet should deploy 1`] = `
         "$type": "received",
         "message": {
           "body": {
-            "cell": "x{C0BCD39A00000000000000408002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A288200000000000000030000000000000000000000000000000000000000000000000000000000000001}
+            "cell": "x{628DCAAD00000000000000408002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A288200000000000000030000000000000000000000000000000000000000000000000000000000000001}
  x{425343}
  x{544F4E}
  x{}
@@ -75,34 +75,34 @@ exports[`wallet should deploy 1`] = `
   x{47616E646F}
   x{73696E67756C6172}
   x{0000000005F5E1008002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A2883_}
-   x{307836663743306336413664643645343335623045456331633946374263653031413139303866333836}
+   x{801F69298AABF713B5E726BC006D9A5049F386E0486D267C1C034B2CCAC4AC98713_}
    x{68747470733A2F2F732E67657467656D732E696F2F6E66742D73746167696E672F632F3632386636616238303737303630613761386435326436332F302E6A736F6E}
-   x{00000000000000000000000000000000000000000000000000000000000001F40000000000000000000000000000000000000000000000000000000000000057A007E4C2184D944C3C1C4912CC0F60D843DDBF4A6FC3F60DDC50A0BB68F176DC1F14_}
+   x{00000000000000000000000000000000000000000000000000000000000001F40000000000000000000000000000000000000000000000000000000000000057A0072C60DEF05126B6CB6F2AD4F34F63447867A164DD7BB85AE33C33E315374DB2FC_}
     x{01}
      x{68747470733A2F2F732E67657467656D732E696F2F6E66742D73746167696E672F632F3632386636616238303737303630613761386435326436332F}
     x{307836663743306336413664643645343335623045456331633946374263653031413139303866333836}
  x{D01}
-  x{B1BDE1672FBC4D1629C8F28B3092929200A075ACC0D383B933207FAF71E8B46A}
-   x{636FB9A96C826244C8BDDE604C35D74F821D680C9D7B3E54FF6E2CAD6AA67CF532FB10E8098C9F6BA229BD4F5A2C5C2B762ED108BF688895C9BFA894400D5C0F}",
+  x{B98EAA2EF43743B38F36AD859573377402905B64DD32E717CE0BBF629A01EFD2}
+   x{DCB29F30A5DE457B75C66412871837957120BEA5700AC0EE73599D01D3AAB8289CB01C6A9E84E9E3FB34F41D821716A58B21ABB811A762196E2B5BF4EA03D009}",
             "type": "cell",
           },
           "bounce": true,
           "from": "@treasure(treasure)",
-          "to": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
+          "to": "kQDljBveCiTW2W3lWp5p7GiPDPQsm693C1xnhnxipum2XxJ5",
           "type": "internal",
-          "value": 2800000000n,
+          "value": 1000000000n,
         },
       },
       {
         "$type": "processed",
-        "gasUsed": 59469n,
+        "gasUsed": 86480n,
       },
       {
         "$type": "sent",
         "messages": [
           {
             "body": {
-              "cell": "x{F0EAF4A400000000000000000000000000000000000000000000000000000000000001F40000000000000000000000000000000000000000000000000000000000000057A007E4C2184D944C3C1C4912CC0F60D843DDBF4A6FC3F60DDC50A0BB68F176DC1F14_}
+              "cell": "x{EF225A6D00000000000000000000000000000000000000000000000000000000000001F40000000000000000000000000000000000000000000000000000000000000057A0072C60DEF05126B6CB6F2AD4F34F63447867A164DD7BB85AE33C33E315374DB2FC_}
  x{01}
   x{68747470733A2F2F732E67657467656D732E696F2F6E66742D73746167696E672F632F3632386636616238303737303630613761386435326436332F}
  x{8002BE5A3ECB0772CC29DE604D21331181FE1F0FF710171983512690F95022A2883_}
@@ -111,10 +111,10 @@ exports[`wallet should deploy 1`] = `
               "type": "cell",
             },
             "bounce": true,
-            "from": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
-            "to": "kQALnqOWM6kyN--mEaFYAsGnd3cB3YYaNb_9kiYYG_dKcvfl",
+            "from": "kQDljBveCiTW2W3lWp5p7GiPDPQsm693C1xnhnxipum2XxJ5",
+            "to": "kQC9OO1shf-vpBFHEz5VGM6Ufoyw_Yv7FJpE6Lbh9_Qj9SpJ",
             "type": "internal",
-            "value": 1996472000n,
+            "value": 896472000n,
           },
         ],
       },
@@ -127,14 +127,54 @@ exports[`wallet should deploy 1`] = `
         "$type": "received",
         "message": {
           "body": {
+            "cell": "x{3F592379}
+ x{425343}
+ x{307836663743306336413664643645343335623045456331633946374263653031413139303866333836}",
+            "type": "cell",
+          },
+          "bounce": true,
+          "from": "kQC9OO1shf-vpBFHEz5VGM6Ufoyw_Yv7FJpE6Lbh9_Qj9SpJ",
+          "to": "kQDljBveCiTW2W3lWp5p7GiPDPQsm693C1xnhnxipum2XxJ5",
+          "type": "internal",
+          "value": 68308000n,
+        },
+      },
+      {
+        "$type": "processed",
+        "gasUsed": 14350n,
+      },
+      {
+        "$type": "sent",
+        "messages": [
+          {
+            "body": {
+              "cell": "x{61B8574D}
+ x{425343}
+ x{307836663743306336413664643645343335623045456331633946374263653031413139303866333836}",
+              "type": "cell",
+            },
+            "to": null,
+            "type": "external-out",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    "$seq": 3,
+    "events": [
+      {
+        "$type": "received",
+        "message": {
+          "body": {
             "cell": "x{D53276DB0000000000000000}",
             "type": "cell",
           },
           "bounce": true,
-          "from": "kQCkDI-M6EQ6do3Rr8Uf8I2EcA5zk9_KW3ZB09RZFEjpRwrG",
-          "to": "kQD8mEMJsomHg4kiWYHsGwh7t-lN-H7Bu4oUF20eLtuD4lVy",
+          "from": "kQDPEaWmhNS8J0u3MBChUVvWmMo0n6n2kYgc-efLB4nBRu4R",
+          "to": "kQDljBveCiTW2W3lWp5p7GiPDPQsm693C1xnhnxipum2XxJ5",
           "type": "internal",
-          "value": 1439265000n,
+          "value": 679162000n,
         },
       },
       {
@@ -145,3 +185,36 @@ exports[`wallet should deploy 1`] = `
   },
 ]
 `;
+
+exports[`wallet should deploy 2`] = `
+[
+  {
+    "$seq": 0,
+    "events": [
+      {
+        "$type": "deploy",
+      },
+      {
+        "$type": "received",
+        "message": {
+          "body": {
+            "text": "StorageDeployer",
+            "type": "text",
+          },
+          "bounce": true,
+          "from": "kQDljBveCiTW2W3lWp5p7GiPDPQsm693C1xnhnxipum2XxJ5",
+          "to": "kQCPckGCax8azkDf1Lq_U1daU1g_28UvieLfRqZ_YRGWpTDY",
+          "type": "internal",
+          "value": 48416000n,
+        },
+      },
+      {
+        "$type": "processed",
+        "gasUsed": 4534n,
+      },
+    ],
+  },
+]
+`;
+
+exports[`wallet should deploy 3`] = `[]`;
