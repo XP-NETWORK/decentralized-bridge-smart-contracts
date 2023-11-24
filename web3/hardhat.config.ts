@@ -29,7 +29,7 @@ const config: HardhatUserConfig = {
             ],
         },
         ethTestnet: {
-            url: "https://ultra-light-patina.ethereum-sepolia.discover.quiknode.pro/6f98178f32c668af8ee4bb1cc4b8b9308e29367b/", // ETH Testnet RPC URL
+            url: "https://rpc.notadegen.com/eth/sepolia", // ETH Testnet RPC URL
             chainId: 11155111, // Chain ID for BSC Testnet
             gasPrice: 9000000000, // Gas price (wei) for transactions on BSC Testnet
             accounts: [
