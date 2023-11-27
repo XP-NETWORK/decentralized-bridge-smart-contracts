@@ -4,7 +4,6 @@ import { Address, beginCell, toNano } from "ton-core";
 import { sign } from "ton-crypto";
 import { NFTStorageDeployer } from "../build/Bridge/tact_NFTStorageDeployer";
 import { NFTCollectionDeployer } from "../build/Bridge/tact_NFTCollectionDeployer";
-import { Gando, Gnado, storeGnado } from "../build/Bridge/tact_Gando";
 import { Dictionary } from "ton";
 import { NftCollection } from "../build/Bridge/tact_NftCollection";
 import { NFTStorageERC721 } from "../build/Bridge/tact_NFTStorageERC721";
@@ -17,9 +16,6 @@ describe('wallet', () => {
         let publicKey = beginCell().storeBuffer(key.publicKey).endCell().beginParse().loadUintBig(256);
         let system = await ContractSystem.create();
         let treasure = system.treasure('treasure');
-        let g: Gnado = {
-            $$type: "Gnado", address: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address, chain: "TON"
-        }
         let contract = system.open(await Bridge.fromInit(publicKey, Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address, "TON"));
         let storageDeployer = system.open(await NFTStorageDeployer.fromInit(contract.address));
         let storage = system.open(await NFTStorageERC721.fromInit(Address.parseFriendly("kQDsNFk2TW9PNyfLcjY34fFsmz2-z2oWmPQdzp5Bhm_IPjBC").address, contract.address));
@@ -78,8 +74,8 @@ describe('wallet', () => {
             },
             data2: {
                 $$type: 'ClaimData2',
-                name: 'Gando',
-                symbol: 'Gando',
+                name: '',
+                symbol: '',
                 nftType: 'singular',
             },
             data3: {

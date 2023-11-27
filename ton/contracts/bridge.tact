@@ -308,7 +308,6 @@ contract Bridge {
 
     }
     receive("Deploy"){
-        // emit(StakeEvent{amount: ton("0.007"),asd: "gando"}.toCell());
         // Do nothing
 
         let collectionDeployerInit: StateInit = initOf NFTCollectionDeployer(myAddress());

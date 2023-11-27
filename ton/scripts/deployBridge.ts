@@ -79,8 +79,8 @@ export async function run(provider: NetworkProvider) {
         //     },
         //     data2: {
         //         $$type: 'ClaimData2',
-        //         name: 'Gando',
-        //         symbol: 'Gando',
+        //         name: '',
+        //         symbol: '',
         //         nftType: 'singular',
         //     },
         //     data3: {

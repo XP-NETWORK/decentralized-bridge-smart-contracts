@@ -99,7 +99,7 @@ describe('wallet', () => {
         //     mode: 1n,
         //     amount: toNano(10),
         //     to: treasure.address,
-        //     body: beginCell().storeBuffer(Buffer.from("Gando")).endCell()
+        //     body: beginCell().storeBuffer(Buffer.from("")).endCell()
         // };
         // let signature = sign(beginCell().store(storeTransfer(transfer1)).endCell().hash(), key.secretKey);
         // await contract.send(treasure, { value: toNano(1) }, {
