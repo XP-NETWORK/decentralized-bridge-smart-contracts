@@ -1,5 +1,13 @@
-npx hardhat deployBridge --bootstrap-validator-address 0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23 --chain-symbol BSC --network bscTestnet
+# Array of chain symbols
+declare -a chains=("BSC" "ETH" "MATIC")
 
-npx hardhat deployBridge --bootstrap-validator-address 0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23 --chain-symbol ETH --network ethTestnet
+# Bootstrap validator address
+BOOTSTRAP_VALIDATOR_ADDRESS="0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23"
 
-npx hardhat deployBridge --bootstrap-validator-address 0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23 --chain-symbol MATIC --network maticTestnet
+# Loop over the chain symbols and execute the deployBridge task
+for chain in "${chains[@]}"
+do
+  echo "Deploying Bridge for $chain"
+  npx hardhat deployBridge --bootstrap-validator-address $BOOTSTRAP_VALIDATOR_ADDRESS --chain-symbol $chain --network ${chain,,}Testnet
+done
+
