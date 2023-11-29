@@ -31,7 +31,7 @@ struct DuplicateToOriginalContractInfo {
 
 struct OriginalToDuplicateContractInfo {
     string chain;
-    address contractAddress;
+    string contractAddress;
 }
 
 struct Validator {
@@ -182,7 +182,6 @@ contract Bridge {
         require(_validator != address(0), "Address cannot be zero address!");
         require(signatures.length > 0, "Must have signatures!");
         require(!validators[_validator].added, "Validator already added");
-        
 
         uint256 percentage = 0;
         for (uint256 i = 0; i < signatures.length; i++) {
@@ -386,13 +385,14 @@ contract Bridge {
                 data.sourceNftContractAddress
             ][data.sourceChain];
 
-        bool hasDuplicate = duplicateCollectionAddress.contractAddress !=
-            address(0);
+        bool hasDuplicate = !duplicateCollectionAddress
+            .contractAddress
+            .compareStrings("");
 
         address storageContract;
         if (hasDuplicate) {
             storageContract = duplicateStorageMapping721[
-                addressToString(duplicateCollectionAddress.contractAddress)
+                duplicateCollectionAddress.contractAddress
             ][selfChain];
         } else {
             storageContract = originalStorageMapping721[
@@ -413,10 +413,16 @@ contract Bridge {
         // ===============================/ hasDuplicate && hasStorage /=======================
         if (hasDuplicate && hasStorage) {
             IERC721Royalty duplicateCollection = IERC721Royalty(
-                duplicateCollectionAddress.contractAddress
+                duplicateCollectionAddress.contractAddress.stringToAddress()
             );
+            address ownerOfToken;
+            try duplicateCollection.ownerOf(data.tokenId) returns (
+                address _ownerOfToken
+            ) {
+                ownerOfToken = _ownerOfToken;
+            } catch {}
 
-            if (duplicateCollection.ownerOf(data.tokenId) == storageContract) {
+            if (ownerOfToken == storageContract) {
                 unLock721(
                     data.destinationUserAddress,
                     data.tokenId,
@@ -435,7 +441,7 @@ contract Bridge {
         // ===============================/ hasDuplicate && NOT hasStorage /=======================
         else if (hasDuplicate && !hasStorage) {
             IERC721Royalty nft721Collection = IERC721Royalty(
-                duplicateCollectionAddress.contractAddress
+                duplicateCollectionAddress.contractAddress.stringToAddress()
             );
             nft721Collection.mint(
                 data.destinationUserAddress,
@@ -459,7 +465,7 @@ contract Bridge {
                 data.sourceChain
             ] = OriginalToDuplicateContractInfo(
                 selfChain,
-                address(newCollectionAddress)
+                addressToString(address(newCollectionAddress))
             );
 
             duplicateToOriginalMapping[address(newCollectionAddress)][
@@ -536,13 +542,14 @@ contract Bridge {
                 data.sourceNftContractAddress
             ][data.sourceChain];
 
-        bool hasDuplicate = duplicateCollectionAddress.contractAddress !=
-            address(0);
+        bool hasDuplicate = !duplicateCollectionAddress
+            .contractAddress
+            .compareStrings("");
 
         address storageContract;
         if (hasDuplicate) {
             storageContract = duplicateStorageMapping1155[
-                addressToString(duplicateCollectionAddress.contractAddress)
+                duplicateCollectionAddress.contractAddress
             ][selfChain];
         } else {
             storageContract = originalStorageMapping1155[
@@ -555,7 +562,7 @@ contract Bridge {
         // ===============================/ Is Duplicate && Has Storage /=======================
         if (hasDuplicate && hasStorage) {
             IERC1155Royalty collecAddress = IERC1155Royalty(
-                duplicateCollectionAddress.contractAddress
+                duplicateCollectionAddress.contractAddress.stringToAddress()
             );
             uint256 balanceOfTokens = collecAddress.balanceOf(
                 storageContract,
@@ -589,7 +596,7 @@ contract Bridge {
         // ===============================/ Is Duplicate && No Storage /=======================
         else if (hasDuplicate && !hasStorage) {
             IERC1155Royalty nft1155Collection = IERC1155Royalty(
-                duplicateCollectionAddress.contractAddress
+                duplicateCollectionAddress.contractAddress.stringToAddress()
             );
             nft1155Collection.mint(
                 data.destinationUserAddress,
@@ -612,7 +619,7 @@ contract Bridge {
                 data.sourceChain
             ] = OriginalToDuplicateContractInfo(
                 selfChain,
-                address(newCollectionAddress)
+                addressToString(address(newCollectionAddress))
             );
             duplicateToOriginalMapping[address(newCollectionAddress)][
                 selfChain

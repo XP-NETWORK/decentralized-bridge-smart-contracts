@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
+import "./prodScripts/deployBridge";
 
 const config: HardhatUserConfig = {
     solidity: {
@@ -19,6 +20,14 @@ const config: HardhatUserConfig = {
         },
     },
     networks: {
+        testnet: {
+            url: "http://127.0.0.1:8545", // BSC Testnet RPC URL
+            chainId: 31337, // Chain ID for BSC Testnet
+            gasPrice: 5000000000, // Gas price (wei) for transactions on BSC Testnet
+            accounts: [
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            ],
+        },
         hardhat: {}, // Local Ethereum network 
         bscTestnet: {
             url: "https://data-seed-prebsc-1-s1.binance.org:8545/", // BSC Testnet RPC URL

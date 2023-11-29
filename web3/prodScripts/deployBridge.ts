@@ -1,34 +1,24 @@
-import { ethers } from "hardhat";
+import { task } from "hardhat/config";
 
-async function main() {
+task("deployBridge", "Deploys the Bridge contract")
+    .addParam("chainSymbol", "The chain symbol")
+    .addParam("bootstrapValidatorAddress", "The chain symbol")
+    .setAction(async (taskArgs, hre) => {
+        const ethers = hre.ethers;
+        const collectionDeployerContract = await ethers.deployContract("NFTCollectionDeployer");
+        await collectionDeployerContract.waitForDeployment();
+        const collectionDeployerContractAddress = collectionDeployerContract.target
+        const storageDeployerContract = await ethers.deployContract("NFTStorageDeployer");
+        await storageDeployerContract.waitForDeployment();
+        const storageDeployerContractAddress = storageDeployerContract.target
+        const { chainSymbol, bootstrapValidatorAddress } = taskArgs;
+        const bootstrapValidator = [bootstrapValidatorAddress]
+        console.log(chainSymbol)
+        const bridge = await ethers.deployContract("Bridge", [bootstrapValidator, chainSymbol, collectionDeployerContractAddress, storageDeployerContractAddress]);
 
-    const collectionDeployerContract = await ethers.deployContract("NFTCollectionDeployer");
-    await collectionDeployerContract.waitForDeployment();
-    const collectionDeployerContractAddress = collectionDeployerContract.target
-    console.log(
-        `NFTCollectionDeployer contract deployed at ${collectionDeployerContractAddress}`
-    );
+        await bridge.waitForDeployment();
 
-
-    const storageDeployerContract = await ethers.deployContract("NFTStorageDeployer");
-    await storageDeployerContract.waitForDeployment();
-    const storageDeployerContractAddress = storageDeployerContract.target
-    console.log(
-        `StorageDeployerContract contract deployed at ${storageDeployerContractAddress}`
-    );
-
-    const bootstrapValidator = ["0x67081bD856e29d7D7B3028C34Afb331fa6b3186E"]
-    const chainSymbol = "BSC"
-    const bridge = await ethers.deployContract("Bridge", [bootstrapValidator, chainSymbol, collectionDeployerContractAddress, storageDeployerContractAddress]);
-
-    await bridge.waitForDeployment();
-
-    console.log(
-        `BridgeStorage contract deployed at ${bridge.target}`
-    );
-}
-
-main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+        console.log(
+            `Bridge contract deployed at ${bridge.target} -${chainSymbol}`
+        );
+    })
