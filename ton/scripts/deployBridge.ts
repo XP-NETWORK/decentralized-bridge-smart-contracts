@@ -133,102 +133,100 @@ export async function run(provider: NetworkProvider) {
         // return;
 
 
-        // const nftTransferDetailsObject = {
-        //     tokenId: '51',
-        //     sourceChain: 'BSC',
-        //     destinationChain: 'TON',
-        //     destinationUserAddress: 'EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh',
-        //     sourceNftContractAddress: '0x491d6f9f14e0cd58d5094333ae172cdd19c87781',
-        //     name: 'DUM',
-        //     symbol: 'D',
-        //     royalty: '0',
-        //     royaltyReceiver: 'EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh',
-        //     metadata: 'abc.com/1',
-        //     transactionHash: '0xede7297a17783b6385c76a8c2ac27ab112eebdf59bee7fed8e8ff13bb7c6ae58',
-        //     tokenAmount: '1',
-        //     nftType: 'singular',
-        //     fee: '100000000'
-        // }
-        // // sig: '0x5277a3352b84cecf81802afa7887abac6ce4fa85df5a290bf089f649ddd21a2ac72340c63ae73a2af3c8af5252452584e66e9b921f2a6932e04b231a6d1a940c'
+        const nftTransferDetailsObject = {
+            tokenId: '51',
+            sourceChain: 'BSC',
+            destinationChain: 'TON',
+            destinationUserAddress: 'EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh',
+            sourceNftContractAddress: '0x491d6f9f14e0cd58d5094333ae172cdd19c87781',
+            name: 'DUM',
+            symbol: 'D',
+            royalty: '0',
+            royaltyReceiver: 'EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh',
+            metadata: 'abc.com/1',
+            transactionHash: '0xede7297a17783b6385c76a8c2ac27ab112eebdf59bee7fed8e8ff13bb7c6ae58',
+            tokenAmount: '1',
+            nftType: 'singular',
+            fee: '100000000'
+        }
 
-        // const {
-        //     tokenId,
-        //     sourceChain,
-        //     destinationChain,
-        //     destinationUserAddress,
-        //     sourceNftContractAddress,
-        //     name,
-        //     symbol,
-        //     royalty,
-        //     royaltyReceiver,
-        //     metadata,
-        //     transactionHash,
-        //     tokenAmount,
-        //     nftType,
-        //     fee
-        // } = nftTransferDetailsObject;
+        const {
+            tokenId,
+            sourceChain,
+            destinationChain,
+            destinationUserAddress,
+            sourceNftContractAddress,
+            name,
+            symbol,
+            royalty,
+            royaltyReceiver,
+            metadata,
+            transactionHash,
+            tokenAmount,
+            nftType,
+            fee
+        } = nftTransferDetailsObject;
 
-        // const claimData: ClaimData = {
-        //     $$type: "ClaimData",
-        //     data1: {
-        //         $$type: "ClaimData1",
-        //         tokenId: BigInt(tokenId),
-        //         destinationChain,
-        //         destinationUserAddress: Address.parseFriendly(destinationUserAddress).address,
-        //         sourceChain,
-        //         tokenAmount: BigInt(tokenAmount)
-        //     },
-        //     data2: {
-        //         $$type: "ClaimData2",
-        //         name,
-        //         nftType,
-        //         symbol
-        //     },
-        //     data3: {
-        //         $$type: "ClaimData3",
-        //         fee: BigInt(fee),
-        //         metadata,
-        //         royaltyReceiver: Address.parseFriendly(royaltyReceiver).address,
-        //         // sourceNftContractAddress: beginCell().storeSlice(beginCell().storeAddress(Address.parseFriendly(sourceNftContractAddress).address).endCell().asSlice()).endCell()
-        //         sourceNftContractAddress: beginCell().storeSlice(beginCell().storeStringTail(sourceNftContractAddress).endCell().asSlice()).endCell()
-        //     },
-        //     data4: {
-        //         $$type: "ClaimData4",
-        //         newContent: beginCell().storeInt(0x01, 8).storeStringRefTail(metadata).endCell(),
-        //         royalty: {
-        //             $$type: "RoyaltyParams",
-        //             numerator: BigInt(10000),
-        //             denominator: BigInt(royalty),
-        //             destination: Address.parseFriendly(royaltyReceiver).address,
-        //         },
-        //         transactionHash
-        //     }
-        // }
+        const claimData: ClaimData = {
+            $$type: "ClaimData",
+            data1: {
+                $$type: "ClaimData1",
+                tokenId: BigInt(tokenId),
+                destinationChain,
+                destinationUserAddress: Address.parseFriendly(destinationUserAddress).address,
+                sourceChain,
+                tokenAmount: BigInt(tokenAmount)
+            },
+            data2: {
+                $$type: "ClaimData2",
+                name,
+                nftType,
+                symbol
+            },
+            data3: {
+                $$type: "ClaimData3",
+                fee: BigInt(fee),
+                metadata,
+                royaltyReceiver: Address.parseFriendly(royaltyReceiver).address,
+                sourceNftContractAddress: beginCell().storeSlice(beginCell().storeStringTail(sourceNftContractAddress).endCell().asSlice()).endCell()
+            },
+            data4: {
+                $$type: "ClaimData4",
+                newContent: beginCell().storeInt(0x01, 8).storeStringRefTail(metadata).endCell(),
+                royalty: {
+                    $$type: "RoyaltyParams",
+                    numerator: BigInt(10000),
+                    denominator: BigInt(royalty),
+                    destination: Address.parseFriendly(royaltyReceiver).address,
+                },
+                transactionHash
+            }
+        }
 
-        // let signature = sign(beginCell().store(storeClaimData(claimData)).endCell().hash(), Buffer.from("068e14dc8440a571306c2294c9a18b31fc2f853ecc087412aff42c16f9d6dd2d5aba2a59ffcef4fc7894ac0682dd419b18a54c30b55d0db0e244f15b1a7f87b2", "hex"));
+        let signature = sign(beginCell().store(storeClaimData(claimData)).endCell().hash(), Buffer.from("", "hex"));
 
-        // let sig: SignerAndSignature = {
-        //     $$type: 'SignerAndSignature',
-        //     key: publicKey,
-        //     signature: beginCell().storeBuffer(Buffer.from("3e3835c7ed8154e53f06aaed9182e2cdb1d6a9720644fd12377b24ccc1b845ea699d45b4f880b2c067d18571359747214c2724a65e3b885347d295f2a65d860f", "hex")).endCell()
-        // };
+        let sig: SignerAndSignature = {
+            $$type: 'SignerAndSignature',
+            key: publicKey,
+            signature: beginCell().storeBuffer(signature).endCell()
+        };
 
-        // let dictA = Dictionary.empty<bigint, SignerAndSignature>().set(0n, sig);
+        let dictA = Dictionary.empty<bigint, SignerAndSignature>().set(0n, sig);
 
 
 
-        // console.log(storeClaimData(claimData).toString());
+        console.log(storeClaimData(claimData).toString());
 
-        // await bridge.send(
-        //     provider.sender(),
-        //     {
-        //         value: toNano('0.8')
-        //     }, {
-        //     $$type: "ClaimNFT721",
-        //     data: claimData,
-        //     len: 1n,
-        //     signatures: dictA
-        // });
+        await bridge.send(
+            provider.sender(),
+            {
+                value: toNano('0.8')
+            }, {
+            $$type: "ClaimNFT721",
+            data: claimData,
+            len: 1n,
+            signatures: dictA
+        });
 
         // await provider.waitForDeploy(bridge.address);
 

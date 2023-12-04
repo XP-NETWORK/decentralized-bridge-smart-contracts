@@ -645,12 +645,6 @@ contract Bridge {
 
     get fun TokenInfoSelf(tokenId: Int, sourceChain: String, sourceNftContractAddress: Slice): Address? {
         let tokenKey: Int = beginCell().storeInt(tokenId, 64).storeSlice(sourceChain.asSlice()).storeSlice(sourceNftContractAddress).endCell().hash();
-
-        let b: StringBuilder = beginString();
-        let ic: String = sourceNftContractAddress.asString();
-        b.append(ic);
-        b.toSlice();
-
         return self.tokenInfoGetSelf.get(tokenKey);
     }
 
