@@ -65,7 +65,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     deps.api
-        .debug(format!("gando in storage deployer execute").as_str());
+        .debug(format!(" in storage deployer execute").as_str());
 
     if OWNER.load(deps.storage)? != info.sender {
         return Err(ContractError::Unauthorized {});
@@ -133,7 +133,7 @@ fn try_create_storage_721(
 ) -> Result<Response, ContractError> {
     deps.api.debug(
         format!(
-            "gando in storage deployer creating storage 721 {}",
+            " in storage deployer creating storage 721 {}",
             is_original
         )
         .as_str(),

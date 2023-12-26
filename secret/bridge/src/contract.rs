@@ -979,24 +979,24 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
         .amount;
 
     deps.api
-        .debug(format!("CONTRACT BALANCE GANDO {}", balance).as_str());
+        .debug(format!("CONTRACT BALANCE  {}", balance).as_str());
 
     let self_chain = config_read(deps.storage).load()?.self_chain;
 
     deps.api
-        .debug(format!("SELF CHAIN GANDO {}", self_chain).as_str());
+        .debug(format!("SELF CHAIN  {}", self_chain).as_str());
 
     let _ = has_correct_fee(msg.data.fee.clone(), info);
 
     let type_erc_721 = config_read(deps.storage).load()?.type_erc_721;
 
     deps.api
-        .debug(format!("TYPEERC721 GANDO {}", type_erc_721).as_str());
+        .debug(format!("TYPEERC721  {}", type_erc_721).as_str());
 
     let validators_count = config_read(deps.storage).load()?.validators_count;
 
     deps.api
-        .debug(format!("VALIDATOR COUNT GANDO {}", validators_count).as_str());
+        .debug(format!("VALIDATOR COUNT  {}", validators_count).as_str());
 
     let _ = matches_current_chain(deps.storage, msg.data.destination_chain.clone());
 
@@ -1808,7 +1808,7 @@ fn duplicate_to_original(
 pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     _deps
         .api
-        .debug(format!("REPLY FROM STORAGE DEPLOYER GANDO {}", msg.id).as_str());
+        .debug(format!("REPLY FROM STORAGE DEPLOYER  {}", msg.id).as_str());
     match msg.id {
         STORAGE_DEPLOYER_REPLY_ID => handle_storage_deployer_reply(_deps, msg),
         STORAGE_DEPLOYER_721_REPLY_ID => handle_storage_reply_721(_deps, msg),
@@ -2125,4 +2125,212 @@ fn register_collection_1155_impl(
     Ok(Response::new()
         .add_message(message)
         .add_attribute("collection_address_1155", &reply_info.address))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::*;
+    use cosmwasm_std::{from_binary, Coin, Uint128};
+
+    #[test]
+    fn proper_initialization() {
+        let mut deps = mock_dependencies();
+
+        let info = mock_info(
+            "creator",
+            &[Coin {
+                denom: "uscrt".to_string(),
+                amount: Uint128::new(1000),
+            }],
+        );
+
+        let validator_pub_key =
+            to_binary(&"secret1w5fw0m5cad30lsu8x65m57ad5s80f0fmg3jfal".to_string()).unwrap();
+        let init_msg = InstantiateMsg {
+            validators: vec![(validator_pub_key.clone(), info.sender.clone())],
+            chain_type: "SECRET".to_string(),
+            storage_label: "storage11".to_string(),
+            collection_label: "collection11".to_string(),
+            collection721_code_info: CodeInfo {
+                code_id: 1,
+                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
+                    .to_string(),
+            },
+            storage721_code_info: CodeInfo {
+                code_id: 2,
+                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
+                    .to_string(),
+            },
+            collection1155_code_info: CodeInfo {
+                code_id: 3,
+                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
+                    .to_string(),
+            },
+            storage1155_code_info: CodeInfo {
+                code_id: 4,
+                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
+                    .to_string(),
+            },
+            collection_deployer_code_info: CodeInfo {
+                code_id: 5,
+                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
+                    .to_string(),
+            },
+            storage_deployer_code_info: CodeInfo {
+                code_id: 6,
+                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
+                    .to_string(),
+            },
+        };
+
+        let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+
+        assert_eq!(2, res.messages.len());
+
+        let validators_count_binary =
+            query(deps.as_ref(), mock_env(), QueryMsg::GetValidatorsCount {}).unwrap();
+
+        let validator_info_binary = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetValidator {
+                address: validator_pub_key,
+            },
+        )
+        .unwrap();
+
+        let collection_deployer_binary = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetCollectionDeployer {},
+        )
+        .unwrap();
+
+        let storage_deployer_binary =
+            query(deps.as_ref(), mock_env(), QueryMsg::GetStorageDeployer {}).unwrap();
+
+        let validators_count_answer = from_binary::<QueryAnswer>(&validators_count_binary).unwrap();
+        let validator_answer = from_binary::<QueryAnswer>(&validator_info_binary).unwrap();
+        let collection_deployer_answer =
+            from_binary::<QueryAnswer>(&collection_deployer_binary).unwrap();
+        let storage_deployer_answer = from_binary::<QueryAnswer>(&storage_deployer_binary).unwrap();
+
+        match validators_count_answer {
+            QueryAnswer::ValidatorCountResponse { count } => {
+                assert_eq!(1, count);
+            }
+            _ => panic!("query error"),
+        }
+
+        match validator_answer {
+            QueryAnswer::Validator { data } => {
+                assert_eq!(true, data.unwrap().added);
+            }
+            _ => panic!("query error"),
+        }
+
+        match collection_deployer_answer {
+            QueryAnswer::CollectionDeployer { data } => {
+                let valid_addr = deps.api.addr_validate(&data.into_string());
+                assert!(valid_addr.is_ok());
+            }
+            _ => panic!("query error"),
+        }
+
+        match storage_deployer_answer {
+            QueryAnswer::StorageDeployer { data } => {
+                let valid_addr = deps.api.addr_validate(&data.into_string());
+                assert!(valid_addr.is_ok());
+            }
+            _ => panic!("query error"),
+        }
+    }
+
+    // #[test]
+    // fn increment() {
+    //     let mut deps = mock_dependencies_with_balance(&[Coin {
+    //         denom: "token".to_string(),
+    //         amount: Uint128::new(2),
+    //     }]);
+    //     let info = mock_info(
+    //         "creator",
+    //         &[Coin {
+    //             denom: "token".to_string(),
+    //             amount: Uint128::new(2),
+    //         }],
+    //     );
+    //     let init_msg = InstantiateMsg { count: 17 };
+
+    //     let _res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+
+    //     // anyone can increment
+    //     let info = mock_info(
+    //         "anyone",
+    //         &[Coin {
+    //             denom: "token".to_string(),
+    //             amount: Uint128::new(2),
+    //         }],
+    //     );
+
+    //     let exec_msg = ExecuteMsg::Increment {};
+    //     let _res = execute(deps.as_mut(), mock_env(), info, exec_msg).unwrap();
+
+    //     // should increase counter by 1
+    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
+    //     let value: CountResponse = from_binary(&res).unwrap();
+    //     assert_eq!(18, value.count);
+    // }
+
+    // #[test]
+    // fn reset() {
+    //     let mut deps = mock_dependencies_with_balance(&[Coin {
+    //         denom: "token".to_string(),
+    //         amount: Uint128::new(2),
+    //     }]);
+    //     let info = mock_info(
+    //         "creator",
+    //         &[Coin {
+    //             denom: "token".to_string(),
+    //             amount: Uint128::new(2),
+    //         }],
+    //     );
+    //     let init_msg = InstantiateMsg { count: 17 };
+
+    //     let _res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+
+    //     // not anyone can reset
+    //     let info = mock_info(
+    //         "anyone",
+    //         &[Coin {
+    //             denom: "token".to_string(),
+    //             amount: Uint128::new(2),
+    //         }],
+    //     );
+    //     let exec_msg = ExecuteMsg::Reset { count: 5 };
+
+    //     let res = execute(deps.as_mut(), mock_env(), info, exec_msg);
+
+    //     match res {
+    //         Err(StdError::GenericErr { .. }) => {}
+    //         _ => panic!("Must return unauthorized error"),
+    //     }
+
+    //     // only the original creator can reset the counter
+    //     let info = mock_info(
+    //         "creator",
+    //         &[Coin {
+    //             denom: "token".to_string(),
+    //             amount: Uint128::new(2),
+    //         }],
+    //     );
+    //     let exec_msg = ExecuteMsg::Reset { count: 5 };
+
+    //     let _res = execute(deps.as_mut(), mock_env(), info, exec_msg).unwrap();
+
+    //     // should now be 5
+    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
+    //     let value: CountResponse = from_binary(&res).unwrap();
+    //     assert_eq!(5, value.count);
+    // }
 }

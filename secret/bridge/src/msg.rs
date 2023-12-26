@@ -3,7 +3,7 @@ use crate::structs::{
     Lock1155Msg, Lock721Msg, OriginalToDuplicateContractInfo, Validator, VerifyMsg,
 };
 
-use cosmwasm_std::{Addr, Binary};
+use cosmwasm_std::{Addr, Binary, SubMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -107,8 +107,11 @@ pub enum QueryAnswer {
 }
 
 // We define a custom struct for each query response
+
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub struct ValidatorCountResponse {
+    pub msg: SubMsg,
     pub count: i128,
 }
 

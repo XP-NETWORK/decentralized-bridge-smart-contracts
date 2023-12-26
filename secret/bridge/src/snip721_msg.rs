@@ -1,8 +1,7 @@
-use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use secret_toolkit::{
-    snip721::{Cw721Approval, Expiration, Metadata, ViewerInfo},
-    utils::{HandleCallback, Query},
+    snip721::{Expiration, Metadata},
+    utils::HandleCallback,
 };
 use serde::{Deserialize, Serialize};
 
