@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "./HederaNFTStorage.sol";
 import "./interfaces/INFTStorageDeployer.sol";
 
-contract NFTStorageDeployer is INFTStorageDeployer {
+contract HederaNFTStorageDeployer is INFTStorageDeployer {
     address public owner;
 
     constructor() {}

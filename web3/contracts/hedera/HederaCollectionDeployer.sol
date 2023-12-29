@@ -5,7 +5,7 @@ import "./HederaNFT.sol";
 import "./HederaNFTClaim.sol";
 import "./interfaces/INFTCollectionDeployer.sol";
 
-contract NFTCollectionDeployer is INFTCollectionDeployer {
+contract HederaCollectionDeployer is INFTCollectionDeployer {
     address public owner;
 
     constructor() {}

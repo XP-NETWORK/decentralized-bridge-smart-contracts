@@ -35,7 +35,7 @@ struct Validator {
     uint pendingReward;
 }
 
-contract Bridge {
+contract HederaBridge {
     using ECDSA for bytes32;
     using AddressUtilityLib for string;
 
