@@ -100,13 +100,6 @@ contract HederaBridge {
 
     event UnLock721(address to, uint256 tokenId, address contractAddr);
 
-    event UnLock1155(
-        address to,
-        uint256 tokenId,
-        address contractAddr,
-        uint256 amount
-    );
-
     event Claimed(
         string sourceChain, // Chain from where the NFT is being transferred
         string transactionHash // Transaction hash of the transfer on the source chain
@@ -383,7 +376,9 @@ contract HederaBridge {
             IERC721Royalty newCollectionAddress = IERC721Royalty(
                 collectionDeployer.deployNFT721Collection(
                     data.name,
-                    data.symbol
+                    data.symbol,
+                    int64(int256(data.royalty)),
+                    data.royaltyReceiver
                 )
             );
 

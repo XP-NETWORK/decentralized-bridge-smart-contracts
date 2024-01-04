@@ -25,6 +25,8 @@ interface INFTCollectionDeployer {
      */
     function deployNFT721Collection(
         string memory name,
-        string memory symbol
+        string memory symbol,
+        int64 royaltyNum,
+        address royaltyReceiver
     ) external returns (address);
 }

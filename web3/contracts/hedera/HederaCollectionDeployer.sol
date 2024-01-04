@@ -27,7 +27,7 @@ contract HederaCollectionDeployer is INFTCollectionDeployer {
         string memory symbol,
         int64 royaltyNum,
         address royaltyReceiver
-    ) external onlyOwner returns (address) {
+    ) external override onlyOwner returns (address) {
         HederaNFTClaim claimContract = new HederaNFTClaim();
         HederaNft newERC721CollectionAddress = new HederaNft{value: 25 ether}(
             name,
@@ -45,8 +45,4 @@ contract HederaCollectionDeployer is INFTCollectionDeployer {
         return collectionAddress;
     }
 
-    function deployNFT721Collection(
-        string memory name,
-        string memory symbol
-    ) external override returns (address) {}
 }
