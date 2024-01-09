@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./interfaces/IHRC.sol";
 import "./interfaces/INFTClaim.sol";
 
-contract HederaNft is
+contract HederaNftDep is
     Ownable,
     HederaTokenService,
     IERC721Royalty,

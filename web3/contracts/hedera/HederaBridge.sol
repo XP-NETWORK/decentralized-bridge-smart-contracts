@@ -3,15 +3,20 @@ pragma solidity ^0.8.20;
 
 import "hardhat/console.sol";
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+// import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/INFTStorageERC721.sol";
-import "./interfaces/IERC721Royalty.sol";
 import "./interfaces/INFTStorageDeployer.sol";
 import "./interfaces/INFTCollectionDeployer.sol";
 import "../AddressUtilityLib.sol";
+import "../../lib/hedera/contracts/hts-precompile/HederaTokenService.sol";
+import "../../lib/hedera/contracts/hts-precompile/IHederaTokenService.sol";
+import "../../lib/hedera/contracts/hts-precompile/HederaResponseCodes.sol";
+import "../../lib/hedera/contracts/hts-precompile/ExpiryHelper.sol";
+import "../../lib/hedera/contracts/hts-precompile/KeyHelper.sol";
+import "../../lib/hedera/contracts/hts-precompile/FeeHelper.sol";
 /**
  * @dev Stucture to store signature with signer public address
  */
@@ -35,7 +40,7 @@ struct Validator {
     uint pendingReward;
 }
 
-contract HederaBridge {
+contract HederaBridge is HederaTokenService {
     using ECDSA for bytes32;
     using AddressUtilityLib for string;
 
@@ -277,6 +282,38 @@ contract HederaBridge {
         }
     }
 
+    function getOwnerOfToken(
+        address ctr,
+        uint256 serialNum
+    ) private returns (address) {
+        address owner;
+        (
+            int res,
+            IHederaTokenService.NonFungibleTokenInfo memory tokenInfo
+        ) = getNonFungibleTokenInfo(ctr, int64(uint64(serialNum)));
+        if (res == HederaResponseCodes.SUCCESS) {
+            owner = tokenInfo.ownerId;
+        }
+        return owner;
+    }
+
+    function mintHtsNft(
+        address ctr,
+        string memory tokenURI,
+        address to
+    ) private {
+        bytes[] memory metadata = new bytes[](1);
+        metadata[0] = abi.encodePacked(tokenURI);
+        (int256 resp, , int64[] memory serialNum) = mintToken(ctr, 0, metadata);
+        require(resp == HederaResponseCodes.SUCCESS, "Failed to mint token. ");
+
+        int256 tresp = transferNFT(ctr, address(this), to, serialNum[0]);
+        require(
+            tresp == HederaResponseCodes.SUCCESS,
+            "Failed to transfer token."
+        );
+    }
+
     function claimNFT721(
         ClaimData memory data,
         bytes[] memory signatures
@@ -332,15 +369,10 @@ contract HederaBridge {
 
         // ===============================/ hasDuplicate && hasStorage /=======================
         if (hasDuplicate && hasStorage) {
-            IERC721Royalty duplicateCollection = IERC721Royalty(
-                duplicateCollectionAddress.contractAddress.stringToAddress()
+            address ownerOfToken = getOwnerOfToken(
+                duplicateCollectionAddress.contractAddress.stringToAddress(),
+                data.tokenId
             );
-            address ownerOfToken;
-            try duplicateCollection.ownerOf(data.tokenId) returns (
-                address _ownerOfToken
-            ) {
-                ownerOfToken = _ownerOfToken;
-            } catch {}
 
             if (ownerOfToken == storageContract) {
                 unLock721(
@@ -349,86 +381,72 @@ contract HederaBridge {
                     storageContract
                 );
             } else {
-                duplicateCollection.mint(
-                    data.destinationUserAddress,
-                    data.tokenId,
-                    data.royalty,
-                    data.royaltyReceiver,
-                    data.metadata
+                mintHtsNft(
+                    duplicateCollectionAddress
+                        .contractAddress
+                        .stringToAddress(),
+                    data.metadata,
+                    data.destinationUserAddress
                 );
             }
         }
         // ===============================/ hasDuplicate && NOT hasStorage /=======================
         else if (hasDuplicate && !hasStorage) {
-            IERC721Royalty nft721Collection = IERC721Royalty(
-                duplicateCollectionAddress.contractAddress.stringToAddress()
-            );
-            nft721Collection.mint(
-                data.destinationUserAddress,
-                data.tokenId,
-                data.royalty,
-                data.royaltyReceiver,
-                data.metadata
+            mintHtsNft(
+                duplicateCollectionAddress.contractAddress.stringToAddress(),
+                data.metadata,
+                data.destinationUserAddress
             );
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
-            IERC721Royalty newCollectionAddress = IERC721Royalty(
-                collectionDeployer.deployNFT721Collection(
+            address newCollectionAddress = collectionDeployer
+                .deployNFT721Collection(
                     data.name,
                     data.symbol,
                     int64(int256(data.royalty)),
                     data.royaltyReceiver
-                )
-            );
-
+                );
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
                 data.sourceChain
             ] = OriginalToDuplicateContractInfo(
                 selfChain,
-                addressToString(address(newCollectionAddress))
+                addressToString(newCollectionAddress)
             );
 
-            duplicateToOriginalMapping[address(newCollectionAddress)][
+            duplicateToOriginalMapping[newCollectionAddress][
                 selfChain
             ] = DuplicateToOriginalContractInfo(
                 data.sourceChain,
                 data.sourceNftContractAddress
             );
 
-            newCollectionAddress.mint(
-                data.destinationUserAddress,
-                data.tokenId,
-                data.royalty,
-                data.royaltyReceiver,
-                data.metadata
+            mintHtsNft(
+                newCollectionAddress,
+                data.metadata,
+                data.destinationUserAddress
             );
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
-            IERC721Royalty originalCollection = IERC721Royalty(
-                data.sourceNftContractAddress.stringToAddress()
-            );
-
-            if (originalCollection.ownerOf(data.tokenId) == storageContract) {
+            if (
+                getOwnerOfToken(
+                    data.sourceNftContractAddress.stringToAddress(),
+                    data.tokenId
+                ) == storageContract
+            ) {
                 unLock721(
                     data.destinationUserAddress,
                     data.tokenId,
                     storageContract
                 );
             } else {
-                // console.log("HERE2");
-
-                // ============= This could be wrong. Need verification ============
-                originalCollection.mint(
-                    data.destinationUserAddress,
-                    data.tokenId,
-                    data.royalty,
-                    data.royaltyReceiver,
-                    data.metadata
+                mintHtsNft(
+                    data.sourceNftContractAddress.stringToAddress(),
+                    data.metadata,
+                    data.destinationUserAddress
                 );
             }
-            // ============= This could be wrong. Need verification ============
         } else {
             // TODO: remove after testing
             require(false, "Invalid bridge state");
@@ -482,10 +500,11 @@ contract HederaBridge {
             ] = storageAddress;
         }
 
-        IERC721(sourceNftContractAddress).safeTransferFrom(
+        transferNFT(
+            sourceNftContractAddress,
             msg.sender,
             storageAddress,
-            tokenId
+            int64(uint64(tokenId))
         );
     }
 
