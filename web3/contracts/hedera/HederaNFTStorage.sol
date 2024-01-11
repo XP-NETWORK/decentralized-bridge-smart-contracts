@@ -6,6 +6,7 @@ import "../../lib/hedera/contracts/hts-precompile/IHederaTokenService.sol";
 import "./interfaces/IHRC.sol";
 import "./interfaces/INFTClaim.sol";
 import "./HederaNFTClaim.sol";
+import "./interfaces/IHTSCompatabilityLayer.sol";
 
 contract HederaNFTStorage is HederaTokenService {
     address public owner;
@@ -43,13 +44,9 @@ contract HederaNFTStorage is HederaTokenService {
     // Function to allow the owner of this contract to transfer an ERC-721 token to another address. We might need claiming functionality.
     function unlockToken(uint256 tokenId, address to) external onlyOwner {
         // Ensure this contract is the owner of the token before transferring
-        (
-            ,
-            IHederaTokenService.NonFungibleTokenInfo memory nft
-        ) = getNonFungibleTokenInfo(collectionAddress, int64(uint64(tokenId)));
-
+        IHTSCompatibilityLayer htsCl = IHTSCompatibilityLayer(collectionAddress);
         require(
-            nft.ownerId == address(this),
+            htsCl.ownerOf(tokenId) == address(this),
             "This contract is not the owner of this token"
         );
         int tres = transferNFT(

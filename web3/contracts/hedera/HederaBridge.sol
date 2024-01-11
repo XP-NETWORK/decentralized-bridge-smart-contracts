@@ -17,6 +17,7 @@ import "../../lib/hedera/contracts/hts-precompile/HederaResponseCodes.sol";
 import "../../lib/hedera/contracts/hts-precompile/ExpiryHelper.sol";
 import "../../lib/hedera/contracts/hts-precompile/KeyHelper.sol";
 import "../../lib/hedera/contracts/hts-precompile/FeeHelper.sol";
+import "./interfaces/IHTSCompatabilityLayer.sol";
 /**
  * @dev Stucture to store signature with signer public address
  */
@@ -35,6 +36,11 @@ struct OriginalToDuplicateContractInfo {
     string contractAddress;
 }
 
+struct TokenInfo {
+    uint256 tokenId;
+    bool exists;
+}
+
 struct Validator {
     bool added;
     uint pendingReward;
@@ -46,6 +52,11 @@ contract HederaBridge is HederaTokenService {
 
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
+
+    mapping(string => mapping(string => mapping(uint256 => TokenInfo)))
+        public selfTokenInfo;
+    mapping(string => mapping(string => mapping(uint256 => TokenInfo)))
+        public otherTokenInfo;
 
     INFTCollectionDeployer public collectionDeployer;
     INFTStorageDeployer public storageDeployer;
@@ -244,18 +255,32 @@ contract HederaBridge is HederaTokenService {
             .contractAddress
             .compareStrings("");
 
+        TokenInfo memory tinfo = otherTokenInfo[selfChain][
+            addressToString(sourceNftContractAddress)
+        ][tokenId];
+
+        uint256 mutid = 0;
+
+        if (tinfo.exists) {
+            mutid = tinfo.tokenId;
+        } else {
+            otherTokenInfo[selfChain][
+                addressToString(sourceNftContractAddress)
+            ][tokenId] = TokenInfo(tokenId, true);
+        }
+
         // isOriginal
         if (isOriginal) {
             transferToStorage721(
                 originalStorageMapping721,
                 sourceNftContractAddress,
-                tokenId
+                mutid
             );
 
             // if original i.e does not exist in duplicate mapping
             // emit the sourceNftContractAddress we got as argument
             emit Locked(
-                tokenId,
+                mutid,
                 destinationChain,
                 destinationUserAddress,
                 addressToString(sourceNftContractAddress),
@@ -267,11 +292,11 @@ contract HederaBridge is HederaTokenService {
             transferToStorage721(
                 duplicateStorageMapping721,
                 sourceNftContractAddress,
-                tokenId
+                mutid
             );
             // if duplicate, emit original address
             emit Locked(
-                tokenId,
+                mutid,
                 destinationChain,
                 destinationUserAddress,
                 originalCollectionAddress.contractAddress,
@@ -282,35 +307,26 @@ contract HederaBridge is HederaTokenService {
         }
     }
 
-    function getOwnerOfToken(
-        address ctr,
-        uint256 serialNum
-    ) private returns (address) {
-        address owner;
-        (
-            int res,
-            IHederaTokenService.NonFungibleTokenInfo memory tokenInfo
-        ) = getNonFungibleTokenInfo(ctr, int64(uint64(serialNum)));
-        if (res == HederaResponseCodes.SUCCESS) {
-            owner = tokenInfo.ownerId;
-        }
-        return owner;
-    }
-
     function mintHtsNft(
         address ctr,
         string memory tokenURI,
-        address to
+        address to,
+        uint256 tokenId,
+        string memory srcChain
     ) private {
         bytes[] memory metadata = new bytes[](1);
         metadata[0] = abi.encodePacked(tokenURI);
         (int256 resp, , int64[] memory serialNum) = mintToken(ctr, 0, metadata);
         require(resp == HederaResponseCodes.SUCCESS, "Failed to mint token. ");
+        selfTokenInfo[srcChain][addressToString(ctr)][tokenId] = TokenInfo(
+            uint256(uint64(serialNum[0])),
+            true
+        );
 
         int256 tresp = transferNFT(ctr, address(this), to, serialNum[0]);
         require(
             tresp == HederaResponseCodes.SUCCESS,
-            "Failed to transfer token."
+            "Failed to transfer minted token."
         );
     }
 
@@ -368,16 +384,25 @@ contract HederaBridge is HederaTokenService {
         // console.log("HAS duplicate: %s", hasDuplicate);
 
         // ===============================/ hasDuplicate && hasStorage /=======================
+
+        TokenInfo memory tinfo = selfTokenInfo[selfChain][
+            data.sourceNftContractAddress
+        ][data.tokenId];
+
         if (hasDuplicate && hasStorage) {
-            address ownerOfToken = getOwnerOfToken(
-                duplicateCollectionAddress.contractAddress.stringToAddress(),
-                data.tokenId
+            IHTSCompatibilityLayer htscl = IHTSCompatibilityLayer(
+                duplicateCollectionAddress.contractAddress.stringToAddress()
             );
 
-            if (ownerOfToken == storageContract) {
+            address ownerOfToken;
+            try htscl.ownerOf(data.tokenId) returns (address _ownerOfToken) {
+                ownerOfToken = _ownerOfToken;
+            } catch {}
+
+            if (ownerOfToken == storageContract && tinfo.exists) {
                 unLock721(
                     data.destinationUserAddress,
-                    data.tokenId,
+                    tinfo.tokenId,
                     storageContract
                 );
             } else {
@@ -386,7 +411,9 @@ contract HederaBridge is HederaTokenService {
                         .contractAddress
                         .stringToAddress(),
                     data.metadata,
-                    data.destinationUserAddress
+                    data.destinationUserAddress,
+                    data.tokenId,
+                    data.sourceChain
                 );
             }
         }
@@ -395,7 +422,9 @@ contract HederaBridge is HederaTokenService {
             mintHtsNft(
                 duplicateCollectionAddress.contractAddress.stringToAddress(),
                 data.metadata,
-                data.destinationUserAddress
+                data.destinationUserAddress,
+                data.tokenId,
+                data.sourceChain
             );
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
@@ -425,26 +454,30 @@ contract HederaBridge is HederaTokenService {
             mintHtsNft(
                 newCollectionAddress,
                 data.metadata,
-                data.destinationUserAddress
+                data.destinationUserAddress,
+                data.tokenId,
+                data.sourceChain
             );
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
+            IHTSCompatibilityLayer htscl = IHTSCompatibilityLayer(
+                data.sourceNftContractAddress.stringToAddress()
+            );
             if (
-                getOwnerOfToken(
-                    data.sourceNftContractAddress.stringToAddress(),
-                    data.tokenId
-                ) == storageContract
+                htscl.ownerOf(data.tokenId) == storageContract && tinfo.exists
             ) {
                 unLock721(
                     data.destinationUserAddress,
-                    data.tokenId,
+                    tinfo.tokenId,
                     storageContract
                 );
             } else {
                 mintHtsNft(
                     data.sourceNftContractAddress.stringToAddress(),
                     data.metadata,
-                    data.destinationUserAddress
+                    data.destinationUserAddress,
+                    data.tokenId,
+                    data.sourceChain
                 );
             }
         } else {
