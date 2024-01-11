@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/INFTStorageERC721.sol";
 import "./interfaces/INFTStorageDeployer.sol";
-import "./interfaces/INFTCollectionDeployer.sol";
 import "../AddressUtilityLib.sol";
 import "../../lib/hedera/contracts/hts-precompile/HederaTokenService.sol";
 import "../../lib/hedera/contracts/hts-precompile/IHederaTokenService.sol";
@@ -46,10 +45,16 @@ struct Validator {
     uint pendingReward;
 }
 
-contract HederaBridge is HederaTokenService {
+contract HederaBridge is
+    HederaTokenService,
+    ExpiryHelper,
+    FeeHelper,
+    KeyHelper
+{
     using ECDSA for bytes32;
     using AddressUtilityLib for string;
-
+    int64 public constant DEFAULT_EXPIRY = 7890000;
+    int64 public constant MAX_INT = 0xFFFFFFFF;
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
 
@@ -58,7 +63,6 @@ contract HederaBridge is HederaTokenService {
     mapping(string => mapping(string => mapping(uint256 => TokenInfo)))
         public otherTokenInfo;
 
-    INFTCollectionDeployer public collectionDeployer;
     INFTStorageDeployer public storageDeployer;
 
     uint256 public validatorsCount = 0;
@@ -148,22 +152,15 @@ contract HederaBridge is HederaTokenService {
     constructor(
         address[] memory _validators,
         string memory _chainType,
-        address _collectionDeployer,
         address _storageDeployer
     ) {
-        require(
-            _collectionDeployer != address(0),
-            "Address cannot be zero address!"
-        );
         require(
             _storageDeployer != address(0),
             "Address cannot be zero address!"
         );
 
-        collectionDeployer = INFTCollectionDeployer(_collectionDeployer);
         storageDeployer = INFTStorageDeployer(_storageDeployer);
 
-        collectionDeployer.setOwner(address(this));
         storageDeployer.setOwner(address(this));
 
         selfChain = _chainType;
@@ -307,6 +304,53 @@ contract HederaBridge is HederaTokenService {
         }
     }
 
+    function deployCollection(
+        string memory name,
+        string memory symbol,
+        int64 royaltyNum,
+        address royaltyReceiver
+    ) private returns (address) {
+        IHederaTokenService.TokenKey[]
+            memory keys = new IHederaTokenService.TokenKey[](1);
+        keys[0] = getSingleKey(
+            KeyHelper.KeyType.SUPPLY,
+            KeyHelper.KeyValueType.CONTRACT_ID,
+            address(this)
+        );
+
+        IHederaTokenService.HederaToken memory token;
+        token.name = name;
+        token.symbol = symbol;
+        token.treasury = address(this);
+        token.memo = "";
+        token.tokenSupplyType = true;
+        token.maxSupply = MAX_INT;
+        token.freezeDefault = false;
+        token.tokenKeys = keys;
+        token.expiry = createAutoRenewExpiry(address(this), DEFAULT_EXPIRY);
+        IHederaTokenService.RoyaltyFee[] memory royaltyFees;
+        if (royaltyNum > 0) {
+            royaltyFees = new IHederaTokenService.RoyaltyFee[](1);
+            royaltyFees[0] = createRoyaltyFeeWithoutFallback(
+                royaltyNum,
+                10000,
+                royaltyReceiver
+            );
+        } else {
+            royaltyFees = new IHederaTokenService.RoyaltyFee[](0);
+        }
+        IHederaTokenService.FixedFee[]
+            memory fixedFees = new IHederaTokenService.FixedFee[](0);
+
+        (
+            int256 resp,
+            address createdToken
+        ) = createNonFungibleTokenWithCustomFees(token, fixedFees, royaltyFees);
+
+        require(resp == HederaResponseCodes.SUCCESS, "Failed to create token.");
+        return createdToken;
+    }
+
     function mintHtsNft(
         address ctr,
         string memory tokenURI,
@@ -429,13 +473,12 @@ contract HederaBridge is HederaTokenService {
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
-            address newCollectionAddress = collectionDeployer
-                .deployNFT721Collection(
-                    data.name,
-                    data.symbol,
-                    int64(int256(data.royalty)),
-                    data.royaltyReceiver
-                );
+            address newCollectionAddress = deployCollection(
+                data.name,
+                data.symbol,
+                int64(int256(data.royalty)),
+                data.royaltyReceiver
+            );
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
                 data.sourceChain
