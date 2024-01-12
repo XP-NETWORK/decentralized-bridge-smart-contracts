@@ -1,10 +1,11 @@
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+
 import { expect } from "chai";
 import {
   Contract,
   ContractTransactionReceipt,
   EventLog,
   Typed,
+  Wallet,
   ZeroAddress,
   ethers,
   keccak256,
@@ -107,7 +108,7 @@ export const hexStringToByteArray = (hexString: string) => {
   return new Uint8Array(byteArray);
 };
 
-export async function deploy721Collection(bscUser: HardhatEthersSigner) {
+export async function deploy721Collection(bscUser: Wallet) {
   const name = "MyCollection";
   const symbol = "MC";
 
@@ -177,7 +178,7 @@ export async function deploy721Collection(bscUser: HardhatEthersSigner) {
 
 export async function deploy1155Collection(
   toMint: number,
-  bscUser: HardhatEthersSigner
+  bscUser: Wallet
 ) {
   const name = "MyCollection";
   const symbol = "MC";
@@ -257,8 +258,8 @@ export async function lockOnBSC(
   tokenIds: [Typed, Typed],
   mintedCollectionOnBSCAddress: string,
   nftDetails: TNFTDetails,
-  bscUser: HardhatEthersSigner,
-  ethUser: HardhatEthersSigner,
+  bscUser: Wallet,
+  ethUser: Wallet,
   bscBridge: THederaBridge,
   ethBridge: THederaBridge,
   nftType: TNFTType,
@@ -363,7 +364,7 @@ export async function claimOnEth(
   lockedReceipt1: ContractTransactionReceipt | null,
   lockedReceipt2: ContractTransactionReceipt | null,
   nftDetails: TNFTDetails,
-  ethUser: HardhatEthersSigner,
+  ethUser: Wallet,
   ethBridge: THederaBridge,
   nftType: TNFTType,
   getValidatorSignatures: TGetValidatorSignatures
@@ -508,8 +509,8 @@ export async function lockOnEth(
   duplicateCollectionContracts: ERC1155Royalty[] | ERC721Royalty[],
   duplicateCollectionAddresses: string[],
   nftDetails: TNFTDetails,
-  bscUser: HardhatEthersSigner,
-  ethUser: HardhatEthersSigner,
+  bscUser: Wallet,
+  ethUser: Wallet,
   bscBridge: THederaBridge,
   ethBridge: THederaBridge,
   nftType: TNFTType,
@@ -663,8 +664,8 @@ export async function claimOnBSC(
   mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty,
   mintedCollectionOnBSCAddress: string,
   nftDetails: TNFTDetails,
-  bscUser: HardhatEthersSigner,
-  ethUser: HardhatEthersSigner,
+  bscUser: Wallet,
+  ethUser: Wallet,
   bscBridge: THederaBridge,
   nftType: TNFTType,
   getValidatorSignatures: TGetValidatorSignatures
@@ -777,8 +778,8 @@ type TLockNewArgs = {
   duplicateCollectionContracts: ERC1155Royalty[] | ERC721Royalty[];
   duplicateCollectionAddresses: string[];
   nftDetails: TNFTDetails;
-  sourceUser: HardhatEthersSigner;
-  destinationUser: HardhatEthersSigner;
+  sourceUser: Wallet;
+  destinationUser: Wallet;
   source: TChainArrWithBridge;
   destination: TChainArrWithBridge;
   nftType: TNFTType;
@@ -949,8 +950,8 @@ type TClaimNewArgs = {
   mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty;
   mintedCollectionOnBSCAddress: string;
   nftDetails: TNFTDetails;
-  destinationUser: HardhatEthersSigner;
-  sourceUser: HardhatEthersSigner;
+  destinationUser: Wallet;
+  sourceUser: Wallet;
   destinationBridge: THederaBridge;
   nftType: TNFTType;
   getValidatorSignatures: TGetValidatorSignatures;

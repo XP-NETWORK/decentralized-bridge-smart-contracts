@@ -15,7 +15,7 @@ const config: HardhatUserConfig = {
       viaIR: true,
       optimizer: {
         enabled: true,
-        runs: 50,
+        runs: 200,
       },
     },
   },
@@ -30,7 +30,7 @@ const config: HardhatUserConfig = {
     },
     hardhat: {}, // Local Ethereum network
     bscTestnet: {
-      url: "https://data-seed-prebsc-1-s1.binance.org:8545/", // BSC Testnet RPC URL
+      url: "https://bsc-testnet.publicnode.com", // BSC Testnet RPC URL
       chainId: 97, // Chain ID for BSC Testnet
       gasPrice: 5000000000, // Gas price (wei) for transactions on BSC Testnet
       accounts: [
@@ -50,7 +50,7 @@ const config: HardhatUserConfig = {
       chainId: 420, // Chain ID for OP Testnet
       gasPrice: 5000000000, // Gas price (wei) for transactions on OP Testnet
       accounts: [
-        "8a6a4e9e3865814dc8f1e4fca103051162921715d1e517ba638ba05656f320b0",
+        "0x0e979ae1299df55645e68808754c93c067e35834195c420945d062858bea2965",
       ],
     },
     maticTestnet: {
@@ -66,6 +66,15 @@ const config: HardhatUserConfig = {
       accounts: [
         "0cfdd2caea2ca7ae542829e984272f3c07ee18e251fe35f8d99ee8270d3abdb5",
       ],
+      timeout: 50000000000
+    },
+    hederaLocal: {
+      url: "http://localhost:7546/",
+      accounts: [
+        "0cfdd2caea2ca7ae542829e984272f3c07ee18e251fe35f8d99ee8270d3abdb5",
+      ],
+      gas: 5000000,
+      timeout: 50000000000
     },
   },
   typechain: {

@@ -1,11 +1,10 @@
-import { Contract, ContractTransactionReceipt, Typed } from "ethers";
+import { Contract, ContractTransactionReceipt, Typed, Wallet } from "ethers";
 import {
   Bridge,
   ERC1155Royalty,
   ERC721Royalty,
   HederaBridge,
 } from "../../contractsTypes";
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 export type TLockedEventData = {
   tokenId: number;
@@ -74,7 +73,6 @@ export type THederaBridge = {
   bridge: TContractInstance;
   address: string;
   chainSymbol: string;
-  collectionDeployer: string;
   storageDeployer: string;
 };
 
@@ -88,8 +86,8 @@ export type TLockOnBSCAndClaimOnEthArgs = {
   tokenIds: [Typed, Typed];
   mintedCollectionOnBSCAddress: string;
   nftDetails: TNFTDetails;
-  bscUser: HardhatEthersSigner;
-  ethUser: HardhatEthersSigner;
+  bscUser: Wallet;
+  ethUser: Wallet;
   bscBridge: THederaBridge;
   ethBridge: THederaBridge;
   nftType: TNFTType;
@@ -104,8 +102,8 @@ export type TLockOnEthAndClaimOnBSCArgs = {
   mintedCollectionOnBSC: ERC721Royalty | ERC1155Royalty;
   mintedCollectionOnBSCAddress: string;
   nftDetails: TNFTDetails;
-  bscUser: HardhatEthersSigner;
-  ethUser: HardhatEthersSigner;
+  bscUser: Wallet;
+  ethUser: Wallet;
   bscBridge: THederaBridge;
   ethBridge: THederaBridge;
   getValidatorSignatures: TGetValidatorSignatures;
@@ -116,15 +114,15 @@ export type TLockOnEthAndClaimOnBSCArgs = {
 export type THederaChainArr = {
   chainId: string;
   bridge: THederaBridge | null;
-  validatorSet: [HardhatEthersSigner, HardhatEthersSigner];
-  deployer: HardhatEthersSigner;
-  user: HardhatEthersSigner;
+  validatorSet: [Wallet, Wallet];
+  deployer: Wallet;
+  user: Wallet;
 };
 
 export type TChainArrWithBridge = {
   chainId: string;
   bridge: THederaBridge;
-  validatorSet: [HardhatEthersSigner, HardhatEthersSigner];
-  deployer: HardhatEthersSigner;
-  user: HardhatEthersSigner;
+  validatorSet: [Wallet, Wallet];
+  deployer: Wallet;
+  user: Wallet;
 };

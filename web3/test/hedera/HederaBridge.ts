@@ -1,10 +1,10 @@
-import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import {
   Contract,
   ContractTransactionReceipt,
   EventLog,
   Typed,
+  Wallet,
   ZeroAddress,
   keccak256,
 } from "ethers";
@@ -36,36 +36,42 @@ import {
 } from "./utils";
 
 describe("Bridge", function () {
+  this.timeout(500000000000);
   let Bridge: HederaBridge__factory,
     bscBridge: THederaBridge,
     ethBridge: THederaBridge;
 
-  let bscValidator1: HardhatEthersSigner,
-    bscValidator2: HardhatEthersSigner,
-    ethValidator1: HardhatEthersSigner,
-    ethValidator2: HardhatEthersSigner,
-    bscUser: HardhatEthersSigner,
-    ethUser: HardhatEthersSigner,
-    ethBridgeDeployer: HardhatEthersSigner,
-    bscBridgeDeployer: HardhatEthersSigner,
-    addrs: HardhatEthersSigner[];
+  let bscValidator1: Wallet = new Wallet("0xb1c8a3ba2615d035c44d6e6dda891823b5edad43e0328a4cfd01e0d5bb735f72", ethers.provider);
+  let bscValidator2: Wallet = new Wallet("0x297ef55d7d9c6922f63592d3b7b13824b98c241949f7d95bbe853ae11e12c98b", ethers.provider);
+  let ethValidator1: Wallet = new Wallet("0x57084b37300de0a225b1ab9e40ffc772a032a596c66e7ff21ff41425d8c46a7e", ethers.provider);
+  let ethValidator2: Wallet = new Wallet("0x9d03775b73cb70a1e586c13c5b1ce71b7fe9dcdb97f80b1a42281611f79ba7e2", ethers.provider);
+  let bscUser: Wallet = new Wallet("0xe9987dbbdb094ac2cd2d06cff48febaa7cf1ece4d1763743c0310c83fe340de0", ethers.provider);
+  let ethUser: Wallet = new Wallet("0xc6d54381d2782d9a536e1e846ea40c8dfca73d6808c0e4f134b76f0aa96bc440", ethers.provider);
+  let ethBridgeDeployer: Wallet = new Wallet("0xedd462e07f53f767eaba407fe2268fe3e2d68f7e88b7e15ecc37c77841908076", ethers.provider);
+  let bscBridgeDeployer: Wallet = new Wallet("0x1630c888f9aa068ad7b2e07ecec5b703d7afa9ac6e246bfb43b29e6d1b53b3db", ethers.provider);
+
+  let addrs: Wallet[] = [
+    new Wallet("0x4f9e35f73de90a2e013decfd4e8d7bab119339e47a19a9dd388903c976e123cc",  ethers.provider),
+    new Wallet("0x45f466e9e00f843f65b0cac0c56462b04530765015784766a3170318d19fdecd",  ethers.provider),
+    new Wallet("0xb921cbfc8b108d4d496aa81e32aaf10786c53b970b3535005adc39c5dc8eb373",  ethers.provider),
+    new Wallet("0xf76d6a62b39a1ea75bd9b43913460655df6411a89500620326de15dc567ddf93",  ethers.provider),
+    new Wallet("0x0fdc4bc1c9c94e94a24e5064a0ffce6b9eb0346286aa4c4828d861b15b616c04",  ethers.provider),
+    new Wallet("0xe673195300de6eade2deeaa0569c3d7764ac0adf727f747143ffa63dbfbcbbbc",  ethers.provider),
+    new Wallet("0x5f68848ce8409a68ac4e15b12ca77b3b3926995044783518ec64e9351deb59cf",  ethers.provider),
+    new Wallet("0x9c4ed94c3a6e57273e3c1450df901fc076e96d02226fd1255b4b65bd477cf9ee",  ethers.provider),
+    new Wallet("0x0bad0714c500f2f7a4ce2eac84d9ba29275b6b0ce8485eece191b9bb894e8838",  ethers.provider),
+    new Wallet("0x0c383f955e91ec533a5aaa7f7d22e241040ce761efa13e91ca76f084a4efe7f1",  ethers.provider),
+    new Wallet("0x67360bf569bb48abda1f0eb6d6e2dec148c5f8b13b96ff1c04aa47b1b14f8cee",  ethers.provider),
+    new Wallet("0xfb7bfc8dad2f1c1dc101c4af785254e783292717be7f84b4b5b5a3e558dd55e7",  ethers.provider),
+  ];
 
   let bscValidators: string[];
 
   async function deployBridge(
     chainSymbol: string,
     validators: [string, string],
-    deployer: HardhatEthersSigner
+    deployer: Wallet
   ) {
-    const CollectionDeployer = await ethers.getContractFactory(
-      "HederaCollectionDeployer"
-    );
-    const collectionInstance = await CollectionDeployer.connect(
-      deployer
-    ).deploy();
-    const collectionDeployer = await collectionInstance
-      .connect(deployer)
-      .getAddress();
 
     const StorageDeployer = await ethers.getContractFactory(
       "HederaNFTStorageDeployer"
@@ -82,32 +88,22 @@ describe("Bridge", function () {
     const bridge = await Bridge.connect(deployer).deploy(
       validators,
       chainSymbol,
-      collectionDeployer,
-      storageDeployer
+      storageDeployer, {
+        gasLimit: 5000000
+      }
     );
     const address = await bridge.getAddress();
+    await new Promise((r) => setTimeout(r, 10000))
+    console.log("Bridge deployed at: ", address)
     return {
       address,
       bridge,
       chainSymbol,
-      collectionDeployer,
       storageDeployer,
     };
   }
 
   beforeEach(async function () {
-    [
-      bscBridgeDeployer,
-      bscValidator1,
-      bscValidator2,
-      ethValidator1,
-      ethValidator2,
-      bscUser,
-      ethBridgeDeployer,
-      ethUser,
-      ...addrs
-    ] = await ethers.getSigners();
-
     bscValidators = [bscValidator1.address, bscValidator2.address];
 
     bscBridge = await deployBridge(
@@ -124,12 +120,6 @@ describe("Bridge", function () {
   });
 
   describe("Deployment", function () {
-    it("Should set the correct Collection Deployer address", async function () {
-      expect(await bscBridge.bridge.collectionDeployer()).to.equal(
-        bscBridge.collectionDeployer
-      );
-    });
-
     it("Should set the correct Storage Deployer address", async function () {
       expect(await bscBridge.bridge.storageDeployer()).to.equal(
         bscBridge.storageDeployer
@@ -148,10 +138,7 @@ describe("Bridge", function () {
       expect(await bscBridge.bridge.selfChain()).to.be.equal("BSC");
     });
 
-    it("Should fail if Collection Deployer address OR Storage Deployer address is address zero", async function () {
-      expect(await bscBridge.bridge.collectionDeployer()).to.not.be.equal(
-        ethers.ZeroAddress
-      );
+    it("Should fail if OR Storage Deployer address is address zero", async function () {
       expect(await bscBridge.bridge.storageDeployer()).to.not.be.equal(
         ethers.ZeroAddress
       );
@@ -159,12 +146,7 @@ describe("Bridge", function () {
 
     it("Should fail to initialize contract if collection or storage address is zero", async function () {
       await expect(
-        Bridge.deploy(
-          bscValidators,
-          bscBridge.chainSymbol,
-          ethers.ZeroAddress,
-          ethers.ZeroAddress
-        )
+        Bridge.deploy(bscValidators, bscBridge.chainSymbol, ethers.ZeroAddress)
       ).to.be.rejected;
     });
 
@@ -223,7 +205,7 @@ describe("Bridge", function () {
     });
 
     it("Should fail if no signatures are provided", async function () {
-      const newValidator = addrs[10];
+      const newValidator = new Wallet("TODO");
 
       await expect(
         bscBridge.bridge
@@ -319,7 +301,7 @@ describe("Bridge", function () {
     });
 
     it("Should fail if no signatures are provided", async function () {
-      const newValidator = addrs[10];
+      const newValidator = new Wallet("TODO");
 
       await expect(
         bscBridge.bridge.addValidator(newValidator, []).then((r) => r.wait())
@@ -327,7 +309,7 @@ describe("Bridge", function () {
     });
 
     it("Should fail if validators do not reach threshold", async function () {
-      const newValidator = addrs[10];
+      const newValidator = new Wallet("TODO");
       const signatures = await createAddValidatorHash(newValidator.address);
 
       await expect(
@@ -340,7 +322,7 @@ describe("Bridge", function () {
     });
 
     it("Should successfully add a new validator with correct arguments", async function () {
-      const newValidator = addrs[10];
+      const newValidator = new Wallet("TODO");
 
       const [signatures, beforeValidatorAdditionCount] = await Promise.all([
         createAddValidatorHash(newValidator.address),
@@ -381,13 +363,13 @@ describe("Bridge", function () {
   describe("lock721", async function () {
     const DestinationChain = "";
     const DestinationUserAddress = "";
-    let User: HardhatEthersSigner;
+    let User: Wallet;
     let mintedCollectionOnBSC: ERC721Royalty;
     let mintedCollectionOnBSCAddress: string;
     let tokenIds: [Typed, Typed];
 
     this.beforeEach(async function () {
-      User = addrs[10];
+      User = new Wallet("TODO");
 
       const res = await deploy721Collection(bscUser);
       mintedCollectionOnBSC = res.mintedCollectionOnBSC;
@@ -718,7 +700,7 @@ describe("Bridge", function () {
 
     const _getValidatorSignatures = async (
       hash: Uint8Array,
-      validatorSet: [HardhatEthersSigner, HardhatEthersSigner]
+      validatorSet: [Wallet, Wallet]
     ): Promise<ReturnType<TGetValidatorSignatures>> => {
       const promises: [Promise<string>, Promise<string>] = [
         validatorSet[0].signMessage(hash),
@@ -770,7 +752,7 @@ describe("Bridge", function () {
           bridge: null,
           chainId: "POLY",
           deployer: addrs[8],
-          validatorSet: [addrs[9], addrs[10]],
+          validatorSet: [new Wallet("TODO"), new Wallet("TODO")],
           user: addrs[11],
         },
         {
