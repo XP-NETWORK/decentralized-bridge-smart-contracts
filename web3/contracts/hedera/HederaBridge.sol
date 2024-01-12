@@ -304,7 +304,7 @@ contract HederaBridge is
             transferToStorage721(
                 originalStorageMapping721,
                 sourceNftContractAddress,
-                mutid
+                tokenId
             );
 
             // if original i.e does not exist in duplicate mapping
@@ -322,7 +322,7 @@ contract HederaBridge is
             transferToStorage721(
                 duplicateStorageMapping721,
                 sourceNftContractAddress,
-                mutid
+                tokenId
             );
             // if duplicate, emit original address
             emit Locked(
@@ -581,9 +581,22 @@ contract HederaBridge is
             IHTSCompatibilityLayer htscl = IHTSCompatibilityLayer(
                 data.sourceNftContractAddress.stringToAddress()
             );
-            if (
-                htscl.ownerOf(data.tokenId) == storageContract && tinfo.exists
-            ) {
+            address ownerOfToken;
+            if (tinfo.exists) {
+                try htscl.ownerOf(tinfo.tokenId) returns (
+                    address _ownerOfToken
+                ) {
+                    ownerOfToken = _ownerOfToken;
+                } catch {}
+            } else {
+                try htscl.ownerOf(data.tokenId) returns (
+                    address _ownerOfToken
+                ) {
+                    ownerOfToken = _ownerOfToken;
+                } catch {}
+            }
+
+            if (ownerOfToken == storageContract && tinfo.exists) {
                 unLock721(
                     data.destinationUserAddress,
                     tinfo.tokenId,
