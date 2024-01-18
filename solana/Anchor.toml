@@ -1,0 +1,20 @@
+[features]
+seeds = false
+[programs.localnet]
+xp_bridge = "6FtWDSrBY6XBip57XY1wq2hjhJooKQTVsPDNdziYq615"
+anchor_nft_collection = "BTJGhk2fwqrfcmgosMb1QNqsnWu5fisGcihvWGK2tjur"
+
+[registry]
+url = "https://anchor.projectserum.com"
+#url = "https://api.apr.dev"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/xp-bridge.ts"
+
+[[test.genesis]]
+address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+program = "./deps/metaplex/token-metadata/target/deploy/mpl_token_metadata.so"
