@@ -1,7 +1,7 @@
 [features]
 seeds = false
 [programs.localnet]
-xp_bridge = "6FtWDSrBY6XBip57XY1wq2hjhJooKQTVsPDNdziYq615"
+xp_bridge = "EMpyNdhQkvY7FmKSnjyzPWi1NaZush4muRSdtgEbqFH8"
 anchor_nft_collection = "BTJGhk2fwqrfcmgosMb1QNqsnWu5fisGcihvWGK2tjur"
 
 [registry]

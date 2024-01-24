@@ -150,7 +150,6 @@
 //         //         signature,
 //         //     });
 
-//         // console.log("gando", validatorMapping);
 
 
 //         const tx = await program.methods
@@ -834,14 +833,83 @@
 //     }
 // }
 import * as anchor from "@project-serum/anchor";
-import { Program, Spl } from "@project-serum/anchor";
+import { BN, Program, Spl } from "@project-serum/anchor";
 import { XpBridge } from "../target/types/xp_bridge";
-import { Connection, Ed25519Program, Keypair, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY, SystemProgram } from "@solana/web3.js";
+import { Connection, Ed25519Program, Keypair, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY, SystemProgram, Transaction } from "@solana/web3.js";
 import * as fs from "fs";
-import { AddValidatorData, InitializeData, NewValidatorPublicKey, SignatureInfo } from "../src/encode";
+import { AddValidatorData, ClaimData, ClaimData721, InitializeData, NewValidatorPublicKey, SignatureInfo } from "../src/encode";
 import { createHash } from "crypto";
 import { serialize } from "@dao-xyz/borsh";
 import * as ed from "@noble/ed25519";
+import { Metaplex } from "@metaplex-foundation/js";
+import * as spl from "@solana/spl-token";
+import {
+  Metadata,
+  PROGRAM_ID as METADATA_PROGRAM_ID,
+} from "@metaplex-foundation/mpl-token-metadata";
+import { TOKEN_PROGRAM_ID } from "@project-serum/anchor/dist/cjs/utils/token";
+
+
+/**
+ * @param tx a solana transaction
+ * @param feePayer the publicKey of the signer
+ * @returns size in bytes of the transaction
+ */
+const getTxSize = (tx: Transaction, feePayer: PublicKey): number => {
+  const feePayerPk = [feePayer.toBase58()];
+
+  const signers = new Set<string>(feePayerPk);
+  const accounts = new Set<string>(feePayerPk);
+
+  const ixsSize = tx.instructions.reduce((acc, ix) => {
+    ix.keys.forEach(({ pubkey, isSigner }) => {
+      const pk = pubkey.toBase58();
+      if (isSigner) signers.add(pk);
+      accounts.add(pk);
+    });
+
+    accounts.add(ix.programId.toBase58());
+
+    const nIndexes = ix.keys.length;
+    const opaqueData = ix.data.length;
+
+    return (
+      acc +
+      1 + // PID index
+      compactArraySize(nIndexes, 1) +
+      compactArraySize(opaqueData, 1)
+    );
+  }, 0);
+
+  return (
+    compactArraySize(signers.size, 64) + // signatures
+    3 + // header
+    compactArraySize(accounts.size, 32) + // accounts
+    32 + // blockhash
+    compactHeader(tx.instructions.length) + // instructions
+    ixsSize
+  );
+};
+
+// COMPACT ARRAY
+
+const LOW_VALUE = 127; // 0x7f
+const HIGH_VALUE = 16383; // 0x3fff
+
+/**
+* Compact u16 array header size
+* @param n elements in the compact array
+* @returns size in bytes of array header
+*/
+const compactHeader = (n: number) => (n <= LOW_VALUE ? 1 : n <= HIGH_VALUE ? 2 : 3);
+
+/**
+* Compact u16 array size
+* @param n elements in the compact array
+* @param size bytes per each element
+* @returns size in bytes of array
+*/
+const compactArraySize = (n: number, size: number) => compactHeader(n) + n * size;
 
 describe("bridge", async () => {
   const url = process.env.ANCHOR_PROVIDER_URL;
@@ -861,7 +929,7 @@ describe("bridge", async () => {
   anchor.setProvider(provider);
   const encode = anchor.utils.bytes.utf8.encode;
   const program = anchor.workspace.XpBridge as Program<XpBridge>;
-
+  const metaplex = Metaplex.make(connection);
   //Bridge account
   let bridge: PublicKey;
   let bridgeBump: number;
@@ -870,12 +938,24 @@ describe("bridge", async () => {
   let validator: PublicKey;
   let validatorBump: number;
 
-  //Bridge account
-  let bridgeTokens: PublicKey;
-  let bridgeTokensBump: number;
+  //Other tokens account
+  let otherTokens: PublicKey;
+  let otherTokensBump: number;
+
+  //Self tokens account
+  let selfTokens: PublicKey;
+  let selfTokensBump: number;
+
+  //Original to duplicate account
+  let otdm: PublicKey;
+  let otdmBump: number;
+
+  //Duplicate to original account
+  let dtom: PublicKey;
+  let dtomBump: number;
 
   [bridge, bridgeBump] = await PublicKey.findProgramAddress(
-    [encode("bridge")],
+    [encode("b")],
     program.programId
   );
 
@@ -886,58 +966,58 @@ describe("bridge", async () => {
     program.programId
   );
 
-  [bridgeTokens, bridgeTokensBump] = await PublicKey.findProgramAddress(
-    [encode("bridge_tokens")],
+  [selfTokens, selfTokensBump] = await PublicKey.findProgramAddress(
+    [new Uint8Array(createHash("SHA256").update(Buffer.from("st1BSC0x64")).digest())],
+    program.programId
+  );
+
+  [otdm, otdmBump] = await PublicKey.findProgramAddress(
+    [new Uint8Array(createHash("SHA256").update(Buffer.from("otdm0x64BSC")).digest())],
     program.programId
   );
 
 
-  it("Initialization", async () => {
 
-    const data = new InitializeData({
-      publicKey: wallet.publicKey
-    });
+  // it("Initialization", async () => {
 
-    const message = serialize(data);
-    const msgHash = createHash("SHA256").update(message).digest();
+  //   const data = new InitializeData({
+  //     publicKey: wallet.publicKey
+  //   });
 
-    const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
+  //   const message = serialize(data);
+  //   const msgHash = createHash("SHA256").update(message).digest();
 
-    const ed25519Instruction =
-      Ed25519Program.createInstructionWithPublicKey({
-        publicKey: wallet.publicKey.toBuffer(),
-        message: msgHash,
-        signature,
-      });
+  //   const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
 
-    try {
+  //   const ed25519Instruction =
+  //     Ed25519Program.createInstructionWithPublicKey({
+  //       publicKey: wallet.publicKey.toBuffer(),
+  //       message: msgHash,
+  //       signature,
+  //     });
 
-      console.log(bridge.toString());
-      
+  //   try {
+  //     const tx = await program.methods.initialize(data)
+  //       .accounts({
+  //         bridge: bridge,
+  //         validators: validator,
+  //         user: provider.wallet.publicKey,
+  //         systemProgram: SystemProgram.programId,
+  //       })
+  //       .rpc({
+  //         skipPreflight: false
+  //       });
 
-      const tx = await program.methods.initialize(data)
-        .accounts({
-          bridge: bridge,
-          validators: validator,
-          tokens: bridgeTokens,
-          user: provider.wallet.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc({
-          skipPreflight: false
-        });
+  //     console.log("TxHash ::", tx);
+  //   }
+  //   catch (ex) {
+  //     console.log(ex);
+  //   }
+  //   let bridgeAccount = await program.account.bridge.fetch(bridge);
 
-      console.log("TxHash ::", tx);
-    }
-    catch (ex) {
-      console.log(ex);
+  //   console.log(bridgeAccount.validatorCount);
 
-    }
-    let bridgeAccount = await program.account.bridge.fetch(bridge);
-
-    console.log(bridgeAccount.validatorCount);
-
-  });
+  // });
 
   // it("Add Validator", async () => {
   //   let newValidatorKeys = Keypair.generate();
@@ -994,6 +1074,180 @@ describe("bridge", async () => {
   //     console.log(ex);
   //   }
   // });
+
+  it("Claim721", async () => {
+
+    let newValidatorKeys = Keypair.generate();
+
+    let adsf = new NewValidatorPublicKey({
+      publicKey: newValidatorKeys.publicKey
+    });
+
+    const message = serialize(adsf);
+    const msgHash = createHash("SHA256").update(message).digest();
+    const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
+
+    const ed25519Instruction =
+      Ed25519Program.createInstructionWithPublicKey({
+        publicKey: wallet.payer.publicKey.toBuffer(),
+        message: msgHash,
+        signature,
+      });
+
+    const signatures = [new SignatureInfo({
+      publicKey: wallet.publicKey,
+      sig: Array.from(signature)
+    })];
+
+
+    let data = new ClaimData721({
+      claimData: new ClaimData({
+        tokenId: "1",
+        sourceChain: "BSC",
+        destinationChain: "SOL",
+        destinationUserAddress: wallet.publicKey,
+        sourceNftContractAddress: "0x6f7C0c6A6dd6E435b0EEc1c9F7Bce01A1908f386",
+        name: "name",
+        symbol: "symbol",
+        royalty: new BN(0),
+        royaltyReceiver: wallet.publicKey,
+        metadata: "https://bafkreianwnedmty7tbdgr5rc6udztk2rm2zufr7hsaqwqb6wwijtxhsksu.ipfs.nftstorage.link",
+        transactionHash: "",
+        tokenAmount: new BN(1),
+        nftType: "s",
+        fee: new BN(0),
+      }),
+      signatures: signatures,
+    });
+
+    const [collectionPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+      [new Uint8Array(createHash("SHA256").update(serialize(data.claimData)).digest())],
+      program.programId
+    );
+
+    const collectionMetadataPDA = await metaplex
+      .nfts()
+      .pdas()
+      .metadata({ mint: collectionPDA });
+
+    const collectionMasterEditionPDA = await metaplex
+      .nfts()
+      .pdas()
+      .masterEdition({ mint: collectionPDA });
+
+    const collectionTokenAccount = await spl.getAssociatedTokenAddress(
+      collectionPDA,
+      wallet.publicKey
+    );
+    console.log(wallet.publicKey.toString());
+
+
+    const mint = anchor.web3.Keypair.generate();
+
+    const metadataPDA = await metaplex
+      .nfts()
+      .pdas()
+      .metadata({ mint: mint.publicKey });
+
+    const masterEditionPDA = await metaplex
+      .nfts()
+      .pdas()
+      .masterEdition({ mint: mint.publicKey });
+
+    const tokenAccount = await spl.getAssociatedTokenAddress(
+      mint.publicKey,
+      wallet.publicKey
+    );
+    console.log("AAAAAAAAAAAA", [new Uint8Array(createHash("SHA256").update(Buffer.from(`dtom${collectionPDA.toString()}SOL`)).digest()).length]);
+
+    [otherTokens, otherTokensBump] = await PublicKey.findProgramAddress(
+      [new Uint8Array(createHash("SHA256").update(Buffer.from(`ot1SOL${collectionPDA.toString()}`)).digest())],
+      program.programId
+    );
+    [dtom, dtomBump] = await PublicKey.findProgramAddress(
+      [new Uint8Array(createHash("SHA256").update(Buffer.from(`dtom${collectionPDA.toString()}SOL`)).digest())],
+      program.programId
+    );
+
+    // console.log({
+    //   bridge: bridge.toString(),
+    //   otherTokens: otherTokens.toString(),
+    //   selfTokens: selfTokens.toString(),
+    //   originalToDuplicateMapping: otdm.toString(),
+    //   duplicateToOriginalMapping: dtom.toString(),
+    //   // to: tokenAccount,
+    //   user: provider.wallet.publicKey.toString(),
+    //   createCollectionMasterEdition: collectionMasterEditionPDA.toString(),
+    //   createCollectionMetadataAccount: collectionMetadataPDA.toString(),
+    //   createCollectionMint: collectionPDA.toString(),
+    //   createCollectionTokenAccount: collectionTokenAccount.toString(),
+    //   // collectionMasterEdition: collectionMasterEditionPDA,
+    //   // collectionMetadataAccount: collectionMetadataPDA,
+    //   // nftCollectionMint: collectionPDA,
+    //   nftMasterEdition: masterEditionPDA.toString(),
+    //   nftMetadataAccount: metadataPDA.toString(),
+    //   nftMint: mint.publicKey.toString(),
+    //   nftTokenAccount: tokenAccount.toString(),
+
+    //   tokenMetadataProgram: METADATA_PROGRAM_ID.toString(),
+    //   systemProgram: SystemProgram.programId.toString(),
+    //   // instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY,
+    // });
+
+    try {
+
+      const modifyComputeUnits =
+        anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+          units: 600_000,
+        });
+      // @ts-ignore
+      const tx = await program.methods.claim(data)
+        .accounts({
+          bridge: bridge,
+          otherTokens: otherTokens,
+          selfTokens: selfTokens,
+          originalToDuplicateMapping: otdm,
+          duplicateToOriginalMapping: dtom,
+          // to: tokenAccount,
+          user: provider.wallet.publicKey,
+          createCollectionMasterEdition: collectionMasterEditionPDA,
+          createCollectionMetadataAccount: collectionMetadataPDA,
+          createCollectionMint: collectionPDA,
+          createCollectionTokenAccount: collectionTokenAccount,
+          // collectionMasterEdition: collectionMasterEditionPDA,
+          // collectionMetadataAccount: collectionMetadataPDA,
+          // nftCollectionMint: collectionPDA,
+          nftMasterEdition: masterEditionPDA,
+          nftMetadataAccount: metadataPDA,
+          nftMint: mint.publicKey,
+          nftTokenAccount: tokenAccount,
+          tokenMetadataProgram: METADATA_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID
+          // instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY,
+        })
+        .transaction();
+
+      const transferTransaction = new anchor.web3.Transaction().add(
+        modifyComputeUnits,
+        tx
+      );
+
+      // const txSig = await anchor.web3.sendAndConfirmTransaction(
+      //   connection,
+      //   transferTransaction,
+      //   [wallet.payer, mint],
+      //   { skipPreflight: false }
+      // );
+
+      // console.log(txSig);
+      let size = getTxSize(tx, wallet.payer.publicKey);
+      console.log("size ::", size, tx);
+    }
+    catch (ex) {
+      console.dir(ex.logs, { 'maxArrayLength': null });
+    }
+  });
 
   //   it("Vote for GM", async () => { 
   //     const tx = await program.methods.gibVote({gm:{}})

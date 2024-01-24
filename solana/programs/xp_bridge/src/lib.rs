@@ -1,7 +1,7 @@
 pub mod error;
 pub mod state;
 
-use anchor_lang::{prelude::*, solana_program::{sysvar::SysvarId, pubkey}};
+use anchor_lang::{prelude::*, solana_program::{hash::hash, pubkey, sysvar::SysvarId}};
 use anchor_spl::{
     self,
     token::{self, Burn, Mint, Token, TokenAccount, Transfer}, associated_token::AssociatedToken, metadata::Metadata,
@@ -16,7 +16,7 @@ use anchor_lang::solana_program::sysvar::instructions::{ID as IX_ID, load_instru
 use anchor_lang::solana_program::ed25519_program::ID as ED25519_ID;
 
 use std::convert::TryInto;
-declare_id!("6FtWDSrBY6XBip57XY1wq2hjhJooKQTVsPDNdziYq615");
+declare_id!("EMpyNdhQkvY7FmKSnjyzPWi1NaZush4muRSdtgEbqFH8");
 
 #[constant]
     pub const SEED: &str = "Collection";
@@ -24,19 +24,22 @@ declare_id!("6FtWDSrBY6XBip57XY1wq2hjhJooKQTVsPDNdziYq615");
 #[program]
 pub mod xp_bridge {
     use anchor_lang::solana_program::{
-        native_token::LAMPORTS_PER_SOL, program::invoke, system_instruction,
+        hash::hash, native_token::LAMPORTS_PER_SOL, program::invoke, system_instruction
     };
     use mpl_token_metadata::assertions::collection;
     // use crate::utils::{transfer_service_fee_lamports};
 
-    pub const SELF_CHAIN: &[u8] = b"SOL";
-    pub const TYPE_ERC721: &[u8] = b"singular"; // a more general term to accomodate non-evm chains
-    pub const TYPE_ERC1155: &[u8] = b"multiple"; // a more general term to accomodate non-evm chains
+   
+
+    pub const SELF_CHAIN: &str = "SOL";
+    pub const TYPE_ERC721: &[u8] = b"s"; // a more general term to accomodate non-evm chains
+    pub const TYPE_ERC1155: &[u8] = b"m"; // a more general term to accomodate non-evm chains
 
     use super::*;
 
     // Initializes a new bridge account with a set of validators and a threshold.
     pub fn initialize(ctx: Context<Initialize>, data: InitializeData) -> Result<()> {
+        msg!(" LO");
         let bridge = &mut ctx.accounts.bridge;
         bridge.validator_count += 1;
 
@@ -86,7 +89,6 @@ pub mod xp_bridge {
         //     "Threshold not reached!"
         // );
 
-
         let bridge = &mut ctx.accounts.bridge;
         bridge.validator_count += 1;
 
@@ -96,17 +98,13 @@ pub mod xp_bridge {
         Ok(())
     }
 
-    pub fn lock_721(ctx: Context<Lock721>, data: Lock721Data)->Result<()>{
+    pub fn lock_721(ctx: Context<Lock721>, data: Lock721Data) -> Result<()> {
+
+
+        let original_collection_address = &mut ctx.accounts.duplicate_to_original_mapping;
         let other_tokens =&mut ctx.accounts.other_tokens;
         let self_tokens =&mut ctx.accounts.self_tokens;
 
-        let am = &&mut 0u64;
-        let duplicate_to_original_mapping = &mut ctx.accounts.duplicate_to_original_mapping;
-        
-        let binding = duplicate_to_original_mapping.to_account_info();
-        let binding1 = other_tokens.to_account_info();
-        let binding2 = self_tokens.to_account_info();
-        
         // let is_token_exists =   tokens_vec.iter().find(|&x| 
         //     x.self_token_id == data.token_id && 
         //     x.self_chain.as_bytes() == SELF_CHAIN && 
@@ -114,7 +112,7 @@ pub mod xp_bridge {
 
         let is_token_exists;
 
-        if binding1.try_borrow_lamports()?.gt(am)  {
+        if other_tokens.chain != ""  {
             is_token_exists = Some(other_tokens.clone());
         }
         else{
@@ -150,7 +148,7 @@ pub mod xp_bridge {
             CpiContext::new(ctx.accounts.token_program.to_account_info(), transfer_ctx),
             1,
         )?;
-        if binding.try_borrow_lamports()?.gt(am) {
+        if original_collection_address.chain != "" {
             emit!(Lock721Event { 
                 token_id: mut_token_id, 
                 destination_chain: data.destination_chain, 
@@ -174,43 +172,39 @@ pub mod xp_bridge {
         Ok(())
     }
 
-    pub fn claim_721(ctx: Context<Claim721>, data: ClaimData721) -> Result<()> {
-
-        if !data.data.nft_type.as_bytes().eq(TYPE_ERC721) {
+    pub fn claim(ctx: Context<Claim721>, data: ClaimData721) -> Result<()> {
+        if !data.claim_data.nft_type.as_bytes().eq(TYPE_ERC721) {
             return Err(error::ErrorCode::InvalidNft.into());
         }
-
+        let binding = hash(data.claim_data.try_to_vec()?.as_slice());
+        let collection_seed_hash = binding.as_ref();
+        let duplicate_collection_address = &mut ctx.accounts.original_to_duplicate_mapping;
         let self_tokens =&mut ctx.accounts.self_tokens;
 
-        let am = &&mut 0u64;
-        let original_to_duplicate_mapping = &mut ctx.accounts.original_to_duplicate_mapping;
-        let binding = original_to_duplicate_mapping.to_account_info();
-        let binding1 = self_tokens.to_account_info();
-
-
-        
         let is_token_exists;
+        msg!("asdfasd {}",duplicate_collection_address.chain);
 
-            if binding1.try_borrow_lamports()?.gt(am)  {
+            if self_tokens.chain != ""  {
+                msg!("is_token_exists true");
                 is_token_exists = Some(self_tokens);
             }
             else{
+                msg!("is_token_exists false");
                 is_token_exists = Option::None;
             }
     
-
-        if binding.try_borrow_lamports()?.gt(am) {
+        if duplicate_collection_address.chain != "" {
             // isDuplicate
             match is_token_exists {
                 Some(_v)=>{
                     // Unlock721
                     let transfer_ctx = Transfer {
                         from: ctx.accounts.bridge.to_account_info(),
-                        to: ctx.accounts.to.to_account_info(),
+                        to: ctx.accounts.nft_token_account.to_account_info(),
                         authority: ctx.accounts.bridge.to_account_info(),
                     };
-                    let auth_seeds = [b"bridge".as_ref(), &[data.bridge_bump]];
-
+                    let auth_seeds = [b"b".as_ref(), &[0]];
+                    msg!("popopopopo");
                     token::transfer(
                         CpiContext::new_with_signer(
                             ctx.accounts.token_program.to_account_info(), 
@@ -221,14 +215,14 @@ pub mod xp_bridge {
                     )?;
                 },
                 None=>{
-                    let _ = collection_createor::create_nft_in_collection(&ctx, data.data.metadata, data.data.name, data.data.symbol);
+                    let _ = collection_createor::create_nft_in_collection(collection_seed_hash, &ctx, data.claim_data.metadata, data.claim_data.name, data.claim_data.symbol);
 
                     let transfer_ctx = Transfer {
                         from: ctx.accounts.create_collection_mint.to_account_info(),
-                        to: ctx.accounts.to.to_account_info(),
+                        to: ctx.accounts.nft_token_account.to_account_info(),
                         authority: ctx.accounts.create_collection_mint.to_account_info(),
                     };
-                    let auth_seeds = [b"collection".as_ref(), &[data.collection_bump]];
+                    let auth_seeds = [b"Collection".as_ref(), &[0]];
 
                     token::transfer(
                         CpiContext::new_with_signer(
@@ -248,11 +242,11 @@ pub mod xp_bridge {
                     // Unlock721
                     let transfer_ctx = Transfer {
                         from: ctx.accounts.bridge.to_account_info(),
-                        to: ctx.accounts.to.to_account_info(),
+                        to: ctx.accounts.nft_token_account.to_account_info(),
                         authority: ctx.accounts.bridge.to_account_info(),
                     };
-                    let auth_seeds = [b"bridge".as_ref(), &[data.bridge_bump]];
-
+                    let auth_seeds = [b"b".as_ref(), &[0]];
+                    msg!("popopopopsssssssssso");
                     token::transfer(
                         CpiContext::new_with_signer(
                             ctx.accounts.token_program.to_account_info(), 
@@ -263,10 +257,10 @@ pub mod xp_bridge {
                     )?;
                 },
                 None=>{
-                    let _ = collection_createor::create_collection_nft(&ctx, data.data.metadata.clone(), data.data.name.clone(), data.data.symbol.clone());
+                    let _ = collection_createor::create_collection_nft(collection_seed_hash, &ctx, data.claim_data.metadata.clone(), data.claim_data.name.clone(), data.claim_data.symbol.clone());
 
-                    let _ = collection_createor::create_nft_in_collection(&ctx, data.data.metadata, data.data.name, data.data.symbol);
-                    
+                    let _ = collection_createor::create_nft_in_collection(collection_seed_hash, &ctx, data.claim_data.metadata, data.claim_data.name, data.claim_data.symbol);
+                    msg!("gandddododo");
                     let otdm = &mut ctx.accounts.original_to_duplicate_mapping;
                     let dtom = &mut ctx.accounts.duplicate_to_original_mapping;
 
@@ -277,45 +271,44 @@ pub mod xp_bridge {
                     otdm.chain = "SOL".to_string();
                     otdm.address = ctx.accounts.create_collection_mint.key().to_string();
 
-                    dtom.chain = data.data.source_chain.clone();
-                    dtom.address = data.data.source_nft_contract_address.clone();
+                    dtom.chain = data.claim_data.source_chain.clone();
+                    dtom.address = data.claim_data.source_nft_contract_address.clone();
 
-                    other_tokens.token_id = data.data.token_id;
-                    other_tokens.chain = data.data.source_chain.clone();
-                    other_tokens.contract_address = data.data.source_nft_contract_address.clone();
+                    other_tokens.token_id = data.claim_data.token_id;
+                    other_tokens.chain = data.claim_data.source_chain.clone();
+                    other_tokens.contract_address = data.claim_data.source_nft_contract_address.clone();
 
                     self_tokens.token_id = ctx.accounts.nft_token_account.key();
                     self_tokens.chain = "SOL".to_string();
                     self_tokens.contract_address = ctx.accounts.create_collection_mint.key().to_string();
 
-                    let transfer_ctx = Transfer {
-                        from: ctx.accounts.create_collection_mint.to_account_info(),
-                        to: ctx.accounts.to.to_account_info(),
-                        authority: ctx.accounts.create_collection_mint.to_account_info(),
-                    };
+                    // let transfer_ctx = Transfer {
+                    //     from: ctx.accounts.create_collection_mint.to_account_info(),
+                    //     to: ctx.accounts.nft_token_account.to_account_info(),
+                    //     authority: ctx.accounts.create_collection_mint.to_account_info(),
+                    // };
                     
-                    let auth_seeds = [b"collection".as_ref(), &[data.collection_bump]];
-
-                    token::transfer(
-                        CpiContext::new_with_signer(
-                            ctx.accounts.token_program.to_account_info(), 
-                            transfer_ctx,
-                            &[&auth_seeds]
-                        ),
-                        1,
-                    )?;
-
+                    // let auth_seeds = [b"collection".as_ref(), &[0]];
+                    // msg!("gandddododo 2");
+                    // token::transfer(
+                    //     CpiContext::new_with_signer(
+                    //         ctx.accounts.token_program.to_account_info(), 
+                    //         transfer_ctx,
+                    //         &[&auth_seeds]
+                    //     ),
+                    //     1,
+                    // )?;
+                    // msg!("gandddododo 3");
                 }
             }
         }
         emit!(Claim721Event{
-            source_chain: data.data.source_chain,
-            transaction_hash: data.data.transaction_hash
+            source_chain: data.claim_data.source_chain,
+            transaction_hash: data.claim_data.transaction_hash
         });
         Ok(())
     }
     
-
     // pub fn validate_pause(ctx: Context<ValidatePause>, data: PauseData) -> Result<()> {
     //     let bridge = &mut ctx.accounts.bridge;
 
@@ -563,7 +556,7 @@ pub mod xp_bridge {
     //         authority: ctx.accounts.bridge.to_account_info(),
     //     };
 
-    //     let auth_seeds = [b"bridge".as_ref(), &[data.bridge_bump]];
+    //     let auth_seeds = [b"b".as_ref(), &[data.bridge_bump]];
 
     //     token::transfer(
     //         CpiContext::new_with_signer(
@@ -661,7 +654,6 @@ pub mod utils {
 
 
 pub mod collection_createor{
-    use anchor_lang::prelude::*;
     use anchor_spl::{
     associated_token::AssociatedToken,
     metadata::{
@@ -675,10 +667,10 @@ pub mod collection_createor{
     pda::{find_master_edition_account, find_metadata_account},
     state::{CollectionDetails, Creator, DataV2},
     };
-
     use super::*;
     
     pub fn create_collection_nft(
+        seed: &[u8],
         ctx: &Context<Claim721>,
         uri: String,
         name: String,
@@ -686,10 +678,10 @@ pub mod collection_createor{
     ) -> Result<()> {
         // PDA for signing
         let signer_seeds: &[&[&[u8]]] = &[&[
-            SEED.as_bytes(),
-            &[*ctx.bumps.get("collection_mint").unwrap()],
+            seed,
+            &[*ctx.bumps.get("create_collection_mint").unwrap()],
         ]];
-
+        msg!(" LO collection start");
         // mint collection nft
         mint_to(
             CpiContext::new_with_signer(
@@ -709,23 +701,23 @@ pub mod collection_createor{
             CpiContext::new_with_signer(
                 ctx.accounts.token_metadata_program.to_account_info(),
                 CreateMetadataAccountsV3 {
-                    metadata: ctx.accounts.collection_metadata_account.to_account_info(),
+                    metadata: ctx.accounts.create_collection_metadata_account.to_account_info(),
                     mint: ctx.accounts.create_collection_mint.to_account_info(),
                     mint_authority: ctx.accounts.create_collection_mint.to_account_info(), // use pda mint address as mint authority
                     update_authority: ctx.accounts.create_collection_mint.to_account_info(), // use pda mint as update authority
-                    payer: ctx.accounts.authority.to_account_info(),
+                    payer: ctx.accounts.user.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                     rent: ctx.accounts.rent.to_account_info(),
                 },
                 &signer_seeds,
             ),
             DataV2 {
-                name: name,
-                symbol: symbol,
-                uri: uri,
+                name,
+                symbol,
+                uri,
                 seller_fee_basis_points: 0,
                 creators: Some(vec![Creator {
-                    address: ctx.accounts.authority.key(),
+                    address: ctx.accounts.user.key(),
                     verified: false,
                     share: 100,
                 }]),
@@ -742,12 +734,12 @@ pub mod collection_createor{
             CpiContext::new_with_signer(
                 ctx.accounts.token_metadata_program.to_account_info(),
                 CreateMasterEditionV3 {
-                    payer: ctx.accounts.authority.to_account_info(),
+                    payer: ctx.accounts.user.to_account_info(),
                     mint: ctx.accounts.create_collection_mint.to_account_info(),
-                    edition: ctx.accounts.collection_master_edition.to_account_info(),
+                    edition: ctx.accounts.create_collection_master_edition.to_account_info(),
                     mint_authority: ctx.accounts.create_collection_mint.to_account_info(),
                     update_authority: ctx.accounts.create_collection_mint.to_account_info(),
-                    metadata: ctx.accounts.collection_metadata_account.to_account_info(),
+                    metadata: ctx.accounts.create_collection_metadata_account.to_account_info(),
                     token_program: ctx.accounts.token_program.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                     rent: ctx.accounts.rent.to_account_info(),
@@ -761,25 +753,26 @@ pub mod collection_createor{
         sign_metadata(CpiContext::new(
             ctx.accounts.token_metadata_program.to_account_info(),
             SignMetadata {
-                creator: ctx.accounts.authority.to_account_info(),
-                metadata: ctx.accounts.collection_metadata_account.to_account_info(),
+                creator: ctx.accounts.user.to_account_info(),
+                metadata: ctx.accounts.create_collection_metadata_account.to_account_info(),
             },
         ))?;
-
+        msg!(" LO collection end");
         Ok(())
     }
 
     pub fn create_nft_in_collection(
+        seed: &[u8],
         ctx: &Context<Claim721>,
         uri: String,
         name: String,
         symbol: String,
     ) -> Result<()> {
         let signer_seeds: &[&[&[u8]]] = &[&[
-            SEED.as_bytes(),
-            &[*ctx.bumps.get("collection_mint").unwrap()],
+            seed,
+            &[*ctx.bumps.get("create_collection_mint").unwrap()],
         ]];
-
+        msg!(" LO nft start");
         // mint nft in collection
         mint_to(
             CpiContext::new_with_signer(
@@ -787,13 +780,13 @@ pub mod collection_createor{
                 MintTo {
                     mint: ctx.accounts.nft_mint.to_account_info(),
                     to: ctx.accounts.nft_token_account.to_account_info(),
-                    authority: ctx.accounts.nft_collection_mint.to_account_info(),
+                    authority: ctx.accounts.create_collection_mint.to_account_info(),
                 },
                 signer_seeds,
             ),
             1,
         )?;
-
+        msg!(" LO nft mid");
         // create metadata account for nft in collection
         create_metadata_accounts_v3(
             CpiContext::new_with_signer(
@@ -801,8 +794,8 @@ pub mod collection_createor{
                 CreateMetadataAccountsV3 {
                     metadata: ctx.accounts.nft_metadata_account.to_account_info(),
                     mint: ctx.accounts.nft_mint.to_account_info(),
-                    mint_authority: ctx.accounts.nft_collection_mint.to_account_info(),
-                    update_authority: ctx.accounts.nft_collection_mint.to_account_info(),
+                    mint_authority: ctx.accounts.create_collection_mint.to_account_info(),
+                    update_authority: ctx.accounts.create_collection_mint.to_account_info(),
                     payer: ctx.accounts.user.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
                     rent: ctx.accounts.rent.to_account_info(),
@@ -831,8 +824,8 @@ pub mod collection_createor{
                     payer: ctx.accounts.user.to_account_info(),
                     mint: ctx.accounts.nft_mint.to_account_info(),
                     edition: ctx.accounts.nft_master_edition.to_account_info(),
-                    mint_authority: ctx.accounts.nft_collection_mint.to_account_info(),
-                    update_authority: ctx.accounts.nft_collection_mint.to_account_info(),
+                    mint_authority: ctx.accounts.create_collection_mint.to_account_info(),
+                    update_authority: ctx.accounts.create_collection_mint.to_account_info(),
                     metadata: ctx.accounts.nft_metadata_account.to_account_info(),
                     token_program: ctx.accounts.token_program.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
@@ -849,133 +842,25 @@ pub mod collection_createor{
                 ctx.accounts.token_metadata_program.to_account_info(),
                 SetAndVerifySizedCollectionItem {
                     metadata: ctx.accounts.nft_metadata_account.to_account_info(),
-                    collection_authority: ctx.accounts.nft_collection_mint.to_account_info(),
+                    collection_authority: ctx.accounts.create_collection_mint.to_account_info(),
                     payer: ctx.accounts.user.to_account_info(),
-                    update_authority: ctx.accounts.nft_collection_mint.to_account_info(),
-                    collection_mint: ctx.accounts.nft_collection_mint.to_account_info(),
-                    collection_metadata: ctx.accounts.collection_metadata_account.to_account_info(),
+                    update_authority: ctx.accounts.create_collection_mint.to_account_info(),
+                    collection_mint: ctx.accounts.create_collection_mint.to_account_info(),
+                    collection_metadata: ctx.accounts.create_collection_metadata_account.to_account_info(),
                     collection_master_edition: ctx
                         .accounts
-                        .collection_master_edition
+                        .create_collection_master_edition
                         .to_account_info(),
                 },
                 &signer_seeds,
             ),
             None,
         )?;
+        msg!(" LO nft end");
 
         Ok(())
     }
 
-    #[derive(Accounts)]
-    pub struct CreateCollectionNft<'info> {
-        #[account(mut)]
-        pub authority: Signer<'info>,
-    
-        #[account(
-            init_if_needed,
-            seeds = [SEED.as_bytes()],
-            bump,
-            payer = authority,
-            mint::decimals = 0,
-            mint::authority = collection_mint,
-            mint::freeze_authority = collection_mint
-        )]
-        pub collection_mint: Account<'info, Mint>,
-    
-        /// CHECK:
-        #[account(
-            mut,
-            address=find_metadata_account(&collection_mint.key()).0
-        )]
-        pub metadata_account: UncheckedAccount<'info>,
-    
-        /// CHECK:
-        #[account(
-            mut,
-            address=find_master_edition_account(&collection_mint.key()).0
-        )]
-        pub master_edition: UncheckedAccount<'info>,
-    
-        #[account(
-            init_if_needed,
-            payer = authority,
-            associated_token::mint = collection_mint,
-            associated_token::authority = authority
-        )]
-        pub token_account: Account<'info, TokenAccount>,
-    
-        pub system_program: Program<'info, System>,
-        pub token_program: Program<'info, Token>,
-        pub associated_token_program: Program<'info, AssociatedToken>,
-        pub token_metadata_program: Program<'info, Metadata>,
-        pub rent: Sysvar<'info, Rent>,
-    }
-    
-    #[derive(Accounts)]
-    pub struct CreateNftInCollection<'info> {
-        #[account(mut)]
-        pub user: Signer<'info>,
-    
-        #[account(
-            mut,
-            seeds = [SEED.as_bytes()],
-            bump,
-        )]
-        pub collection_mint: Account<'info, Mint>,
-    
-        /// CHECK:
-        #[account(
-            mut,
-            address=find_metadata_account(&collection_mint.key()).0
-        )]
-        pub collection_metadata_account: UncheckedAccount<'info>,
-    
-        /// CHECK:
-        #[account(
-            mut,
-            address=find_master_edition_account(&collection_mint.key()).0
-        )]
-        pub collection_master_edition: UncheckedAccount<'info>,
-    
-        #[account(
-            init,
-            payer = user,
-            mint::decimals = 0,
-            mint::authority = collection_mint,
-            mint::freeze_authority = collection_mint
-        )]
-        pub nft_mint: Account<'info, Mint>,
-    
-        /// CHECK:
-        #[account(
-            mut,
-            address=find_metadata_account(&nft_mint.key()).0
-        )]
-        pub metadata_account: UncheckedAccount<'info>,
-    
-        /// CHECK:
-        #[account(
-            mut,
-            address=find_master_edition_account(&nft_mint.key()).0
-        )]
-        pub master_edition: UncheckedAccount<'info>,
-    
-        #[account(
-            init_if_needed,
-            payer = user,
-            associated_token::mint = nft_mint,
-            associated_token::authority = user
-        )]
-        pub token_account: Account<'info, TokenAccount>,
-    
-        pub system_program: Program<'info, System>,
-        pub token_program: Program<'info, Token>,
-        pub associated_token_program: Program<'info, AssociatedToken>,
-        pub token_metadata_program: Program<'info, Metadata>,
-        pub rent: Sysvar<'info, Rent>,
-    }
-    
 }
 // #[derive(Accounts)]
 // // #[instruction(data: InitializeData)]
@@ -1010,7 +895,7 @@ pub struct Initialize<'info> {
         init_if_needed, 
         payer = user, 
         space = 8 + Bridge::INIT_SPACE, 
-        seeds = [b"bridge".as_ref()], 
+        seeds = [b"b".as_ref()], 
         bump
     )]
     pub bridge: Account<'info, Bridge>,
@@ -1066,7 +951,7 @@ pub struct InitializeData {
 pub struct AddValidator<'info> {
     #[account(
         mut, 
-        seeds = [b"bridge".as_ref()], 
+        seeds = [b"b".as_ref()], 
         bump, 
     )]
     pub bridge: Account<'info, Bridge>,
@@ -1106,7 +991,7 @@ pub struct SignatureInfo {
 pub struct Lock721<'info> {
     #[account(
         mut, 
-        seeds = [b"bridge".as_ref()], 
+        seeds = [b"b".as_ref()], 
         bump = data.bridge_bump, 
     )]
     pub bridge: Account<'info, Bridge>,
@@ -1116,7 +1001,7 @@ pub struct Lock721<'info> {
         init_if_needed,
         payer = authority, 
         space = 8 + OtherTokenInfo::INIT_SPACE, 
-        seeds = [b"other_tokens".as_ref(), data.token_id.to_bytes().as_ref(), b"SOL".as_ref(), data.source_nft_contract_address.to_bytes().as_ref()],
+        seeds = [b"ot".as_ref(), data.token_id.to_bytes().as_ref(), b"SOL".as_ref(), data.source_nft_contract_address.to_bytes().as_ref()],
         bump
     )]
     pub other_tokens: Account<'info, OtherTokenInfo>,
@@ -1125,14 +1010,14 @@ pub struct Lock721<'info> {
         init_if_needed,
         payer = authority, 
         space = 8 + SelfTokenInfo::INIT_SPACE,
-        seeds = [b"self_tokens".as_ref(), data.token_id.to_bytes().as_ref(), b"SOL".as_ref(), data.source_nft_contract_address.to_bytes().as_ref()], 
+        seeds = [b"st".as_ref(), data.token_id.to_bytes().as_ref(), b"SOL".as_ref(), data.source_nft_contract_address.to_bytes().as_ref()], 
         bump
     )]
     pub self_tokens: Account<'info, SelfTokenInfo>,
 
     #[account(
         mut,
-        seeds = [b"dtom".as_ref(), data.source_nft_contract_address.as_ref(), SELF_CHAIN],
+        seeds = [b"dtom".as_ref(), data.source_nft_contract_address.as_ref(), SELF_CHAIN.as_ref()],
         bump
     )]
     pub duplicate_to_original_mapping: Account<'info, ContractInfo>,
@@ -1167,66 +1052,59 @@ pub struct Lock721Data {
 pub struct Claim721<'info> {
     #[account(
         mut, 
-        seeds = [b"bridge".as_ref()], 
+        seeds = [b"b".as_ref()], 
         bump, 
     )]
-    pub bridge: Account<'info, Bridge>,
+    pub bridge: Box<Account<'info, Bridge>>,
 
     #[account(
         init_if_needed,
-        payer = authority, 
+        payer = user, 
         space = 8 + OtherTokenInfo::INIT_SPACE, 
-        seeds = [b"other_tokens".as_ref(), nft_collection_mint.key().as_ref(), b"SOL".as_ref(), create_collection_mint.key().as_ref()],
+        seeds = [hash(["ot",&data.claim_data.token_id,"SOL",&create_collection_mint.key().to_string()].concat().as_bytes()).as_ref()],
         bump
     )]
-    pub other_tokens: Account<'info, OtherTokenInfo>,
+    pub other_tokens: Box<Account<'info, OtherTokenInfo>>,
 
     #[account(
         init_if_needed,
-        payer = authority, 
+        payer = user, 
         space = 8 + SelfTokenInfo::INIT_SPACE,
-        seeds = [b"self_tokens".as_ref(), data.data.token_id.as_bytes(), b"SOL".as_ref(), data.data.source_nft_contract_address.as_bytes()], 
+        seeds = [hash(["st", &data.claim_data.token_id, &data.claim_data.source_chain, &data.claim_data.source_nft_contract_address].concat().as_bytes()).as_ref()], 
         bump
     )]
-    pub self_tokens: Account<'info, SelfTokenInfo>,
+    pub self_tokens: Box<Account<'info, SelfTokenInfo>>,
 
     #[account(
         init_if_needed,
         space = 8 + ContractInfo::INIT_SPACE,
-        payer = authority,
-        seeds = [b"otdm".as_ref(), data.data.source_nft_contract_address.as_bytes().as_ref(), data.data.source_chain.as_bytes().as_ref()],
+        payer = user,
+        seeds = [hash(["otdm", &data.claim_data.source_nft_contract_address, &data.claim_data.source_chain].concat().as_bytes()).as_ref()],
         bump
     )]
-    pub original_to_duplicate_mapping: Account<'info, ContractInfo>,
+    pub original_to_duplicate_mapping: Box<Account<'info, ContractInfo>>,
 
     #[account(
         init_if_needed,
         space = 8 + ContractInfo::INIT_SPACE,
-        payer = authority,
-        seeds = [b"dtom".as_ref(), data.collection_mint_key.as_ref(), SELF_CHAIN.as_ref()],
+        payer = user,
+        seeds = [hash(["dtom", &create_collection_mint.key().to_string(), SELF_CHAIN].concat().as_bytes()).as_ref()],
         bump
     )]
-    pub duplicate_to_original_mapping: Account<'info, ContractInfo>,
+    pub duplicate_to_original_mapping: Box<Account<'info, ContractInfo>>,
 
-    #[account(mut, constraint = to.owner == data.data.destination_user_address)]
-    pub to: Account<'info, TokenAccount>,
-
+    // #[account(mut, constraint = to.owner == data.claim_data.destination_user_address)]
+    // pub to: Box<Account<'info, TokenAccount>>,
    
     /// CHECK: used to get instruction data
-    #[account(address = Instructions::id())]
-    pub instruction_acc: AccountInfo<'info>,
-
-
-
-    //FOR CREATE COLLECTION ACCOUNTS
-    #[account(mut)]
-    pub authority: Signer<'info>,
+    // #[account(address = Instructions::id())]
+    // pub instruction_acc: AccountInfo<'info>,
     
     #[account(
         init_if_needed,
-        seeds = [SEED.as_ref()],
+        seeds = [hash(data.claim_data.try_to_vec()?.as_slice()).as_ref()],
         bump,
-        payer = authority,
+        payer = user,
         mint::decimals = 0,
         mint::authority = create_collection_mint,
         mint::freeze_authority = create_collection_mint
@@ -1249,45 +1127,41 @@ pub struct Claim721<'info> {
 
     #[account(
         init_if_needed,
-        payer = authority,
+        payer = user,
         associated_token::mint = create_collection_mint,
-        associated_token::authority = authority
+        associated_token::authority = user
     )]
     pub create_collection_token_account: Account<'info, TokenAccount>,
-        
-        
 
     //FOR CREATE NFT IN COLLECTION
-    #[account(mut)]
-    pub user: Signer<'info>,
 
-    #[account(
-        mut,
-        seeds = [SEED.as_bytes()],
-        bump,
-    )]
-    pub nft_collection_mint: Account<'info, Mint>,
+    // #[account(
+    //     mut,
+    //     seeds = [SEED.as_bytes()],
+    //     bump,
+    // )]
+    // pub nft_collection_mint: Account<'info, Mint>,
 
     /// CHECK:
-    #[account(
-        mut,
-        address=find_metadata_account(&nft_collection_mint.key()).0
-    )]
-    pub collection_metadata_account: UncheckedAccount<'info>,
+    // #[account(
+    //     mut,
+    //     address=find_metadata_account(&nft_collection_mint.key()).0
+    // )]
+    // pub collection_metadata_account: UncheckedAccount<'info>,
 
-    /// CHECK:
-    #[account(
-        mut,
-        address=find_master_edition_account(&nft_collection_mint.key()).0
-    )]
-    pub collection_master_edition: UncheckedAccount<'info>,
+    // /// CHECK:
+    // #[account(
+    //     mut,
+    //     address=find_master_edition_account(&nft_collection_mint.key()).0
+    // )]
+    // pub collection_master_edition: UncheckedAccount<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = user,
         mint::decimals = 0,
-        mint::authority = nft_collection_mint,
-        mint::freeze_authority = nft_collection_mint
+        mint::authority = create_collection_mint,
+        mint::freeze_authority = create_collection_mint
     )]
     pub nft_mint: Account<'info, Mint>,
 
@@ -1318,22 +1192,24 @@ pub struct Claim721<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_metadata_program: Program<'info, Metadata>,
     pub rent: Sysvar<'info, Rent>,
+    #[account(mut)]
+    pub user: Signer<'info>,
 }
 
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct ClaimData721 {
-    pub data: ClaimData,
+    pub claim_data: ClaimData,
     pub signatures: Vec<SignatureInfo>,
-    pub bridge_bump: u8,
-    pub other_tokens_bump: u8,
-    pub self_tokens_bump: u8,
-    pub collection_bump: u8,
-    pub collection_mint_key: Pubkey
+    // pub bridge_bump: u8,
+    // pub other_tokens_bump: u8,
+    // pub self_tokens_bump: u8,
+    // pub collection_bump: u8,
+    // pub collection_mint_key: Pubkey
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct ClaimData {
+ #[derive(AnchorSerialize, AnchorDeserialize)] 
+ pub struct ClaimData {
     pub token_id: String,
     pub source_chain: String,
     pub destination_chain: String,
@@ -1348,7 +1224,7 @@ pub struct ClaimData {
     pub token_amount: u64,
     pub nft_type: String,
     pub fee: u64,
-}
+ }
 
 //Events
 #[event]
