@@ -13,7 +13,7 @@ use mpl_token_metadata::{
     state::{CollectionDetails, Creator, DataV2},
 };
 
-declare_id!("BTJGhk2fwqrfcmgosMb1QNqsnWu5fisGcihvWGK2tjur");
+declare_id!("EbrNnJyV58HggyHxX4DJcbgz7mV8qaEx5c1kSLWrJWRZ");
 
 #[constant]
 pub const SEED: &str = "Collection";
@@ -64,9 +64,9 @@ pub mod anchor_nft_collection {
                 &signer_seeds,
             ),
             DataV2 {
-                name: name,
-                symbol: symbol,
-                uri: uri,
+                name,
+                symbol,
+                uri,
                 seller_fee_basis_points: 0,
                 creators: Some(vec![Creator {
                     address: ctx.accounts.authority.key(),
@@ -295,21 +295,19 @@ pub struct CreateNftInCollection<'info> {
     /// CHECK:
     #[account(
         mut,
-        address=find_metadata_account(&nft_mint.key()).0
     )]
     pub metadata_account: UncheckedAccount<'info>,
 
     /// CHECK:
     #[account(
         mut,
-        address=find_master_edition_account(&nft_mint.key()).0
     )]
     pub master_edition: UncheckedAccount<'info>,
 
     #[account(
         init_if_needed,
         payer = user,
-        associated_token::mint = nft_mint,
+        associated_token::mint = collection_mint,
         associated_token::authority = user
     )]
     pub token_account: Account<'info, TokenAccount>,

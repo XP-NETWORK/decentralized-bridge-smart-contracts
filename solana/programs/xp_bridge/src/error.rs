@@ -29,6 +29,9 @@ pub enum ErrorCode {
     #[msg("Invalid NFT type!")]
     InvalidNft,
 
+    #[msg("Invalid Token Amount!")]
+    InvalidTokenAmount,
+
     #[msg("Data already processed!")]
     DataProcessed,
 

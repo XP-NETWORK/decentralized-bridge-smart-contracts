@@ -1,8 +1,8 @@
 [features]
 seeds = false
 [programs.localnet]
-xp_bridge = "EMpyNdhQkvY7FmKSnjyzPWi1NaZush4muRSdtgEbqFH8"
-anchor_nft_collection = "BTJGhk2fwqrfcmgosMb1QNqsnWu5fisGcihvWGK2tjur"
+xp_bridge = "aHWamgYFT2uK17Z7N7ZzJm2oW1Bg8bfKRmLg6ULMzay"
+anchor_nft_collection = "EbrNnJyV58HggyHxX4DJcbgz7mV8qaEx5c1kSLWrJWRZ"
 
 [registry]
 url = "https://anchor.projectserum.com"

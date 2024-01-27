@@ -837,7 +837,7 @@ import { BN, Program, Spl } from "@project-serum/anchor";
 import { XpBridge } from "../target/types/xp_bridge";
 import { Connection, Ed25519Program, Keypair, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY, SystemProgram, Transaction } from "@solana/web3.js";
 import * as fs from "fs";
-import { AddValidatorData, ClaimData, ClaimData721, InitializeData, NewValidatorPublicKey, SignatureInfo } from "../src/encode";
+import { AddValidatorData, ClaimData, ClaimNftData, InitializeData, LockData, NewValidatorPublicKey, SignatureInfo, TxHash, VerifyAddValidatorSignaturesData, VerifyClaimSignaturesData } from "../src/encode";
 import { createHash } from "crypto";
 import { serialize } from "@dao-xyz/borsh";
 import * as ed from "@noble/ed25519";
@@ -930,6 +930,18 @@ describe("bridge", async () => {
   const encode = anchor.utils.bytes.utf8.encode;
   const program = anchor.workspace.XpBridge as Program<XpBridge>;
   const metaplex = Metaplex.make(connection);
+
+  const SELF_CHAIN = "SOL";
+  const TYPE_NFT = "nft"; // a more general term to accomodate non-evm chains
+  const TYPE_SFT = "sft"; // a more general term to accomodate non-evm chains
+  const BRIDGE = "bridge";
+  const VALIDATOR = "validator";
+  const THRESHOLD = "threshold";
+  const SELF_TOKENS = "self_tokens";
+  const OTHER_TOKENS = "other_tokens";
+  const ORIGINAL_TO_DUPLICATE_MAPPING = "original_to_duplicate_mapping";
+  const DUPLICATE_TO_ORIGINAL_MAPPING = "duplicate_to_original_mapping";
+
   //Bridge account
   let bridge: PublicKey;
   let bridgeBump: number;
@@ -954,49 +966,28 @@ describe("bridge", async () => {
   let dtom: PublicKey;
   let dtomBump: number;
 
+  //Threshold account
+  let threshold: PublicKey;
+  let thresholdBump: number;
+
   [bridge, bridgeBump] = await PublicKey.findProgramAddress(
-    [encode("b")],
+    [encode(BRIDGE)],
     program.programId
   );
 
   [validator, validatorBump] = await PublicKey.findProgramAddress(
-    [
-      wallet.publicKey.toBuffer(),
-    ],
+    [new Uint8Array(createHash("SHA256").update(Buffer.from(`${VALIDATOR}${wallet.publicKey.toString()}`)).digest())],
     program.programId
   );
-
-  [selfTokens, selfTokensBump] = await PublicKey.findProgramAddress(
-    [new Uint8Array(createHash("SHA256").update(Buffer.from("st1BSC0x64")).digest())],
-    program.programId
-  );
-
-  [otdm, otdmBump] = await PublicKey.findProgramAddress(
-    [new Uint8Array(createHash("SHA256").update(Buffer.from("otdm0x64BSC")).digest())],
-    program.programId
-  );
-
-
 
   // it("Initialization", async () => {
 
   //   const data = new InitializeData({
-  //     publicKey: wallet.publicKey
+  //     validatorPublicKey: wallet.publicKey
   //   });
 
-  //   const message = serialize(data);
-  //   const msgHash = createHash("SHA256").update(message).digest();
-
-  //   const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
-
-  //   const ed25519Instruction =
-  //     Ed25519Program.createInstructionWithPublicKey({
-  //       publicKey: wallet.publicKey.toBuffer(),
-  //       message: msgHash,
-  //       signature,
-  //     });
-
   //   try {
+  //     //@ts-ignore
   //     const tx = await program.methods.initialize(data)
   //       .accounts({
   //         bridge: bridge,
@@ -1019,14 +1010,14 @@ describe("bridge", async () => {
 
   // });
 
-  // it("Add Validator", async () => {
+  // it("Verify Add Validator Sig And Add Validator", async () => {
   //   let newValidatorKeys = Keypair.generate();
 
-  //   let adsf = new NewValidatorPublicKey({
-  //     publicKey: newValidatorKeys.publicKey
+  //   let newValidator = new NewValidatorPublicKey({
+  //     validatorPublicKey: newValidatorKeys.publicKey
   //   });
 
-  //   const message = serialize(adsf);
+  //   const message = serialize(newValidator);
   //   const msgHash = createHash("SHA256").update(message).digest();
   //   const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
 
@@ -1040,59 +1031,346 @@ describe("bridge", async () => {
   //   const signatures = [new SignatureInfo({
   //     publicKey: wallet.publicKey,
   //     sig: Array.from(signature)
+  //   }), new SignatureInfo({
+  //     publicKey: wallet.publicKey,
+  //     sig: Array.from(signature)
+  //   }), new SignatureInfo({
+  //     publicKey: wallet.publicKey,
+  //     sig: Array.from(signature)
   //   })];
 
-  //   const data = new AddValidatorData({
-  //     publicKey: newValidatorKeys.publicKey,
+  //   console.log(signatures.length);
+
+  //   const data = new VerifyAddValidatorSignaturesData({
+  //     validatorPublicKey: newValidatorKeys.publicKey,
   //     signatures: signatures
   //   });
 
-
-  //   [validator, validatorBump] = await PublicKey.findProgramAddress(
-  //     [
-  //       newValidatorKeys.publicKey.toBuffer(),
-  //     ],
+  //   [threshold, thresholdBump] = await PublicKey.findProgramAddress(
+  //     [new Uint8Array(createHash("SHA256").update(Buffer.from(`${THRESHOLD}${newValidatorKeys.publicKey.toString()}`)).digest())],
   //     program.programId
-  //   );
+  //   )
 
   //   try {
-  //     const tx = await program.methods.addValidator(data)
+  //     // const modifyComputeUnits =
+  //     //   anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+  //     //     units: 300_000,
+  //     //   });
+
+  //     const tx = await program.methods.verifyAddValidatorSignatures(data)
   //       .accounts({
-  //         bridge: bridge,
-  //         validators: validator,
+  //         threshold: threshold,
   //         user: provider.wallet.publicKey,
   //         systemProgram: SystemProgram.programId,
   //         instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY
   //       })
-  //       .preInstructions([ed25519Instruction])
-  //       .rpc({
-  //         skipPreflight: false
-  //       });
-  //     console.log("TxHash ::", tx);
+  //       .remainingAccounts(
+  //         [
+  //           { isSigner: false, isWritable: false, pubkey: validator },
+  //           { isSigner: false, isWritable: false, pubkey: validator },
+  //           { isSigner: false, isWritable: false, pubkey: validator }
+  //         ]
+  //       )
+  //       .preInstructions(
+  //         [
+  //           ed25519Instruction,
+  //           ed25519Instruction,
+  //           ed25519Instruction
+  //         ]
+  //       )
+  //       .transaction()
+
+  //     // const transferTransaction = new anchor.web3.Transaction().add(
+  //     //   modifyComputeUnits,
+  //     //   tx
+  //     // );
+
+  //     let size = getTxSize(tx, wallet.payer.publicKey);
+  //     console.log("size ::", size);
+
+  //     const txSig = await anchor.web3.sendAndConfirmTransaction(
+  //       connection,
+  //       tx,
+  //       [wallet.payer],
+  //       { skipPreflight: false }
+  //     );
+  //     console.log("TxHash ::", txSig);
+  //   }
+  //   catch (ex) {
+  //     console.log(ex);
+  //   }
+
+  //   const addValidatordata = new AddValidatorData({
+  //     validatorPublicKey: newValidatorKeys.publicKey,
+  //   });
+
+  //   [validator, validatorBump] = await PublicKey.findProgramAddress(
+  //     [new Uint8Array(createHash("SHA256").update(Buffer.from(`${VALIDATOR}${newValidatorKeys.publicKey.toString()}`)).digest())],
+  //     program.programId
+  //   );
+
+  //   [threshold, thresholdBump] = await PublicKey.findProgramAddress(
+  //     [new Uint8Array(createHash("SHA256").update(Buffer.from(`${THRESHOLD}${newValidatorKeys.publicKey.toString()}`)).digest())],
+  //     program.programId
+  //   );
+
+  //   try {
+  //     //@ts-ignore
+  //     const tx = await program.methods.addValidator(addValidatordata)
+  //       .accounts({
+  //         bridge: bridge,
+  //         validators: validator,
+  //         //@ts-ignore
+  //         threshold: threshold,
+  //         user: provider.wallet.publicKey,
+  //         systemProgram: SystemProgram.programId,
+  //         instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY
+  //       })
+  //       .preInstructions([ed25519Instruction, ed25519Instruction, ed25519Instruction, ed25519Instruction])
+  //       .transaction()
+
+
+  //     let size = getTxSize(tx, wallet.payer.publicKey);
+  //     console.log("size ::", size);
+
+  //     const txSig = await anchor.web3.sendAndConfirmTransaction(
+  //       connection,
+  //       tx,
+  //       [wallet.payer],
+  //       { skipPreflight: false }
+  //     );
+  //     console.log("TxHash ::", txSig);
+  //   }
+  //   catch (ex) {
+  //     console.log(ex);
+  //   }
+
+  // });
+
+  // it("Verify Claim Sig", async () => {
+
+  //   let claimData = new ClaimNftData({
+  //     tokenId: "1",
+  //     sourceChain: "BSC",
+  //     destinationChain: "SOL",
+  //     destinationUserAddress: wallet.publicKey,
+  //     sourceNftContractAddress: "0x4a27453D9D811AF3e0D7E574279aAD2569bA5b28",
+  //     name: "name",
+  //     symbol: "symbol",
+  //     royalty: new BN(0),
+  //     royaltyReceiver: wallet.publicKey,
+  //     metadata: "https://bafkreianwnedmty7tbdgr5rc6udztk2rm2zufr7hsaqwqb6wwijtxhsksu.ipfs.nftstorage.link",
+  //     transactionHash: "0xc237d45d8ddaddd4721e111cde64a1fec6717c651c27376563cdff5ed02d7553",
+  //     tokenAmount: new BN(1),
+  //     nftType: "nft",
+  //     fee: new BN(0),
+  //   });
+
+  //   let txHashArray = Array.from(createHash("SHA256").update(claimData.transactionHash).digest());
+
+  //   let txHash = new TxHash({
+  //     txHash: txHashArray
+  //   });
+
+  //   const message = serialize(claimData);
+  //   const msgHash = createHash("SHA256").update(message).digest();
+  //   const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
+
+  //   const ed25519Instruction =
+  //     Ed25519Program.createInstructionWithPublicKey({
+  //       publicKey: wallet.payer.publicKey.toBuffer(),
+  //       message: msgHash,
+  //       signature,
+  //     });
+
+  //   const signatures = [new SignatureInfo({
+  //     publicKey: wallet.publicKey,
+  //     sig: Array.from(signature)
+  //   }), new SignatureInfo({
+  //     publicKey: wallet.publicKey,
+  //     sig: Array.from(signature)
+  //   })];
+
+
+  //   const data = new VerifyClaimSignaturesData({
+  //     txHash: txHashArray,
+  //     claimData,
+  //     signatures: signatures
+  //   });
+
+  //   [threshold, thresholdBump] = await PublicKey.findProgramAddress(
+  //     [new Uint8Array(createHash("SHA256").update(serialize(txHash)).digest())],
+  //     program.programId
+  //   )
+
+  //   try {
+  //     // const modifyComputeUnits =
+  //     //   anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+  //     //     units: 300_000,
+  //     //   });
+  //     //@ts-ignore
+  //     const tx = await program.methods.verifyClaimSignatures(data)
+  //       .accounts({
+  //         threshold: threshold,
+  //         user: provider.wallet.publicKey,
+  //         systemProgram: SystemProgram.programId,
+  //         instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY
+  //       })
+  //       .remainingAccounts(
+  //         [
+  //           { isSigner: false, isWritable: false, pubkey: validator },
+  //           { isSigner: false, isWritable: false, pubkey: validator },
+  //         ]
+  //       )
+  //       .preInstructions(
+  //         [
+  //           ed25519Instruction,
+  //           ed25519Instruction,
+  //         ]
+  //       )
+  //       .transaction()
+
+  //     // const transferTransaction = new anchor.web3.Transaction().add(
+  //     //   modifyComputeUnits,
+  //     //   tx
+  //     // );
+
+  //     let size = getTxSize(tx, wallet.payer.publicKey);
+  //     console.log("size ::", size);
+
+  //     const txSig = await anchor.web3.sendAndConfirmTransaction(
+  //       connection,
+  //       tx,
+  //       [wallet.payer],
+  //       { skipPreflight: false }
+  //     );
+  //     console.log("TxHash ::", txSig);
   //   }
   //   catch (ex) {
   //     console.log(ex);
   //   }
   // });
 
+  // it("Lock721", async () => {
+
+  //   const nftKey = new anchor.web3.PublicKey("DBXskGEvW8jkdCaBfrqLmMUQPV1wMGJZTMQiVWBcBvt5");
+  //   const collectionKey = new anchor.web3.PublicKey("4WC7NEPXNeLnvcPX5NfB3YWRq9ez8PDsKBzDefYLrv9m");
+
+  //   const fromTokenAccount = await spl.getAssociatedTokenAddress(
+  //     nftKey,
+  //     wallet.publicKey
+  //   );
+
+  //   console.log("from token account", fromTokenAccount.toString());
+
+  //   const toTokenAccount = await getOrCreateTokenAccount(nftKey, bridge);
+
+  //   console.log("to token account", toTokenAccount.address.toString());
+
+  //   [otherTokens, otherTokensBump] = await PublicKey.findProgramAddress(
+  //     [new Uint8Array(createHash("SHA256").update(Buffer.from(`other_tokens${nftKey.toString()}SOL${collectionKey.toString()}`)).digest())],
+  //     program.programId
+  //   );
+
+  //   [selfTokens, selfTokensBump] = await PublicKey.findProgramAddress(
+  //     [new Uint8Array(createHash("SHA256").update(Buffer.from(`self_tokens${nftKey.toString()}SOL${collectionKey.toString()}`)).digest())],
+  //     program.programId
+  //   );
+
+  //   [dtom, dtomBump] = await PublicKey.findProgramAddress(
+  //     [new Uint8Array(createHash("SHA256").update(Buffer.from(`duplicate_to_original_mapping${collectionKey.toString()}SOL`)).digest())],
+  //     program.programId
+  //   );
+
+  //   // try {
+  //   //   let isOtherTokensExists = await program.account.otherTokenInfo.fetch(otherTokens);
+  //   //   console.log("isOtherTokensExists", isOtherTokensExists);
+  //   //   [selfTokens, selfTokensBump] = await PublicKey.findProgramAddress(
+  //   //     [new Uint8Array(createHash("SHA256").update(Buffer.from(`self_tokens${isOtherTokensExists.tokenId.toString()}${isOtherTokensExists.chain}${isOtherTokensExists.contractAddress}`)).digest())],
+  //   //     program.programId
+  //   //   );
+  //   // }
+  //   // catch (ex) {
+  //   //   console.log(ex);
+  //   // }
+
+  //   // console.log("OTHER", await program.account.otherTokenInfo.fetch(otherTokens));
+  //   // console.log("SELF", await program.account.selfTokenInfo.fetch(selfTokens));
+
+  //   let data = new LockData({
+  //     tokenId: nftKey,
+  //     destinationChain: "BSC",
+  //     destinationUserAddress: "0x12344353",
+  //     sourceNftContractAddress: collectionKey,
+  //     tokenAmount: new BN(1),
+  //     bridgeBump: bridgeBump,
+  //     otherTokensBump: otherTokensBump,
+  //     selfTokensBump: selfTokensBump,
+  //   });
+
+  //   try {
+  //     const modifyComputeUnits =
+  //       anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+  //         units: 300_000,
+  //       });
+
+  //     const tx = await program.methods.lockNft(data)
+  //       .accounts({
+  //         bridge: bridge,
+  //         otherTokens: otherTokens,
+  //         selfTokens: selfTokens,
+  //         duplicateToOriginalMapping: dtom,
+  //         authority: wallet.payer.publicKey,
+  //         from: fromTokenAccount,
+  //         to: toTokenAccount.address,
+  //         systemProgram: SystemProgram.programId,
+  //         tokenProgram: TOKEN_PROGRAM_ID
+  //       })
+  //       .transaction();
+
+  //     const transferTransaction = new anchor.web3.Transaction().add(
+  //       modifyComputeUnits,
+  //       tx
+  //     );
+  //     const txSig = await anchor.web3.sendAndConfirmTransaction(
+  //       connection,
+  //       transferTransaction,
+  //       [wallet.payer],
+  //       { skipPreflight: false }
+  //     );
+  //     console.log("tx ::", txSig);
+
+  //   }
+  //   catch (ex) {
+  //     console.log(ex);
+  //   }
+  // });
+// return
   it("Claim721", async () => {
 
-    let newValidatorKeys = Keypair.generate();
+    let isCollectionExists = false;
+    let isUnlock = false;
 
-    let adsf = new NewValidatorPublicKey({
-      publicKey: newValidatorKeys.publicKey
-    });
+    let claimData = new ClaimNftData({
+      tokenId: "8",
+      sourceChain: "BSC",
+      destinationChain: "SOL",
+      destinationUserAddress: wallet.publicKey,
+      sourceNftContractAddress: "0x4a27453Dvv811AF3e0D7E574279aAD2569bA5b28",
+      name: "name",
+      symbol: "symbol",
+      royalty: new BN(0),
+      royaltyReceiver: wallet.publicKey,
+      metadata: "https://bafkreianwnedmty7tbdgr5rc6udztk2rm2zufr7hsaqwqb6wwijtxhsksu.ipfs.nftstorage.link",
+      transactionHash: "0xc237d45d8ddaddd4721e11llpe64a1ss8l717c651c27376563cdff5ed02d7553",
+      tokenAmount: new BN(1),
+      nftType: "nft",
+      fee: new BN(0),
+    })
 
-    const message = serialize(adsf);
+    const message = serialize(claimData);
     const msgHash = createHash("SHA256").update(message).digest();
     const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
-
-    const ed25519Instruction =
-      Ed25519Program.createInstructionWithPublicKey({
-        publicKey: wallet.payer.publicKey.toBuffer(),
-        message: msgHash,
-        signature,
-      });
 
     const signatures = [new SignatureInfo({
       publicKey: wallet.publicKey,
@@ -1100,183 +1378,324 @@ describe("bridge", async () => {
     })];
 
 
-    let data = new ClaimData721({
-      claimData: new ClaimData({
-        tokenId: "1",
-        sourceChain: "BSC",
-        destinationChain: "SOL",
-        destinationUserAddress: wallet.publicKey,
-        sourceNftContractAddress: "0x6f7C0c6A6dd6E435b0EEc1c9F7Bce01A1908f386",
-        name: "name",
-        symbol: "symbol",
-        royalty: new BN(0),
-        royaltyReceiver: wallet.publicKey,
-        metadata: "https://bafkreianwnedmty7tbdgr5rc6udztk2rm2zufr7hsaqwqb6wwijtxhsksu.ipfs.nftstorage.link",
-        transactionHash: "",
-        tokenAmount: new BN(1),
-        nftType: "s",
-        fee: new BN(0),
-      }),
-      signatures: signatures,
-    });
 
-    const [collectionPDA] = anchor.web3.PublicKey.findProgramAddressSync(
-      [new Uint8Array(createHash("SHA256").update(serialize(data.claimData)).digest())],
+
+    [selfTokens, selfTokensBump] = await PublicKey.findProgramAddress(
+      [new Uint8Array(createHash("SHA256").update(Buffer.from(`self_tokens${claimData.tokenId}${claimData.sourceChain}${claimData.sourceNftContractAddress}`)).digest())],
       program.programId
     );
 
-    const collectionMetadataPDA = await metaplex
-      .nfts()
-      .pdas()
-      .metadata({ mint: collectionPDA });
-
-    const collectionMasterEditionPDA = await metaplex
-      .nfts()
-      .pdas()
-      .masterEdition({ mint: collectionPDA });
-
-    const collectionTokenAccount = await spl.getAssociatedTokenAddress(
-      collectionPDA,
-      wallet.publicKey
-    );
-    console.log(wallet.publicKey.toString());
 
 
-    const mint = anchor.web3.Keypair.generate();
-
-    const metadataPDA = await metaplex
-      .nfts()
-      .pdas()
-      .metadata({ mint: mint.publicKey });
-
-    const masterEditionPDA = await metaplex
-      .nfts()
-      .pdas()
-      .masterEdition({ mint: mint.publicKey });
-
-    const tokenAccount = await spl.getAssociatedTokenAddress(
-      mint.publicKey,
-      wallet.publicKey
-    );
-    console.log("AAAAAAAAAAAA", [new Uint8Array(createHash("SHA256").update(Buffer.from(`dtom${collectionPDA.toString()}SOL`)).digest()).length]);
-
-    [otherTokens, otherTokensBump] = await PublicKey.findProgramAddress(
-      [new Uint8Array(createHash("SHA256").update(Buffer.from(`ot1SOL${collectionPDA.toString()}`)).digest())],
-      program.programId
-    );
-    [dtom, dtomBump] = await PublicKey.findProgramAddress(
-      [new Uint8Array(createHash("SHA256").update(Buffer.from(`dtom${collectionPDA.toString()}SOL`)).digest())],
+    [otdm, otdmBump] = await PublicKey.findProgramAddress(
+      [new Uint8Array(createHash("SHA256").update(Buffer.from(`original_to_duplicate_mapping${claimData.sourceNftContractAddress}${claimData.sourceChain}`)).digest())],
       program.programId
     );
 
-    // console.log({
-    //   bridge: bridge.toString(),
-    //   otherTokens: otherTokens.toString(),
-    //   selfTokens: selfTokens.toString(),
-    //   originalToDuplicateMapping: otdm.toString(),
-    //   duplicateToOriginalMapping: dtom.toString(),
-    //   // to: tokenAccount,
-    //   user: provider.wallet.publicKey.toString(),
-    //   createCollectionMasterEdition: collectionMasterEditionPDA.toString(),
-    //   createCollectionMetadataAccount: collectionMetadataPDA.toString(),
-    //   createCollectionMint: collectionPDA.toString(),
-    //   createCollectionTokenAccount: collectionTokenAccount.toString(),
-    //   // collectionMasterEdition: collectionMasterEditionPDA,
-    //   // collectionMetadataAccount: collectionMetadataPDA,
-    //   // nftCollectionMint: collectionPDA,
-    //   nftMasterEdition: masterEditionPDA.toString(),
-    //   nftMetadataAccount: metadataPDA.toString(),
-    //   nftMint: mint.publicKey.toString(),
-    //   nftTokenAccount: tokenAccount.toString(),
-
-    //   tokenMetadataProgram: METADATA_PROGRAM_ID.toString(),
-    //   systemProgram: SystemProgram.programId.toString(),
-    //   // instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY,
-    // });
+    let otdmData: any;
+    let selfTokensData: any;
+    let collectionPDA: anchor.web3.PublicKey;
+    let collectionMetadataPDA: anchor.web3.PublicKey;
+    let collectionMasterEditionPDA: anchor.web3.PublicKey;
+    let collectionTokenAccount: anchor.web3.PublicKey;
+    let mint: anchor.web3.PublicKey;
+    let newMint: anchor.web3.Keypair;
+    let metadataPDA: anchor.web3.PublicKey;
+    let masterEditionPDA: anchor.web3.PublicKey;
+    let tokenAccount: anchor.web3.PublicKey;
+    let bridgeTokenAccount: any;
 
     try {
+      otdmData = await program.account.contractInfo.fetch(otdm);
+      isCollectionExists = true;
+    }
+    catch (ex) {
+      console.log(ex);
+    }
 
+    try {
+      selfTokensData = await program.account.selfTokenInfo.fetch(selfTokens);
+      isUnlock = true;
+      bridgeTokenAccount = await getOrCreateTokenAccount(new anchor.web3.PublicKey(selfTokensData.tokenId), bridge);
+      console.log(selfTokensData, "asdasdsad " + selfTokensData.tokenId.toString());
+      console.log("bridgeTokenAccount", bridgeTokenAccount);
+
+      [otherTokens, otherTokensBump] = await PublicKey.findProgramAddress(
+        [new Uint8Array(createHash("SHA256").update(Buffer.from(`other_tokens${selfTokensData.tokenId.toString()}SOL${selfTokensData.contractAddress}`)).digest())],
+        program.programId
+      );
+
+      [dtom, dtomBump] = await PublicKey.findProgramAddress(
+        [new Uint8Array(createHash("SHA256").update(Buffer.from(`duplicate_to_original_mapping${selfTokensData.contractAddress}SOL`)).digest())],
+        program.programId
+      );
+    }
+    catch (ex) {
+      console.log(ex);
+    }
+    if (isCollectionExists) {
+      // collectionPDA = new anchor.web3.PublicKey(otdmData.contractAddress);
+      console.log(otdmData.contractAddress);
+
+      [collectionPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+        [new Uint8Array(createHash("SHA256").update(Buffer.from(`${claimData.sourceNftContractAddress}${claimData.sourceChain}`)).digest())],
+        program.programId
+      );
+      console.log("collection ", collectionPDA.toString());
+
+
+      collectionMetadataPDA = await metaplex
+        .nfts()
+        .pdas()
+        .metadata({ mint: collectionPDA });
+
+      collectionMasterEditionPDA = await metaplex
+        .nfts()
+        .pdas()
+        .masterEdition({ mint: collectionPDA });
+
+      collectionTokenAccount = await spl.getAssociatedTokenAddress(
+        collectionPDA,
+        wallet.publicKey
+      );
+
+      if (selfTokensData) {
+        mint = new anchor.web3.PublicKey(selfTokensData.tokenId.toString());
+
+        metadataPDA = await metaplex
+          .nfts()
+          .pdas()
+          .metadata({ mint: mint });
+
+        masterEditionPDA = await metaplex
+          .nfts()
+          .pdas()
+          .masterEdition({ mint: mint });
+
+        tokenAccount = await spl.getAssociatedTokenAddress(
+          mint,
+          wallet.publicKey
+        );
+      }
+      else {
+
+        newMint = anchor.web3.Keypair.generate();
+
+        [otherTokens, otherTokensBump] = await PublicKey.findProgramAddress(
+          [new Uint8Array(createHash("SHA256").update(Buffer.from(`other_tokens${newMint.publicKey.toString()}SOL${collectionPDA.toString()}`)).digest())],
+          program.programId
+        );
+
+        [dtom, dtomBump] = await PublicKey.findProgramAddress(
+          [new Uint8Array(createHash("SHA256").update(Buffer.from(`duplicate_to_original_mapping${collectionPDA.toString()}SOL`)).digest())],
+          program.programId
+        );
+
+        metadataPDA = await metaplex
+          .nfts()
+          .pdas()
+          .metadata({ mint: newMint.publicKey });
+
+        masterEditionPDA = await metaplex
+          .nfts()
+          .pdas()
+          .masterEdition({ mint: newMint.publicKey });
+
+        tokenAccount = await spl.getAssociatedTokenAddress(
+          newMint.publicKey,
+          wallet.publicKey
+        );
+      }
+    }
+    else {
+      console.log("asdsad");
+      [collectionPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+        [new Uint8Array(createHash("SHA256").update(`${claimData.sourceNftContractAddress}${claimData.sourceChain}`).digest())],
+        program.programId
+      );
+
+      collectionMetadataPDA = await metaplex
+        .nfts()
+        .pdas()
+        .metadata({ mint: collectionPDA });
+
+      collectionMasterEditionPDA = await metaplex
+        .nfts()
+        .pdas()
+        .masterEdition({ mint: collectionPDA });
+
+      collectionTokenAccount = await spl.getAssociatedTokenAddress(
+        collectionPDA,
+        wallet.publicKey
+      );
+
+      newMint = anchor.web3.Keypair.generate();
+
+      metadataPDA = await metaplex
+        .nfts()
+        .pdas()
+        .metadata({ mint: newMint.publicKey });
+
+      masterEditionPDA = await metaplex
+        .nfts()
+        .pdas()
+        .masterEdition({ mint: newMint.publicKey });
+
+      tokenAccount = await spl.getAssociatedTokenAddress(
+        newMint.publicKey,
+        wallet.publicKey
+      );
+
+      [otherTokens, otherTokensBump] = await PublicKey.findProgramAddress(
+        [new Uint8Array(createHash("SHA256").update(Buffer.from(`other_tokens${newMint.publicKey}SOL${collectionPDA.toString()}`)).digest())],
+        program.programId
+      );
+
+      [dtom, dtomBump] = await PublicKey.findProgramAddress(
+        [new Uint8Array(createHash("SHA256").update(Buffer.from(`duplicate_to_original_mapping${collectionPDA.toString()}SOL`)).digest())],
+        program.programId
+      );
+    }
+
+    console.log({
+      //   bridge: bridge.toString(),
+      //   otherTokens: otherTokens.toString(),
+      //   selfTokens: selfTokens.toString(),
+      //   originalToDuplicateMapping: otdm.toString(),
+      //   duplicateToOriginalMapping: dtom.toString(),
+      //   // to: tokenAccount,
+      //   user: provider.wallet.publicKey.toString(),
+      //   createCollectionMasterEdition: collectionMasterEditionPDA.toString(),
+      //   createCollectionMetadataAccount: collectionMetadataPDA.toString(),
+      createCollectionMint: collectionPDA.toString(),
+      //   createCollectionTokenAccount: collectionTokenAccount.toString(),
+      //   // collectionMasterEdition: collectionMasterEditionPDA,
+      //   // collectionMetadataAccount: collectionMetadataPDA,
+      //   // nftCollectionMint: collectionPDA,
+      //   nftMasterEdition: masterEditionPDA.toString(),
+      //   nftMetadataAccount: metadataPDA.toString(),
+      //   nftMint: mint.toString(),
+      //   nftTokenAccount: tokenAccount.toString(),
+
+      //   tokenMetadataProgram: METADATA_PROGRAM_ID.toString(),
+      //   systemProgram: SystemProgram.programId.toString(),
+      //   // instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY,
+    });
+    // console.log("gando");
+    console.log(isCollectionExists, isUnlock);
+    // console.log(otherTokens.toString());
+
+    try {
       const modifyComputeUnits =
         anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
           units: 600_000,
         });
-      // @ts-ignore
-      const tx = await program.methods.claim(data)
-        .accounts({
-          bridge: bridge,
-          otherTokens: otherTokens,
-          selfTokens: selfTokens,
-          originalToDuplicateMapping: otdm,
-          duplicateToOriginalMapping: dtom,
-          // to: tokenAccount,
-          user: provider.wallet.publicKey,
-          createCollectionMasterEdition: collectionMasterEditionPDA,
-          createCollectionMetadataAccount: collectionMetadataPDA,
-          createCollectionMint: collectionPDA,
-          createCollectionTokenAccount: collectionTokenAccount,
-          // collectionMasterEdition: collectionMasterEditionPDA,
-          // collectionMetadataAccount: collectionMetadataPDA,
-          // nftCollectionMint: collectionPDA,
-          nftMasterEdition: masterEditionPDA,
-          nftMetadataAccount: metadataPDA,
-          nftMint: mint.publicKey,
-          nftTokenAccount: tokenAccount,
-          tokenMetadataProgram: METADATA_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-          tokenProgram: TOKEN_PROGRAM_ID
-          // instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY,
-        })
-        .transaction();
+      let tx: anchor.web3.Transaction;
+      if (!isCollectionExists && !isUnlock) {
+        console.log("here");
+        let data = new ClaimData({
+          claimData,
+          nftMint: null
+        });
+        //@ts-ignore
+        tx = await program.methods.claimNftWithCollectionCreation(data)
+          .accounts({
+            bridge: bridge,
+            otherTokens: otherTokens,
+            selfTokens: selfTokens,
+            originalToDuplicateMapping: otdm,
+            duplicateToOriginalMapping: dtom,
+            createCollectionMasterEdition: collectionMasterEditionPDA,
+            createCollectionMetadataAccount: collectionMetadataPDA,
+            createCollectionMint: collectionPDA,
+            createCollectionTokenAccount: collectionTokenAccount,
+            nftMasterEdition: masterEditionPDA,
+            nftMetadataAccount: metadataPDA,
+            nftMint: newMint.publicKey,
+            nftTokenAccount: tokenAccount,
+            tokenMetadataProgram: METADATA_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            user: provider.wallet.publicKey,
+          })
+          .transaction();
+      }
+      else if (isCollectionExists && !isUnlock) {
+        console.log("lllllllllllllllllaaaaaaaaaaaaaaaaaaaaa");
+        let data = new ClaimData({
+          claimData,
+          nftMint: null
+        });
+        //@ts-ignore
+        tx = await program.methods.claimNftWithCreation(data)
+          .accounts({
+            bridge: bridge,
+            otherTokens: otherTokens,
+            selfTokens: selfTokens,
+            originalToDuplicateMapping: otdm,
+            duplicateToOriginalMapping: dtom,
+            createCollectionMasterEdition: collectionMasterEditionPDA,
+            createCollectionMetadataAccount: collectionMetadataPDA,
+            createCollectionMint: collectionPDA,
+            nftMasterEdition: masterEditionPDA,
+            nftMetadataAccount: metadataPDA,
+            nftMint: newMint.publicKey,
+            nftTokenAccount: tokenAccount,
+            tokenMetadataProgram: METADATA_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            user: provider.wallet.publicKey,
+          })
+          .transaction();
+      }
+      else if (isUnlock) {
+        let data = new ClaimData({
+          claimData,
+          nftMint: mint
+        });
+        //@ts-ignore
+        tx = await program.methods.claimNftJustUnlock(data)
+          .accounts({
+            bridge: bridge,
+            otherTokens: otherTokens,
+            selfTokens: selfTokens,
+            originalToDuplicateMapping: otdm,
+            duplicateToOriginalMapping: dtom,
+            bridgeTokenAccount: bridgeTokenAccount.address,
+            user: provider.wallet.publicKey,
+            createCollectionMint: collectionPDA,
+            nftTokenAccount: tokenAccount,
+            tokenMetadataProgram: METADATA_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID
+          })
+          .transaction();
+      }
 
       const transferTransaction = new anchor.web3.Transaction().add(
         modifyComputeUnits,
         tx
       );
+      let size = getTxSize(transferTransaction, wallet.payer.publicKey);
+      console.log("size ::", size);
 
-      // const txSig = await anchor.web3.sendAndConfirmTransaction(
-      //   connection,
-      //   transferTransaction,
-      //   [wallet.payer, mint],
-      //   { skipPreflight: false }
-      // );
+      const txSig = await anchor.web3.sendAndConfirmTransaction(
+        connection,
+        transferTransaction,
+        [wallet.payer, newMint],
+        { skipPreflight: false }
+      );
 
-      // console.log(txSig);
-      let size = getTxSize(tx, wallet.payer.publicKey);
-      console.log("size ::", size, tx);
+      console.log(txSig);
+
     }
     catch (ex) {
+      //console.log(ex);
+
       console.dir(ex.logs, { 'maxArrayLength': null });
     }
   });
 
-  //   it("Vote for GM", async () => { 
-  //     const tx = await program.methods.gibVote({gm:{}})
-  //     .accounts({
-  //       voteAccount: voteBank.publicKey,
-  //     })
-  //     .rpc();
-  //     console.log("TxHash ::", tx);
-
-
-  //     let voteBankData = await program.account.voteBank.fetch(voteBank.publicKey);
-  //     console.log(`Total GMs :: ${voteBankData.gm}`)
-  //     console.log(`Total GNs :: ${voteBankData.gn}`)
-  //   });
-
-
-  //   it("Vote for GN", async () => { 
-  //     const tx = await program.methods.gibVote({g:{}})
-  //     .accounts({
-  //       voteAccount: voteBank.publicKey,
-  //     })
-  //     .rpc();
-  //     console.log("TxHash ::", tx);
-
-
-  //     let voteBankData = await program.account.voteBank.fetch(voteBank.publicKey);
-  //     console.log(`Total GMs :: ${voteBankData.gm}`)
-  //     console.log(`Total GNs :: ${voteBankData.gn}`)
-  //   });
 });
 
 async function getOrCreateTokenAccount(mint: PublicKey, owner: PublicKey) {

@@ -33,10 +33,10 @@ export class InitializeData {
             return reader.readFixedArray(32);
         },
     })
-    publicKey: PublicKey;
+    validatorPublicKey: PublicKey;
 
-    constructor(args: { publicKey: PublicKey }) {
-        this.publicKey = args.publicKey;
+    constructor(args: { validatorPublicKey: PublicKey }) {
+        this.validatorPublicKey = args.validatorPublicKey;
     }
 }
 
@@ -49,10 +49,10 @@ export class NewValidatorPublicKey {
             return reader.readFixedArray(32);
         },
     })
-    publicKey: PublicKey;
+    validatorPublicKey: PublicKey;
 
-    constructor(args: { publicKey: PublicKey }) {
-        this.publicKey = args.publicKey;
+    constructor(args: { validatorPublicKey: PublicKey }) {
+        this.validatorPublicKey = args.validatorPublicKey;
     }
 }
 
@@ -84,17 +84,33 @@ export class AddValidatorData {
             return reader.readFixedArray(32);
         },
     })
-    publicKey: PublicKey;
+    validatorPublicKey: PublicKey;
+
+    constructor(args: { validatorPublicKey: PublicKey }) {
+        this.validatorPublicKey = args.validatorPublicKey;
+    }
+}
+
+export class VerifyAddValidatorSignaturesData {
+    @field({
+        serialize(arg: PublicKey, writer) {
+            writer.writeFixedArray(arg.toBuffer());
+        },
+        deserialize(reader) {
+            return reader.readFixedArray(32);
+        },
+    })
+    validatorPublicKey: PublicKey;
     @field({ type: vec(SignatureInfo) })
     signatures: SignatureInfo[];
 
-    constructor(args: { publicKey: PublicKey; signatures: SignatureInfo[] }) {
-        this.publicKey = args.publicKey;
+    constructor(args: { validatorPublicKey: PublicKey; signatures: SignatureInfo[] }) {
+        this.validatorPublicKey = args.validatorPublicKey;
         this.signatures = args.signatures;
     }
 }
 
-export class ClaimData {
+export class ClaimNftData {
     @field({ type: "String" })
     tokenId: string;
 
@@ -184,11 +200,11 @@ export class ClaimData {
     }
 }
 
-export class ClaimData721 {
-    @field({ type: ClaimData })
-    claimData: ClaimData;
-    @field({ type: vec(SignatureInfo) })
-    signatures: SignatureInfo[];
+export class ClaimData {
+    @field({ type: ClaimNftData })
+    claimData: ClaimNftData;
+    // @field({ type: vec(SignatureInfo) })
+    // signatures: SignatureInfo[];
     // @field({ type: "u8" })
     // bridgeBump: number;
     // @field({ type: "u8" })
@@ -197,20 +213,22 @@ export class ClaimData721 {
     // selfTokensBump: number;
     // @field({ type: "u8" })
     // collectionBump: number;
-    // @field({
-    //     serialize(arg: PublicKey, writer) {
-    //         writer.writeFixedArray(arg.toBuffer());
-    //     },
-    //     deserialize(reader) {
-    //         return reader.readFixedArray(32);
-    //     },
-    // })
-    // collectionMintKey: PublicKey;
+    @field({
+        type: option(PublicKey),
+        serialize(arg: PublicKey, writer) {
+            writer.writeFixedArray(arg.toBuffer());
+        },
+        deserialize(reader) {
+            return reader.readFixedArray(32);
+        },
+    })
+    nftMint: PublicKey | undefined;
 
     constructor(args:
         {
-            claimData: ClaimData,
-            signatures: SignatureInfo[],
+            claimData: ClaimNftData,
+            nftMint: PublicKey,
+            // signatures: SignatureInfo[],
             // bridgeBump: number,
             // otherTokensBump: number,
             // selfTokensBump: number,
@@ -218,7 +236,8 @@ export class ClaimData721 {
             // collectionMintKey: PublicKey
         }) {
         this.claimData = args.claimData;
-        this.signatures = args.signatures;
+        this.nftMint = args.nftMint;
+        // this.signatures = args.signatures;
         // this.bridgeBump = args.bridgeBump;
         // this.otherTokensBump = args.otherTokensBump;
         // this.selfTokensBump = args.selfTokensBump;
@@ -227,188 +246,80 @@ export class ClaimData721 {
     }
 }
 
-export class PauseData {
+export class LockData {
+    @field({
+        serialize(arg: PublicKey, writer) {
+            writer.writeFixedArray(arg.toBuffer());
+        },
+        deserialize(reader) {
+            return reader.readFixedArray(32);
+        },
+    })
+    tokenId: PublicKey;
+    @field({ type: "String" })
+    destinationChain: string;
+    @field({ type: "String" })
+    destinationUserAddress: string;
+    @field({
+        serialize(arg: PublicKey, writer) {
+            writer.writeFixedArray(arg.toBuffer());
+        },
+        deserialize(reader) {
+            return reader.readFixedArray(32);
+        },
+    })
+    sourceNftContractAddress: PublicKey;
     @field({ type: "u64" })
-    actionId: BN;
+    tokenAmount: BN;
     @field({ type: "u8" })
     bridgeBump: number;
+    @field({ type: "u8" })
+    otherTokensBump: number;
+    @field({ type: "u8" })
+    selfTokensBump: number;
 
-    constructor(args: { actionId: BN; bridgeBump: number }) {
-        this.actionId = args.actionId;
+    constructor(args:
+        {
+            tokenId: PublicKey,
+            destinationChain: string,
+            destinationUserAddress: string,
+            sourceNftContractAddress: PublicKey,
+            tokenAmount: BN,
+            bridgeBump: number,
+            otherTokensBump: number,
+            selfTokensBump: number,
+        }) {
+        this.tokenId = args.tokenId;
+        this.destinationChain = args.destinationChain;
+        this.destinationUserAddress = args.destinationUserAddress;
+        this.sourceNftContractAddress = args.sourceNftContractAddress;
+        this.tokenAmount = args.tokenAmount;
         this.bridgeBump = args.bridgeBump;
+        this.otherTokensBump = args.otherTokensBump;
+        this.selfTokensBump = args.selfTokensBump;
     }
 }
 
-export class UnpauseData {
-    @field({ type: "u64" })
-    actionId: BN;
-    @field({ type: "u8" })
-    bridgeBump: number;
-
-    constructor(args: { actionId: BN; bridgeBump: number }) {
-        this.actionId = args.actionId;
-        this.bridgeBump = args.bridgeBump;
-    }
-}
-
-export class UpdateGroupkeyData {
-    @field({ type: "u64" })
-    actionId: BN;
-    @field({ type: "u8" })
-    bridgeBump: number;
+export class TxHash {
     @field({ type: fixedArray("u8", 32) })
-    newKey: number[];
+    txHash: number[];
 
-    constructor(args: { actionId: BN; bridgeBump: number; newKey: number[] }) {
-        this.actionId = args.actionId;
-        this.bridgeBump = args.bridgeBump;
-        this.newKey = args.newKey;
+    constructor(args: { txHash: number[] }) {
+        this.txHash = args.txHash;
     }
 }
 
-export class Collection {
-    @field({ type: "bool" })
-    verified: boolean;
-    @field({
-        serialize(address: PublicKey, writer) {
-            writer.writeFixedArray(address.toBuffer());
-        },
-        deserialize(reader) {
-            return reader.readFixedArray(32);
-        },
-    })
-    key: PublicKey;
+export class VerifyClaimSignaturesData {
+    @field({ type: fixedArray("u8", 32) })
+    txHash: number[];
+    @field({ type: ClaimNftData })
+    claimData: ClaimNftData;
+    @field({ type: vec(SignatureInfo) })
+    signatures: SignatureInfo[];
 
-    constructor(args: { verified: boolean; key: PublicKey }) {
-        this.verified = args.verified;
-        this.key = args.key;
-    }
-}
-
-export class Creator {
-    @field({
-        serialize(arg: PublicKey, writer) {
-            writer.writeFixedArray(arg.toBuffer());
-        },
-        deserialize(reader) {
-            return reader.readFixedArray(32);
-        },
-    })
-    address: PublicKey;
-    @field({ type: "bool" })
-    verified: boolean;
-    @field({ type: "u8" })
-    share: number;
-
-    constructor(args: { address: PublicKey; verified: boolean; share: number }) {
-        this.address = args.address;
-        this.verified = args.verified;
-        this.share = args.share;
-    }
-}
-
-export class TransferNftData {
-    @field({ type: "u64" })
-    actionId: BN;
-    @field({ type: "u8" })
-    bridgeBump: number;
-    @field({ type: "u8" })
-    authBump: number;
-    @field({ type: "u64" })
-    chainNonce: BN;
-    @field({ type: "String" })
-    name: string;
-    @field({ type: "String" })
-    symbol: string;
-    @field({ type: "String" })
-    uri: string;
-    @field({
-        serialize(arg: PublicKey, writer) {
-            writer.writeFixedArray(arg.toBuffer());
-        },
-        deserialize(reader) {
-            return reader.readFixedArray(32);
-        },
-    })
-    owner: PublicKey;
-    @field({ type: option(Collection) })
-    collection: Collection | undefined;
-    @field({ type: option("u16") })
-    sellerFeeBasisPoints: number | undefined;
-    @field({ type: option(vec(Creator)) })
-    creators: Creator[] | undefined;
-
-    constructor(args: {
-        actionId: BN;
-        bridgeBump: number;
-        authBump: number;
-        chainNonce: BN;
-        name: string;
-        symbol: string;
-        uri: string;
-        owner: PublicKey;
-        collection: Collection;
-        sellerFeeBasisPoints: number;
-        creators: Creator[];
-    }) {
-        this.actionId = args.actionId;
-        this.bridgeBump = args.bridgeBump;
-        this.authBump = args.authBump;
-        this.chainNonce = args.chainNonce;
-        this.name = args.name;
-        this.symbol = args.symbol;
-        this.uri = args.uri;
-        this.owner = args.owner;
-        this.collection = args.collection;
-        this.sellerFeeBasisPoints = args.sellerFeeBasisPoints;
-        this.creators = args.creators;
-    }
-}
-
-export class UnfreezeNftData {
-    @field({ type: "u64" })
-    actionId: BN;
-    @field({ type: "u8" })
-    bridgeBump: number;
-    @field({
-        serialize(arg: PublicKey, writer) {
-            writer.writeFixedArray(arg.toBuffer());
-        },
-        deserialize(reader) {
-            return reader.readFixedArray(32);
-        },
-    })
-    receiver: PublicKey;
-    @field({
-        serialize(arg: PublicKey, writer) {
-            writer.writeFixedArray(arg.toBuffer());
-        },
-        deserialize(reader) {
-            return reader.readFixedArray(32);
-        },
-    })
-    mint: PublicKey;
-
-    constructor(args: {
-        actionId: BN;
-        bridgeBump: number;
-        receiver: PublicKey;
-        mint: PublicKey;
-    }) {
-        this.actionId = args.actionId;
-        this.bridgeBump = args.bridgeBump;
-        this.receiver = args.receiver;
-        this.mint = args.mint;
-    }
-}
-
-export class WithdrawFeesData {
-    @field({ type: "u64" })
-    actionId: BN;
-    @field({ type: "u8" })
-    bridgeBump: number;
-    constructor(args: { actionId: BN; bridgeBump: number }) {
-        this.actionId = args.actionId;
-        this.bridgeBump = args.bridgeBump;
+    constructor(args: { txHash: number[]; claimData: ClaimNftData; signatures: SignatureInfo[] }) {
+        this.txHash = args.txHash;
+        this.claimData = args.claimData;
+        this.signatures = args.signatures;
     }
 }

@@ -3,7 +3,8 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct Bridge {
-    pub validator_count: u32,
+    pub validator_count: u64,
+    pub current_token_id: u64,
 }
 
 #[account]
@@ -15,11 +16,17 @@ pub struct Validators {
 
 #[account]
 #[derive(InitSpace)]
+pub struct SignatureThreshold {
+    pub threshold: u64,
+}
+
+#[account]
+#[derive(InitSpace)]
 pub struct ContractInfo {
     #[max_len(20)]
     pub chain: String,
     #[max_len(50)]
-    pub address: String,
+    pub contract_address: String,
 }
 
 #[account]
@@ -35,7 +42,7 @@ pub struct SelfTokenInfo {
 #[account]
 #[derive(InitSpace)]
 pub struct OtherTokenInfo {
-    #[max_len(20)]
+    #[max_len(50)]
     pub token_id: String,
     #[max_len(20)]
     pub chain: String,
