@@ -1,7 +1,7 @@
 pub mod error;
 pub mod state;
 
-use anchor_lang::{prelude::*, solana_program::{hash::hash, sysvar::SysvarId}};
+use anchor_lang::{prelude::*, solana_program::{hash::hash, sysvar::SysvarId ,system_instruction}};
 use anchor_spl::{
     self,
     token::{self, Mint, Token, TokenAccount, Transfer}, associated_token::AssociatedToken, metadata::Metadata,
@@ -11,6 +11,7 @@ use state::{Bridge, ContractInfo, OtherTokenInfo, SelfTokenInfo, SignatureThresh
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 use anchor_lang::solana_program::ed25519_program::ID as ED25519_ID;
+use anchor_lang::solana_program::program::invoke;
 
 declare_id!("aHWamgYFT2uK17Z7N7ZzJm2oW1Bg8bfKRmLg6ULMzay");
 
@@ -22,11 +23,12 @@ pub mod xp_bridge {
     pub const BRIDGE: &str = "bridge";
     pub const VALIDATOR: &str = "validator";
     pub const THRESHOLD: &str = "threshold";
+    pub const REWARD: &str = "reward";
     pub const SELF_TOKENS: &str = "self_tokens";
     pub const OTHER_TOKENS: &str = "other_tokens";
     pub const ORIGINAL_TO_DUPLICATE_MAPPING: &str = "original_to_duplicate_mapping";
     pub const DUPLICATE_TO_ORIGINAL_MAPPING: &str = "duplicate_to_original_mapping";
-
+    pub const LAMPORTS_PER_SOL: u64 = 1_000_000_000;
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>, _data: InitializeData) -> Result<()> {
@@ -68,13 +70,6 @@ pub mod xp_bridge {
         }
         threshold_account.threshold += percentage;
 
-        // let validators_count = self.validators_count().get();
-
-        // require!(
-        //     percentage >= (((validators_count * 2) / 3) + 1),
-        //     "Threshold not reached!"
-        // );
-
         Ok(())
     }
 
@@ -85,6 +80,14 @@ pub mod xp_bridge {
         let threshold_account = &mut ctx.accounts.threshold;
         let mut percentage: u64 = 0;
         let claim_data = data.claim_data.try_to_vec()?;
+        let total_rewards = ctx.accounts.bridge.to_account_info().lamports();
+        let fee = data.claim_data.fee;
+
+        if total_rewards < fee {
+            return Err(error::ErrorCode::NoRewardsAvailable.into());
+        }
+
+        let fee_per_validator = fee / data.validators_count;
 
         for (index,sig_info) in data.signatures.into_iter().enumerate() {
 
@@ -92,6 +95,37 @@ pub mod xp_bridge {
 
             //Check that ix is what we expect to have been sent
             let res = utils::verify_ed25519_ix(&ix, &sig_info.public_key.to_bytes(), &claim_data, &sig_info.sig)?;
+
+            if res {
+                let validator_account: Result<Account<Validators>> = Account::try_from(&ctx.remaining_accounts[index]);
+                match validator_account {
+                    Ok(mut v)=>{
+                        if v.added {
+                            percentage += 1;
+                            v.pending_rewards += fee_per_validator;
+                        }
+                    },
+                    Err(_) => todo!()
+                }
+            }
+        }
+        threshold_account.threshold += percentage;
+        
+        Ok(())
+    }
+
+    pub fn verify_reward_validator_signatures(ctx: Context<VerifyRewardValidatorSignatures>, data: VerifyRewardValidatorSignaturesData) -> Result<()> {
+        if data.signatures.len() == 0 {
+            return Err(error::ErrorCode::NoSignatures.into());
+        }
+        let threshold_account = &mut ctx.accounts.threshold;
+        let mut percentage: u64 = 0;
+
+        for (index,sig_info) in data.signatures.into_iter().enumerate() {
+
+            let ix: Instruction = load_instruction_at_checked(index, &ctx.accounts.instruction_acc)?;
+            //Check that ix is what we expect to have been sent
+            let res = utils::verify_ed25519_ix(&ix, &sig_info.public_key.to_bytes(), &data.validator_public_key.to_bytes(), &sig_info.sig)?;
 
             if res {
                 let validator_account: Result<Account<Validators>> = Account::try_from(&ctx.remaining_accounts[index]);
@@ -125,6 +159,37 @@ pub mod xp_bridge {
         let validator = &mut ctx.accounts.validators;
         validator.added = true;
         validator.pending_rewards = 0;
+        Ok(())
+    }
+
+    pub fn claim_validator_rewards(ctx: Context<ValidatorClaimReward>, _data: ValidatorClaimRewardData) -> Result<()> {
+        let validators_count = ctx.accounts.bridge.validator_count;
+        let percentage = ctx.accounts.threshold.threshold;
+
+        if !(percentage >= (((validators_count * 2) / 3) + 1)) {
+            return Err(error::ErrorCode::NoSignatures.into())
+        }
+
+        let from_account = &ctx.accounts.bridge.to_account_info();
+        let to_account = &ctx.accounts.validators.to_account_info();
+
+        let bridge_balance = **from_account.try_borrow_lamports()?;
+        let min_balance = LAMPORTS_PER_SOL / 100;
+
+        if bridge_balance <= min_balance {
+            return err!(error::ErrorCode::NoRewardsAvailable);
+        }
+
+        let amount = bridge_balance - min_balance; // current balance of bridge - minimum balance of bridge
+        
+         // Does the from account have enough lamports to transfer?
+        if **from_account.try_borrow_lamports()? < amount {
+            return err!(error::ErrorCode::NoRewardsAvailable);
+        }
+        // Debit from_account and credit to_account
+        **from_account.try_borrow_mut_lamports()? -= amount;
+        **to_account.try_borrow_mut_lamports()? += amount;
+
         Ok(())
     }
 
@@ -269,147 +334,24 @@ pub mod xp_bridge {
         Ok(())
     }
 
-    // pub fn claim_nft(ctx: Context<Claim>, data: ClaimData) -> Result<()> {
-    //     if !data.claim_data.nft_type.as_bytes().eq(TYPE_NFT.as_bytes()) {
-    //         return Err(error::ErrorCode::InvalidNft.into());
-    //     }
-    //     let binding = hash(data.claim_data.try_to_vec()?.as_slice());
-    //     let collection_seed_hash = binding.as_ref();
-    //     let duplicate_collection_address = &mut ctx.accounts.original_to_duplicate_mapping;
-    //     let self_tokens =&mut ctx.accounts.self_tokens;
-
-    //     let is_token_exists;
-    //     msg!("asdfasd {}",duplicate_collection_address.chain);
-
-    //         if self_tokens.chain != ""  {
-    //             msg!("is_token_exists true");
-    //             is_token_exists = Some(self_tokens);
-    //         }
-    //         else{
-    //             msg!("is_token_exists false");
-    //             is_token_exists = Option::None;
-    //         }
-    
-    //     if duplicate_collection_address.chain != "" {
-    //         // isDuplicate
-    //         match is_token_exists {
-    //             Some(_v)=>{
-    //                 // Unlock721
-    //                 let transfer_ctx = Transfer {
-    //                     from: ctx.accounts.bridge.to_account_info(),
-    //                     to: ctx.accounts.nft_token_account.to_account_info(),
-    //                     authority: ctx.accounts.bridge.to_account_info(),
-    //                 };
-    //                 let auth_seeds = [BRIDGE.as_bytes(), &[*ctx.bumps.get("bridge").unwrap()]];
-    //                 msg!("popopopopo");
-    //                 token::transfer(
-    //                     CpiContext::new_with_signer(
-    //                         ctx.accounts.token_program.to_account_info(), 
-    //                         transfer_ctx,
-    //                         &[&auth_seeds]
-    //                     ),
-    //                     1,
-    //                 )?;
-    //             },
-    //             None=>{
-    //                 let _ = collection_createor::create_nft_in_collection(collection_seed_hash, &ctx, data.claim_data.metadata, data.claim_data.name, data.claim_data.symbol, data.claim_data.token_amount);
-
-    //                 let transfer_ctx = Transfer {
-    //                     from: ctx.accounts.create_collection_mint.to_account_info(),
-    //                     to: ctx.accounts.nft_token_account.to_account_info(),
-    //                     authority: ctx.accounts.create_collection_mint.to_account_info(),
-    //                 };
-    //                 let auth_seeds = [collection_seed_hash, &[*ctx.bumps.get("create_collection_mint").unwrap()]];
-
-    //                 token::transfer(
-    //                     CpiContext::new_with_signer(
-    //                         ctx.accounts.token_program.to_account_info(), 
-    //                         transfer_ctx,
-    //                         &[&auth_seeds]
-    //                     ),
-    //                     1,
-    //                 )?;
-    //             }
-    //         }
-    //     }
-    //     else{
-    //         // notDuplicate
-    //         match is_token_exists {
-    //             Some(_v)=>{
-    //                 // Unlock721
-    //                 let transfer_ctx = Transfer {
-    //                     from: ctx.accounts.bridge.to_account_info(),
-    //                     to: ctx.accounts.nft_token_account.to_account_info(),
-    //                     authority: ctx.accounts.bridge.to_account_info(),
-    //                 };
-    //                 let auth_seeds = [BRIDGE.as_bytes(), &[*ctx.bumps.get("bridge").unwrap()]];
-    //                 msg!("popopopopsssssssssso");
-    //                 token::transfer(
-    //                     CpiContext::new_with_signer(
-    //                         ctx.accounts.token_program.to_account_info(), 
-    //                         transfer_ctx,
-    //                         &[&auth_seeds]
-    //                     ),
-    //                     1,
-    //                 )?;
-    //             },
-    //             None=>{
-    //                 let _ = collection_createor::create_collection_nft(collection_seed_hash, &ctx, data.claim_data.metadata.clone(), data.claim_data.name.clone(), data.claim_data.symbol.clone());
-
-    //                 let _ = collection_createor::create_nft_in_collection(collection_seed_hash, &ctx, data.claim_data.metadata, data.claim_data.name, data.claim_data.symbol, data.claim_data.token_amount);
-    //                 msg!("gandddododo");
-    //                 let otdm = &mut ctx.accounts.original_to_duplicate_mapping;
-    //                 let dtom = &mut ctx.accounts.duplicate_to_original_mapping;
-
-
-    //                 let other_tokens = &mut ctx.accounts.other_tokens;
-    //                 let self_tokens = &mut ctx.accounts.self_tokens;
-
-    //                 otdm.chain = SELF_CHAIN.to_string();
-    //                 otdm.contract_address = ctx.accounts.create_collection_mint.key().to_string();
-
-    //                 dtom.chain = data.claim_data.source_chain.clone();
-    //                 dtom.contract_address = data.claim_data.source_nft_contract_address.clone();
-
-    //                 other_tokens.token_id = data.claim_data.token_id;
-    //                 other_tokens.chain = data.claim_data.source_chain.clone();
-    //                 other_tokens.contract_address = data.claim_data.source_nft_contract_address.clone();
-
-    //                 self_tokens.token_id = ctx.accounts.nft_token_account.key();
-    //                 self_tokens.chain = SELF_CHAIN.to_string();
-    //                 self_tokens.contract_address = ctx.accounts.create_collection_mint.key().to_string();
-
-    //                 // let transfer_ctx = Transfer {
-    //                 //     from: ctx.accounts.create_collection_mint.to_account_info(),
-    //                 //     to: ctx.accounts.nft_token_account.to_account_info(),
-    //                 //     authority: ctx.accounts.create_collection_mint.to_account_info(),
-    //                 // };
-                    
-    //                 // let auth_seeds = [b"collection".as_ref(), &[0]];
-    //                 // msg!("gandddododo 2");
-    //                 // token::transfer(
-    //                 //     CpiContext::new_with_signer(
-    //                 //         ctx.accounts.token_program.to_account_info(), 
-    //                 //         transfer_ctx,
-    //                 //         &[&auth_seeds]
-    //                 //     ),
-    //                 //     1,
-    //                 // )?;
-    //                 // msg!("gandddododo 3");
-    //             }
-    //         }
-    //     }
-    //     emit!(ClaimEvent{
-    //         source_chain: data.claim_data.source_chain,
-    //         transaction_hash: data.claim_data.transaction_hash
-    //     });
-    //     Ok(())
-    // }
-
     pub fn claim_nft_with_collection_creation(ctx: Context<ClaimCreateCollection>, data: ClaimData) -> Result<()> {
         if !data.claim_data.nft_type.as_bytes().eq(TYPE_NFT.as_bytes()) {
             return Err(error::ErrorCode::InvalidNft.into());
         }
+
+        invoke(
+            &system_instruction::transfer(
+                &ctx.accounts.user.to_account_info().key(),
+                &ctx.accounts.bridge.to_account_info().key(),
+                data.claim_data.fee,
+            ),
+            &[
+                ctx.accounts.user.to_account_info().clone(),
+                ctx.accounts.bridge.to_account_info().clone(),
+                ctx.accounts.system_program.to_account_info().clone(),
+            ],
+        )?;
+
         let binding = hash([data.claim_data.source_nft_contract_address.clone(),data.claim_data.source_chain.clone()].concat().as_bytes());
         let collection_seed_hash = binding.as_ref();
         let duplicate_collection_address = &mut ctx.accounts.original_to_duplicate_mapping;
@@ -493,6 +435,20 @@ pub mod xp_bridge {
         if !data.claim_data.nft_type.as_bytes().eq(TYPE_NFT.as_bytes()) {
             return Err(error::ErrorCode::InvalidNft.into());
         }
+
+        invoke(
+            &system_instruction::transfer(
+                &ctx.accounts.user.to_account_info().key(),
+                &ctx.accounts.bridge.to_account_info().key(),
+                data.claim_data.fee,
+            ),
+            &[
+                ctx.accounts.user.to_account_info().clone(),
+                ctx.accounts.bridge.to_account_info().clone(),
+                ctx.accounts.system_program.to_account_info().clone(),
+            ],
+        )?;
+
         let binding = hash([data.claim_data.source_nft_contract_address.clone(),data.claim_data.source_chain.clone()].concat().as_bytes());
         let collection_seed_hash = binding.as_ref();
         let duplicate_collection_address = &mut ctx.accounts.original_to_duplicate_mapping;
@@ -562,6 +518,20 @@ pub mod xp_bridge {
         if !data.claim_data.nft_type.as_bytes().eq(TYPE_NFT.as_bytes()) {
             return Err(error::ErrorCode::InvalidNft.into());
         }
+
+        invoke(
+            &system_instruction::transfer(
+                &ctx.accounts.user.to_account_info().key(),
+                &ctx.accounts.bridge.to_account_info().key(),
+                data.claim_data.fee,
+            ),
+            &[
+                ctx.accounts.user.to_account_info().clone(),
+                ctx.accounts.bridge.to_account_info().clone(),
+                ctx.accounts.system_program.to_account_info().clone(),
+            ],
+        )?;
+
         let duplicate_collection_address = &mut ctx.accounts.original_to_duplicate_mapping;
         let self_tokens =&mut ctx.accounts.self_tokens;
 
@@ -636,143 +606,7 @@ pub mod xp_bridge {
         Ok(())
     }
     
-    // pub fn claim_sft(ctx: Context<Claim>, data: ClaimData) -> Result<()> {
-    //     if !data.claim_data.nft_type.as_bytes().eq(TYPE_SFT.as_bytes()) {
-    //         return Err(error::ErrorCode::InvalidNft.into());
-    //     }
-    //     let binding = hash(data.claim_data.try_to_vec()?.as_slice());
-    //     let collection_seed_hash = binding.as_ref();
-    //     let duplicate_collection_address = &mut ctx.accounts.original_to_duplicate_mapping;
-    //     let self_tokens =&mut ctx.accounts.self_tokens;
-
-    //     let is_token_exists;
-    //     msg!("asdfasd {}",duplicate_collection_address.chain);
-
-    //         if self_tokens.chain != ""  {
-    //             msg!("is_token_exists true");
-    //             is_token_exists = Some(self_tokens);
-    //         }
-    //         else{
-    //             msg!("is_token_exists false");
-    //             is_token_exists = Option::None;
-    //         }
-    
-    //     if duplicate_collection_address.chain != "" {
-    //         // isDuplicate
-    //         match is_token_exists {
-    //             Some(_v)=>{
-    //                 // Unlock721
-    //                 let transfer_ctx = Transfer {
-    //                     from: ctx.accounts.bridge.to_account_info(),
-    //                     to: ctx.accounts.nft_token_account.to_account_info(),
-    //                     authority: ctx.accounts.bridge.to_account_info(),
-    //                 };
-    //                 let auth_seeds = [BRIDGE.as_bytes(), &[*ctx.bumps.get("bridge").unwrap()]];
-    //                 msg!("popopopopo");
-    //                 token::transfer(
-    //                     CpiContext::new_with_signer(
-    //                         ctx.accounts.token_program.to_account_info(), 
-    //                         transfer_ctx,
-    //                         &[&auth_seeds]
-    //                     ),
-    //                     data.claim_data.token_amount,
-    //                 )?;
-    //             },
-    //             None=>{
-    //                 let _ = collection_createor::create_nft_in_collection(collection_seed_hash, &ctx, data.claim_data.metadata, data.claim_data.name, data.claim_data.symbol, data.claim_data.token_amount);
-    //                 let transfer_ctx = Transfer {
-    //                     from: ctx.accounts.create_collection_mint.to_account_info(),
-    //                     to: ctx.accounts.nft_token_account.to_account_info(),
-    //                     authority: ctx.accounts.create_collection_mint.to_account_info(),
-    //                 };
-    //                 let auth_seeds = [collection_seed_hash, &[*ctx.bumps.get("create_collection_mint").unwrap()]];
-
-    //                 token::transfer(
-    //                     CpiContext::new_with_signer(
-    //                         ctx.accounts.token_program.to_account_info(), 
-    //                         transfer_ctx,
-    //                         &[&auth_seeds]
-    //                     ),
-    //                     data.claim_data.token_amount,
-    //                 )?;
-    //             }
-    //         }
-    //     }
-    //     else{
-    //         // notDuplicate
-    //         match is_token_exists {
-    //             Some(_v)=>{
-    //                 // Unlock721
-    //                 let transfer_ctx = Transfer {
-    //                     from: ctx.accounts.bridge.to_account_info(),
-    //                     to: ctx.accounts.nft_token_account.to_account_info(),
-    //                     authority: ctx.accounts.bridge.to_account_info(),
-    //                 };
-    //                 let auth_seeds = [BRIDGE.as_bytes(), &[*ctx.bumps.get("bridge").unwrap()]];
-    //                 msg!("popopopopsssssssssso");
-    //                 token::transfer(
-    //                     CpiContext::new_with_signer(
-    //                         ctx.accounts.token_program.to_account_info(), 
-    //                         transfer_ctx,
-    //                         &[&auth_seeds]
-    //                     ),
-    //                     data.claim_data.token_amount,
-    //                 )?;
-    //             },
-    //             None=>{
-    //                 let _ = collection_createor::create_collection_nft(collection_seed_hash, &ctx, data.claim_data.metadata.clone(), data.claim_data.name.clone(), data.claim_data.symbol.clone());
-
-    //                 let _ = collection_createor::create_nft_in_collection(collection_seed_hash, &ctx, data.claim_data.metadata, data.claim_data.name, data.claim_data.symbol, data.claim_data.token_amount);
-    //                 msg!("gandddododo");
-    //                 let otdm = &mut ctx.accounts.original_to_duplicate_mapping;
-    //                 let dtom = &mut ctx.accounts.duplicate_to_original_mapping;
-
-
-    //                 let other_tokens = &mut ctx.accounts.other_tokens;
-    //                 let self_tokens = &mut ctx.accounts.self_tokens;
-
-    //                 otdm.chain = SELF_CHAIN.to_string();
-    //                 otdm.contract_address = ctx.accounts.create_collection_mint.key().to_string();
-
-    //                 dtom.chain = data.claim_data.source_chain.clone();
-    //                 dtom.contract_address = data.claim_data.source_nft_contract_address.clone();
-
-    //                 other_tokens.token_id = data.claim_data.token_id;
-    //                 other_tokens.chain = data.claim_data.source_chain.clone();
-    //                 other_tokens.contract_address = data.claim_data.source_nft_contract_address.clone();
-
-    //                 self_tokens.token_id = ctx.accounts.nft_token_account.key();
-    //                 self_tokens.chain = SELF_CHAIN.to_string();
-    //                 self_tokens.contract_address = ctx.accounts.create_collection_mint.key().to_string();
-
-    //                 // let transfer_ctx = Transfer {
-    //                 //     from: ctx.accounts.create_collection_mint.to_account_info(),
-    //                 //     to: ctx.accounts.nft_token_account.to_account_info(),
-    //                 //     authority: ctx.accounts.create_collection_mint.to_account_info(),
-    //                 // };
-                    
-    //                 // let auth_seeds = [b"collection".as_ref(), &[0]];
-    //                 // msg!("gandddododo 2");
-    //                 // token::transfer(
-    //                 //     CpiContext::new_with_signer(
-    //                 //         ctx.accounts.token_program.to_account_info(), 
-    //                 //         transfer_ctx,
-    //                 //         &[&auth_seeds]
-    //                 //     ),
-    //                 //     1,
-    //                 // )?;
-    //                 // msg!("gandddododo 3");AnchorError occurred. Error Code: InstructionDidNotDeserialize. Error Number: 102. Error Message: The program could not deserialize the given instructio
-    //             }
-    //         }
-    //     }
-    //     emit!(ClaimEvent{
-    //         source_chain: data.claim_data.source_chain,
-    //         transaction_hash: data.claim_data.transaction_hash
-    //     });
-    //     Ok(())
-    // }
 }
-
 
 pub mod utils {
     use anchor_lang::solana_program::{self};
@@ -1163,7 +997,6 @@ pub mod collection_createor{
 
 }
 
-
 #[derive(Accounts)]
 #[instruction(data: VerifyAddValidatorSignaturesData)]
 pub struct VerifyAddValidatorSignatures<'info> {
@@ -1195,6 +1028,13 @@ pub struct VerifyAddValidatorSignaturesData {
 #[instruction(data: VerifyClaimSignaturesData)]
 pub struct VerifyClaimSignatures<'info> {
     #[account(
+        mut,
+        seeds = [BRIDGE.as_bytes()], 
+        bump
+    )]
+    pub bridge: Account<'info, Bridge>,
+
+    #[account(
         init_if_needed,
         payer = user,
         space = 8 + SignatureThreshold::INIT_SPACE,
@@ -1217,6 +1057,72 @@ pub struct VerifyClaimSignaturesData {
     tx_hash: [u8 ;32],
     claim_data: ClaimNftData,
     signatures: Vec<SignatureInfo>,
+    validators_count: u64,
+}
+
+#[derive(Accounts)]
+#[instruction(data: VerifyRewardValidatorSignaturesData)]
+pub struct VerifyRewardValidatorSignatures<'info> {
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = 8 + SignatureThreshold::INIT_SPACE,
+        seeds = [hash([REWARD, &data.validator_public_key.key().to_string()].concat().as_bytes()).as_ref()],
+        bump
+    )]
+    pub threshold: Account<'info, SignatureThreshold>,
+
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub system_program: Program<'info, System>,
+
+     /// CHECK: used to get instruction data
+     #[account(address = Instructions::id())]
+     pub instruction_acc: AccountInfo<'info>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct VerifyRewardValidatorSignaturesData {
+    validator_public_key: Pubkey,
+    signatures: Vec<SignatureInfo>,
+}
+
+#[derive(Accounts)]
+#[instruction(data: ValidatorClaimRewardData)]
+pub struct ValidatorClaimReward<'info> {
+    #[account(
+        mut,
+        seeds = [BRIDGE.as_bytes()], 
+        bump
+    )]
+    pub bridge: Account<'info, Bridge>,
+
+    #[account(
+        mut, 
+        seeds = [hash([REWARD, &data.validator_public_key.key().to_string()].concat().as_bytes()).as_ref()],
+        bump
+    )]
+    pub threshold: Account<'info, SignatureThreshold>,
+
+    #[account(
+        mut,
+        seeds = [hash([VALIDATOR, &data.validator_public_key.key().to_string()].concat().as_bytes()).as_ref()],
+        bump
+    )]
+    pub validators: Account<'info, Validators>,
+
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub system_program: Program<'info, System>,
+
+     /// CHECK: used to get instruction data
+     #[account(address = Instructions::id())]
+     pub instruction_acc: AccountInfo<'info>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct ValidatorClaimRewardData {
+    validator_public_key: Pubkey,
 }
 
 #[derive(Accounts)]
@@ -1283,7 +1189,6 @@ pub struct AddValidator<'info> {
     #[account(address = Instructions::id())]
     pub instruction_acc: AccountInfo<'info>,
 }
-
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct AddValidatorData {
     validator_public_key: Pubkey,
@@ -1357,161 +1262,6 @@ pub struct LockData {
     other_tokens_bump: u8,
     self_tokens_bump: u8
 }
-
-// #[derive(Accounts)]
-// #[instruction(data: ClaimData)]
-// pub struct Claim<'info> {
-//     #[account(
-//         mut, 
-//         seeds = [BRIDGE.as_bytes()], 
-//         bump, 
-//     )]
-//     pub bridge: Box<Account<'info, Bridge>>,
-
-//     #[account(
-//         init_if_needed,
-//         payer = user, 
-//         space = 8 + OtherTokenInfo::INIT_SPACE, 
-//         seeds = [hash([OTHER_TOKENS,&nft_mint.key().to_string(),SELF_CHAIN,&create_collection_mint.key().to_string()].concat().as_bytes()).as_ref()],
-//         bump
-//     )]
-//     pub other_tokens: Box<Account<'info, OtherTokenInfo>>,
-
-//     #[account(
-//         init_if_needed,
-//         payer = user, 
-//         space = 8 + SelfTokenInfo::INIT_SPACE,
-//         seeds = [hash([SELF_TOKENS, &data.claim_data.token_id, &data.claim_data.source_chain, &data.claim_data.source_nft_contract_address].concat().as_bytes()).as_ref()], 
-//         bump
-//     )]
-//     pub self_tokens: Box<Account<'info, SelfTokenInfo>>,
-
-//     #[account(
-//         init_if_needed,
-//         space = 8 + ContractInfo::INIT_SPACE,
-//         payer = user,
-//         seeds = [hash([ORIGINAL_TO_DUPLICATE_MAPPING, &data.claim_data.source_nft_contract_address, &data.claim_data.source_chain].concat().as_bytes()).as_ref()],
-//         bump
-//     )]
-//     pub original_to_duplicate_mapping: Box<Account<'info, ContractInfo>>,
-
-//     #[account(
-//         init_if_needed,
-//         space = 8 + ContractInfo::INIT_SPACE,
-//         payer = user,
-//         seeds = [hash([DUPLICATE_TO_ORIGINAL_MAPPING, &create_collection_mint.key().to_string(), SELF_CHAIN].concat().as_bytes()).as_ref()],
-//         bump
-//     )]
-//     pub duplicate_to_original_mapping: Box<Account<'info, ContractInfo>>,
-
-//     // #[account(mut, constraint = to.owner == data.claim_data.destination_user_address)]
-//     // pub to: Box<Account<'info, TokenAccount>>,
-   
-//     /// CHECK: used to get instruction data
-//     // #[account(address = Instructions::id())]
-//     // pub instruction_acc: AccountInfo<'info>,
-    
-//     #[account(
-//         mut
-//     )]
-//     pub bridge_token_account: Account<'info, TokenAccount>,
-
-//     #[account(
-//         init_if_needed,
-//         seeds = [hash(data.claim_data.try_to_vec()?.as_slice()).as_ref()],
-//         bump,
-//         payer = user,
-//         mint::decimals = 0,
-//         mint::authority = create_collection_mint,
-//         mint::freeze_authority = create_collection_mint
-//     )]
-//     pub create_collection_mint: Account<'info, Mint>,
-
-//     /// CHECK:
-//     #[account(
-//         mut,
-//         address=find_metadata_account(&create_collection_mint.key()).0
-//     )]
-//     pub create_collection_metadata_account: UncheckedAccount<'info>,
-
-//     /// CHECK:
-//     #[account(
-//         mut,
-//         address=find_master_edition_account(&create_collection_mint.key()).0
-//     )]
-//     pub create_collection_master_edition: UncheckedAccount<'info>,
-
-//     #[account(
-//         init_if_needed,
-//         payer = user,
-//         associated_token::mint = create_collection_mint,
-//         associated_token::authority = user
-//     )]
-//     pub create_collection_token_account: Account<'info, TokenAccount>,
-
-//     //FOR CREATE NFT IN COLLECTION
-
-//     // #[account(
-//     //     mut,
-//     //     seeds = [SEED.as_bytes()],
-//     //     bump,
-//     // )]
-//     // pub nft_collection_mint: Account<'info, Mint>,
-
-//     /// CHECK:
-//     // #[account(
-//     //     mut,
-//     //     address=find_metadata_account(&nft_collection_mint.key()).0
-//     // )]
-//     // pub collection_metadata_account: UncheckedAccount<'info>,
-
-//     // /// CHECK:
-//     // #[account(
-//     //     mut,
-//     //     address=find_master_edition_account(&nft_collection_mint.key()).0
-//     // )]
-//     // pub collection_master_edition: UncheckedAccount<'info>,
-
-//     #[account(
-//         init_if_needed,
-//         payer = user,
-//         mint::decimals = 0,
-//         mint::authority = create_collection_mint,
-//         mint::freeze_authority = create_collection_mint
-//     )]
-//     pub nft_mint: Account<'info, Mint>,
-
-//     /// CHECK:
-//     #[account(
-//         mut,
-//         address=find_metadata_account(&nft_mint.key()).0
-//     )]
-//     pub nft_metadata_account: UncheckedAccount<'info>,
-
-//     /// CHECK:
-//     #[account(
-//         mut,
-//         address=find_master_edition_account(&nft_mint.key()).0
-//     )]
-//     pub nft_master_edition: UncheckedAccount<'info>,
-
-//     #[account(
-//         init_if_needed,
-//         payer = user,
-//         associated_token::mint = nft_mint,
-//         associated_token::authority = user
-//     )]
-//     pub nft_token_account: Account<'info, TokenAccount>,
-
-//     pub system_program: Program<'info, System>,
-//     pub token_program: Program<'info, Token>,
-//     pub associated_token_program: Program<'info, AssociatedToken>,
-//     pub token_metadata_program: Program<'info, Metadata>,
-//     pub rent: Sysvar<'info, Rent>,
-//     #[account(mut)]
-//     pub user: Signer<'info>,
-// }
-
 
 #[derive(Accounts)]
 #[instruction(data: ClaimData)]
@@ -1870,4 +1620,9 @@ pub struct LockEvent {
 pub struct ClaimEvent {
     source_chain: String,
     transaction_hash: String
+}
+
+#[event]
+pub struct RewardValidatorEvent {
+    validator_public_key: Pubkey,
 }

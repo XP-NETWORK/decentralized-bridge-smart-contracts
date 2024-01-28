@@ -48,4 +48,7 @@ pub enum ErrorCode {
 
     #[msg("Signature verification failed.")]
     SigVerificationFailed,
+
+    #[msg("No rewards available!")]
+    NoRewardsAvailable,
 }

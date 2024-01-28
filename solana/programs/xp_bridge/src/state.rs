@@ -11,7 +11,7 @@ pub struct Bridge {
 #[derive(InitSpace)]
 pub struct Validators {
     pub added: bool,
-    pub pending_rewards: u128,
+    pub pending_rewards: u64,
 }
 
 #[account]
