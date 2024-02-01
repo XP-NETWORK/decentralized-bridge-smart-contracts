@@ -1,0 +1,3 @@
+[submodule "web3/lib/hedera"]
+	path = web3/lib/hedera
+	url = https://github.com/hashgraph/hedera-smart-contracts

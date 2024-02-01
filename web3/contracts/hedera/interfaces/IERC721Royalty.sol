@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/token/common/ERC2981.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-
 interface IERC721Royalty {
     /**
      * @dev Mint a new ERC-721 token with the specified royalty and token URI.
@@ -37,7 +33,7 @@ interface IERC721Royalty {
         uint256 salePrice
     ) external returns (address receiver, uint256 royaltyAmount);
 
-     /**
+    /**
      * @dev Retrieve the owner of the given token ID.
      *
      * @param tokenId the ID of the token.
