@@ -6,7 +6,7 @@ message DeployNFT721Collection {
     royalty_params: RoyaltyParams;
     destination_user_address: Address;
     source_chain: String;
-    source_nft_contract_address: String;
+    transaction_hash: String;
 }
 message CreatedCollection {
     collectionAddress: Address;
@@ -18,7 +18,7 @@ contract NFTCollectionDeployer {
         self.owner = bridgeAddress;
     }
 
-     fun onlyOwner(sender: Address) {
+    fun onlyOwner(sender: Address) {
         require(sender == self.owner, "Only owner can call");
     }
 
@@ -29,7 +29,7 @@ contract NFTCollectionDeployer {
         let collectionInit: StateInit = initOf NftCollection(self.owner, msg.collection_content, msg.royalty_params);
         let collectionAddress: Address = contractAddress(collectionInit);
         send(SendParameters{
-                value: ton("1.8"), // pay for message and potential deployment
+                value: ton("0.8"), // pay for message and potential deployment
                 to: collectionAddress,
                 mode: SendIgnoreErrors,
                 bounce: true,
@@ -38,14 +38,16 @@ contract NFTCollectionDeployer {
                 body: CollectionDeploy{newOwner: msg.destination_user_address}.toCell()
             }
         );
-        // emit(CreatedCollection{collectionAddress: collectionAddress}.toCell());
-        // self.reply(HiFromDeployNFT721Collection{
-        //         collectionAddress: collectionAddress,
-        //         collectionContent: msg.collection_content,
-        //         destinationUserAddress: msg.destination_user_address,
-        //         sourceChain: msg.source_chain,
-        //         sourceNftContractAddress: msg.source_nft_contract_address
-        //     }.toCell()
-        // );
+        send(SendParameters{
+                value: ton("0.07"),
+                to: self.owner,
+                bounce: true,
+                mode: SendIgnoreErrors,
+                body: HiFromDeployNFT721Collection{
+                    sourceChain: msg.source_chain,
+                    transactionHash: msg.transaction_hash
+                }.toCell()
+            }
+        );
     }
 }

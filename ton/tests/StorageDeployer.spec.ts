@@ -4,35 +4,50 @@ import { Address, beginCell, toNano } from "ton-core";
 import { sign } from "ton-crypto";
 import { NFTStorageDeployer } from "../build/Bridge/tact_NFTStorageDeployer";
 import { NFTCollectionDeployer } from "../build/Bridge/tact_NFTCollectionDeployer";
-import { Gando, Gnado, storeGnado } from "../build/Bridge/tact_Gando";
 import { Dictionary } from "ton";
 import { NftCollection } from "../build/Bridge/tact_NftCollection";
+import { NFTStorageERC721 } from "../build/Bridge/tact_NFTStorageERC721";
 
 describe('wallet', () => {
     it('should deploy', async () => {
 
         // Create wallet
-        let key = testKey('firstValidatorss9sss');
+        let key = testKey('muadsfj');
         let publicKey = beginCell().storeBuffer(key.publicKey).endCell().beginParse().loadUintBig(256);
         let system = await ContractSystem.create();
         let treasure = system.treasure('treasure');
-        let g: Gnado = {
-            $$type: "Gnado", address: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address, chain: "TON"
-        }
         let contract = system.open(await Bridge.fromInit(publicKey, Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address, "TON"));
+        let storageDeployer = system.open(await NFTStorageDeployer.fromInit(contract.address));
+        let storage = system.open(await NFTStorageERC721.fromInit(Address.parseFriendly("kQDsNFk2TW9PNyfLcjY34fFsmz2-z2oWmPQdzp5Bhm_IPjBC").address, contract.address));
         let tracker = system.track(contract.address);
         let logger = system.log(contract.address);
-        await contract.send(treasure, { value: toNano('10') }, 'Deploy');
-        await system.run();
+        let storageDeployerTracker = system.track(storageDeployer.address);
+        let storageTracker = system.track(storage.address);
 
-        // Create executor
-        // expect(await contract.getPublicKey()).toBe(publicKey);
-        // expect(await contract.getWalletId()).toBe(0n);
-        // expect(await contract.getSeqno()).toBe(0n);
-        // console.log(toNano('10').toString());
-        console.log(contract.address);
-        console.log(await contract.getCollectionDeployer());
-        console.log(await contract.getStorageDeployer());
+        await contract.send(treasure, { value: toNano('10') }, 'Deploy');
+        // await system.run();
+
+        // await contract.send(
+        //     treasure,
+        //     {
+        //         value: toNano('1.5')
+        //     },
+        //     {
+        //         $$type: "Lock721",
+        //         destinationChain: "BSC",
+        //         destinationUserAddress: "0x6f7C0c6A6dd6E435b0EEc1c9F7Bce01A1908f386",
+        //         sourceNftContractAddress: Address.parseFriendly("kQDsNFk2TW9PNyfLcjY34fFsmz2-z2oWmPQdzp5Bhm_IPjBC").address,
+        //         tokenId: 0n
+        //     });
+        // await system.run();
+
+        // console.log(await contract.getOriginal721Mapping(Address.parseFriendly("kQDsNFk2TW9PNyfLcjY34fFsmz2-z2oWmPQdzp5Bhm_IPjBC").address, "TON"));
+        // console.log(await contract.getDuplicate721Mapping(Address.parseFriendly("kQDsNFk2TW9PNyfLcjY34fFsmz2-z2oWmPQdzp5Bhm_IPjBC").address));
+
+
+        // console.log(await contract.getOriginalToDuplicate("kQDsNFk2TW9PNyfLcjY34fFsmz2-z2oWmPQdzp5Bhm_IPjBC", "TON"));
+        // console.log(await contract.getDuplicateToOriginal(Address.parseFriendly("kQDsNFk2TW9PNyfLcjY34fFsmz2-z2oWmPQdzp5Bhm_IPjBC").address));
+
 
 
         const OFFCHAIN_CONTENT_PREFIX = 0x01;
@@ -59,13 +74,14 @@ describe('wallet', () => {
             },
             data2: {
                 $$type: 'ClaimData2',
-                name: 'Gando',
-                symbol: 'Gando',
+                name: '',
+                symbol: '',
                 nftType: 'singular',
             },
             data3: {
                 $$type: 'ClaimData3',
-                sourceNftContractAddress: '0x6f7C0c6A6dd6E435b0EEc1c9F7Bce01A1908f386',
+                // sourceNftContractAddress: beginCell().storeSlice(beginCell().storeStringTail("kQD7SUxVX7idrzk14ANs0oJPnDcCQ2kz4OAaWWZWJWTDifFd").endCell().asSlice()).endCell(),
+                sourceNftContractAddress: beginCell().storeSlice(beginCell().storeAddress(Address.parseFriendly("kQD7SUxVX7idrzk14ANs0oJPnDcCQ2kz4OAaWWZWJWTDifFd").address).endCell().asSlice()).endCell(),
                 fee: toNano("0.1"),
                 royaltyReceiver: Address.parseFriendly("EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh").address,
                 metadata: 'https://s.getgems.io/nft-staging/c/628f6ab8077060a7a8d52d63/0.json',
@@ -100,7 +116,7 @@ describe('wallet', () => {
         await contract.send(
             treasure,
             {
-                value: toNano('2.8')
+                value: toNano('1')
             }, {
             $$type: "ClaimNFT721",
             data: claimData,
@@ -108,44 +124,13 @@ describe('wallet', () => {
             signatures: dictA
         });
 
-        let nftCollection = system.open(await NftCollection.fromInit(contract.address, newContent, {
-            $$type: 'RoyaltyParams',
-            numerator: 1000n,
-            denominator: 350n,
-            destination: contract.address
-        }));
-
-        let tracker2 = system.track(nftCollection.address);
-
-        // await contract.send(treasure, { value: toNano('10') }, 'Lock721');
-
-
-        // Send transfer and check seqno
-        // let transfer: Transfer = {
-        //     $$type: 'Transfer',
-        //     seqno: 0n,
-        //     mode: 1n,
-        //     amount: toNano(10),
-        //     to: treasure.address,
-        //     body: null
-        // };
-        // let transfer1: Transfer = {
-        //     $$type: 'Transfer',
-        //     seqno: 0n,
-        //     mode: 1n,
-        //     amount: toNano(10),
-        //     to: treasure.address,
-        //     body: beginCell().storeBuffer(Buffer.from("Gando")).endCell()
-        // };
-        // let signature = sign(beginCell().store(storeTransfer(transfer1)).endCell().hash(), key.secretKey);
-        // await contract.send(treasure, { value: toNano(1) }, {
-        //     $$type: 'TransferMessage',
-        //     transfer: transfer1,
-        //     signature: beginCell().storeBuffer(signature).endCell(),
-        //     key: publicKey
-        // });
         await system.run();
+
         expect(tracker.collect()).toMatchSnapshot();
+        expect(storageDeployerTracker.collect()).toMatchSnapshot();
+        expect(storageTracker.collect()).toMatchSnapshot();
+
+        // expect(storagetracker?.collect()).toMatchSnapshot();
         // expect(await contract.getSeqno()).toBe(1n);
 
         // // Send empty message

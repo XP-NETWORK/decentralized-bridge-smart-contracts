@@ -8,7 +8,7 @@ import { Address, beginCell, toNano } from 'ton-core';
     //
 
     // Contract System is a virtual environment that emulates the TON blockchain
-    const system = await ContractSystem.create();
+    const system = await ContractSystem.create({});
 
     // Treasure is a contract that has 1m of TONs and is a handy entry point for your smart contracts
     let treasure = await system.treasure('name of treasure');

@@ -1,5 +1,5 @@
 import "@stdlib/deploy";
-
+import "./message.tact";
 message UnlockToken {
     to: Address;
 }
@@ -7,16 +7,35 @@ message UnlockToken {
 contract NFTStorageERC721 {
     owner: Address;
     collectionAddress: Address;
-    init(collectionAddress: Address, owner: Address){
-        self.owner = owner;
+    init(collectionAddress: Address, bridgeAddress: Address){
+        self.owner = bridgeAddress;
         self.collectionAddress = collectionAddress;
     }
 
-     fun onlyOwner(sender: Address) {
+    fun onlyOwner(sender: Address) {
         require(sender == self.owner, "Only the owner can call this function");
     }
 
-    receive("StorageDeploy"){}
+    receive(msg: StorageDeploy){
+        send(SendParameters{
+                value: ton("0.07"),
+                to: self.owner,
+                bounce: true,
+                mode: SendIgnoreErrors,
+                body: HiFromDeployNFT721Storage{
+                    sourceNftContractAddress: msg.sourceNftContractAddress,
+                    storageAddress: myAddress(),
+                    isOriginal: msg.isOriginal,
+                    key: msg.key,
+                    tokenId: msg.tokenId,
+                    destinationChain: msg.destinationChain,
+                    destinationUserAddress: msg.destinationUserAddress,
+                    sourceNftContractAddressLock: msg.sourceNftContractAddressLock,
+                    sourceChain: msg.sourceChain
+                }.toCell()
+            }
+        );
+    }
 
     receive("DepositTokens"){
         send(SendParameters{
