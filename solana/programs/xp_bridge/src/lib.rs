@@ -13,7 +13,7 @@ use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_check
 use anchor_lang::solana_program::ed25519_program::ID as ED25519_ID;
 use anchor_lang::solana_program::program::invoke;
 
-declare_id!("aHWamgYFT2uK17Z7N7ZzJm2oW1Bg8bfKRmLg6ULMzay");
+declare_id!("5gyedJbp5cuECB3K7Z4axGe9UkA2McxwndjTw8D4EXgX");
 
 #[program]
 pub mod xp_bridge {
@@ -339,6 +339,14 @@ pub mod xp_bridge {
             return Err(error::ErrorCode::InvalidNft.into());
         }
 
+
+        let validators_count = ctx.accounts.bridge.validator_count;
+        let percentage = ctx.accounts.threshold.threshold;
+
+        if !(percentage >= (((validators_count * 2) / 3) + 1)) {
+            return Err(error::ErrorCode::NoSignatures.into())
+        }
+
         invoke(
             &system_instruction::transfer(
                 &ctx.accounts.user.to_account_info().key(),
@@ -436,6 +444,13 @@ pub mod xp_bridge {
             return Err(error::ErrorCode::InvalidNft.into());
         }
 
+        let validators_count = ctx.accounts.bridge.validator_count;
+        let percentage = ctx.accounts.threshold.threshold;
+
+        if !(percentage >= (((validators_count * 2) / 3) + 1)) {
+            return Err(error::ErrorCode::NoSignatures.into())
+        }
+
         invoke(
             &system_instruction::transfer(
                 &ctx.accounts.user.to_account_info().key(),
@@ -517,6 +532,13 @@ pub mod xp_bridge {
     pub fn claim_nft_just_unlock(ctx: Context<ClaimUnlock>, data: ClaimData) -> Result<()> {
         if !data.claim_data.nft_type.as_bytes().eq(TYPE_NFT.as_bytes()) {
             return Err(error::ErrorCode::InvalidNft.into());
+        }
+
+        let validators_count = ctx.accounts.bridge.validator_count;
+        let percentage = ctx.accounts.threshold.threshold;
+
+        if !(percentage >= (((validators_count * 2) / 3) + 1)) {
+            return Err(error::ErrorCode::NoSignatures.into())
         }
 
         invoke(
@@ -1259,8 +1281,6 @@ pub struct LockData {
     source_nft_contract_address: Pubkey,
     token_amount: u64,
     bridge_bump: u8,
-    other_tokens_bump: u8,
-    self_tokens_bump: u8
 }
 
 #[derive(Accounts)]
@@ -1274,13 +1294,20 @@ pub struct ClaimUnlock<'info> {
     pub bridge: Box<Account<'info, Bridge>>,
 
     #[account(
-        init_if_needed,
-        payer = user, 
-        space = 8 + OtherTokenInfo::INIT_SPACE, 
-        seeds = [hash([OTHER_TOKENS,&data.nft_mint.unwrap().key().to_string(),SELF_CHAIN,&create_collection_mint.key().to_string()].concat().as_bytes()).as_ref()],
+        mut,
+        seeds = [hash(data.claim_data.transaction_hash.as_ref()).as_ref()],
         bump
     )]
-    pub other_tokens: Box<Account<'info, OtherTokenInfo>>,
+    pub threshold: Account<'info, SignatureThreshold>,
+
+    // #[account(
+    //     init_if_needed,
+    //     payer = user, 
+    //     space = 8 + OtherTokenInfo::INIT_SPACE, 
+    //     seeds = [hash([OTHER_TOKENS,&data.nft_mint.unwrap().key().to_string(),SELF_CHAIN,&create_collection_mint.key().to_string()].concat().as_bytes()).as_ref()],
+    //     bump
+    // )]
+    // pub other_tokens: Box<Account<'info, OtherTokenInfo>>,
 
     #[account(
         init_if_needed,
@@ -1345,6 +1372,13 @@ pub struct ClaimCreateCollection<'info> {
     pub bridge: Box<Account<'info, Bridge>>,
 
     #[account(
+        mut,
+        seeds = [hash(data.claim_data.transaction_hash.as_ref()).as_ref()],
+        bump
+    )]
+    pub threshold: Account<'info, SignatureThreshold>,
+
+    #[account(
         init_if_needed,
         payer = user, 
         space = 8 + OtherTokenInfo::INIT_SPACE, 
@@ -1380,13 +1414,6 @@ pub struct ClaimCreateCollection<'info> {
     )]
     pub duplicate_to_original_mapping: Box<Account<'info, ContractInfo>>,
 
-    // #[account(mut, constraint = to.owner == data.claim_data.destination_user_address)]
-    // pub to: Box<Account<'info, TokenAccount>>,
-   
-    // CHECK: used to get instruction data
-    // #[account(address = Instructions::id())]
-    // pub instruction_acc: AccountInfo<'info>,
-    
     #[account(
         init_if_needed,
         seeds = [hash([data.claim_data.source_nft_contract_address.clone(), data.claim_data.source_chain.clone()].concat().as_bytes()).as_ref()],
@@ -1471,6 +1498,13 @@ pub struct ClaimCreateNft<'info> {
     pub bridge: Box<Account<'info, Bridge>>,
 
     #[account(
+        mut,
+        seeds = [hash(data.claim_data.transaction_hash.as_ref()).as_ref()],
+        bump
+    )]
+    pub threshold: Account<'info, SignatureThreshold>,
+
+    #[account(
         init_if_needed,
         payer = user, 
         space = 8 + OtherTokenInfo::INIT_SPACE, 
@@ -1497,22 +1531,15 @@ pub struct ClaimCreateNft<'info> {
     )]
     pub original_to_duplicate_mapping: Box<Account<'info, ContractInfo>>,
 
-    #[account(
-        init_if_needed,
-        space = 8 + ContractInfo::INIT_SPACE,
-        payer = user,
-        seeds = [hash([DUPLICATE_TO_ORIGINAL_MAPPING, &create_collection_mint.key().to_string(), SELF_CHAIN].concat().as_bytes()).as_ref()],
-        bump
-    )]
-    pub duplicate_to_original_mapping: Box<Account<'info, ContractInfo>>,
+    // #[account(
+    //     init_if_needed,
+    //     space = 8 + ContractInfo::INIT_SPACE,
+    //     payer = user,
+    //     seeds = [hash([DUPLICATE_TO_ORIGINAL_MAPPING, &create_collection_mint.key().to_string(), SELF_CHAIN].concat().as_bytes()).as_ref()],
+    //     bump
+    // )]
+    // pub duplicate_to_original_mapping: Box<Account<'info, ContractInfo>>,
 
-    // #[account(mut, constraint = to.owner == data.claim_data.destination_user_address)]
-    // pub to: Box<Account<'info, TokenAccount>>,
-   
-    // CHECK: used to get instruction data
-    // #[account(address = Instructions::id())]
-    // pub instruction_acc: AccountInfo<'info>,
-    
     #[account(
         mut,
         seeds = [hash([data.claim_data.source_nft_contract_address.clone(), data.claim_data.source_chain.clone()].concat().as_bytes()).as_ref()],

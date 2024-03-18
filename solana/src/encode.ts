@@ -2,28 +2,6 @@ import { field, fixedArray, option, vec } from "@dao-xyz/borsh";
 import { Struct, PublicKey } from "@solana/web3.js";
 import { BN } from "@project-serum/anchor";
 
-export class NftData {
-    @field({
-        serialize(arg: PublicKey, writer) {
-            writer.writeFixedArray(arg.toBuffer());
-        },
-        deserialize(reader) {
-            return reader.readFixedArray(32);
-        },
-    })
-    creatorKey: PublicKey;
-    @field({ type: "String" })
-    uri: string;
-    @field({ type: "String" })
-    title: string;
-
-    constructor(args: { creatorKey: PublicKey; uri: string; title: string }) {
-        this.creatorKey = args.creatorKey;
-        this.uri = args.uri;
-        this.title = args.title;
-    }
-}
-
 export class InitializeData {
     @field({
         serialize(arg: PublicKey, writer) {
@@ -316,10 +294,13 @@ export class VerifyClaimSignaturesData {
     claimData: ClaimNftData;
     @field({ type: vec(SignatureInfo) })
     signatures: SignatureInfo[];
+    @field({ type: "u64" })
+    validatorsCount: BN;
 
-    constructor(args: { txHash: number[]; claimData: ClaimNftData; signatures: SignatureInfo[] }) {
+    constructor(args: { txHash: number[]; claimData: ClaimNftData; signatures: SignatureInfo[], validatorsCount: BN }) {
         this.txHash = args.txHash;
         this.claimData = args.claimData;
         this.signatures = args.signatures;
+        this.validatorsCount = args.validatorsCount;
     }
 }

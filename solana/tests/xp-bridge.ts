@@ -1147,110 +1147,106 @@ describe("bridge", async () => {
 
   // });
 
-  it("Verify Claim Sig", async () => {
+  // it("Verify Claim Sig", async () => {
 
-    let claimData = new ClaimNftData({
-      tokenId: "1",
-      sourceChain: "BSC",
-      destinationChain: "SOL",
-      destinationUserAddress: wallet.publicKey,
-      sourceNftContractAddress: "0x4a27453D9D811AF3e0D7E574279aAD2569bA5b28",
-      name: "name",
-      symbol: "symbol",
-      royalty: new BN(0),
-      royaltyReceiver: wallet.publicKey,
-      metadata: "https://bafkreianwnedmty7tbdgr5rc6udztk2rm2zufr7hsaqwqb6wwijtxhsksu.ipfs.nftstorage.link",
-      transactionHash: "0xc237d45d8ddaddd4721e111cde64a1fec6717c651c27376563cdff5ed02d7553",
-      tokenAmount: new BN(1),
-      nftType: "nft",
-      fee: new BN(0),
-    });
+  //   let claimData = new ClaimNftData({
+  //     tokenId: "8",
+  //     sourceChain: "BSC",
+  //     destinationChain: "SOL",
+  //     destinationUserAddress: wallet.publicKey,
+  //     sourceNftContractAddress: "0x4a27453Dvv811AF3e0D7E574279aAD2569bA5b28",
+  //     name: "name",
+  //     symbol: "symbol",
+  //     royalty: new BN(0),
+  //     royaltyReceiver: wallet.publicKey,
+  //     metadata: "https://bafkreianwnedmty7tbdgr5rc6udztk2rm2zufr7hsaqwqb6wwijtxhsksu.ipfs.nftstorage.link",
+  //     transactionHash: "0xc237d45d8ddaddd4721e11llpe64a1ss8l717c651c27376563cdff5ed02d7553",
+  //     tokenAmount: new BN(1),
+  //     nftType: "nft",
+  //     fee: new BN(0),
+  //   })
 
-    let txHashArray = Array.from(createHash("SHA256").update(claimData.transactionHash).digest());
+  //   let txHashArray = Array.from(createHash("SHA256").update(claimData.transactionHash).digest());
 
-    let txHash = new TxHash({
-      txHash: txHashArray
-    });
+  //   let txHash = new TxHash({
+  //     txHash: txHashArray
+  //   });
 
-    const message = serialize(claimData);
-    const msgHash = createHash("SHA256").update(message).digest();
-    const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
+  //   const message = serialize(claimData);
+  //   const msgHash = createHash("SHA256").update(message).digest();
+  //   const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
 
-    const ed25519Instruction =
-      Ed25519Program.createInstructionWithPublicKey({
-        publicKey: wallet.payer.publicKey.toBuffer(),
-        message: msgHash,
-        signature,
-      });
+  //   const ed25519Instruction =
+  //     Ed25519Program.createInstructionWithPublicKey({
+  //       publicKey: wallet.payer.publicKey.toBuffer(),
+  //       message: msgHash,
+  //       signature,
+  //     });
 
-    const signatures = [new SignatureInfo({
-      publicKey: wallet.publicKey,
-      sig: Array.from(signature)
-    }), new SignatureInfo({
-      publicKey: wallet.publicKey,
-      sig: Array.from(signature)
-    })];
+  //   const signatures = [new SignatureInfo({
+  //     publicKey: wallet.publicKey,
+  //     sig: Array.from(signature)
+  //   })];
 
 
-    const data = new VerifyClaimSignaturesData({
-      txHash: txHashArray,
-      claimData,
-      signatures: signatures
-    });
+  //   const data = new VerifyClaimSignaturesData({
+  //     txHash: txHashArray,
+  //     claimData,
+  //     signatures: signatures,
+  //     validatorsCount: new BN(1)
+  //   });
 
-    [threshold, thresholdBump] = await PublicKey.findProgramAddress(
-      [new Uint8Array(createHash("SHA256").update(serialize(txHash)).digest())],
-      program.programId
-    )
+  //   [threshold, thresholdBump] = await PublicKey.findProgramAddress(
+  //     [new Uint8Array(createHash("SHA256").update(serialize(txHash)).digest())],
+  //     program.programId
+  //   )
 
-    try {
-      // const modifyComputeUnits =
-      //   anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
-      //     units: 300_000,
-      //   });
-      //@ts-ignore
-      const tx = await program.methods.verifyClaimSignatures(data)
-        .accounts({
-          threshold: threshold,
-          user: provider.wallet.publicKey,
-          systemProgram: SystemProgram.programId,
-          instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY
-        })
-        .remainingAccounts(
-          [
-            { isSigner: false, isWritable: false, pubkey: validator },
-            { isSigner: false, isWritable: false, pubkey: validator },
-          ]
-        )
-        .preInstructions(
-          [
-            ed25519Instruction,
-            ed25519Instruction,
-          ]
-        )
-        .transaction()
+  //   try {
+  //     // const modifyComputeUnits =
+  //     //   anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+  //     //     units: 300_000,
+  //     //   });
+  //     // @ts-ignore
+  //     const tx = await program.methods.verifyClaimSignatures(data)
+  //       .accounts({
+  //         bridge: bridge,
+  //         threshold: threshold,
+  //         user: provider.wallet.publicKey,
+  //         systemProgram: SystemProgram.programId,
+  //         instructionAcc: SYSVAR_INSTRUCTIONS_PUBKEY
+  //       })
+  //       .remainingAccounts(
+  //         [
+  //           { isSigner: false, isWritable: false, pubkey: validator },
+  //         ]
+  //       )
+  //       .preInstructions(
+  //         [
+  //           ed25519Instruction,
+  //         ]
+  //       )
+  //       .transaction()
 
-      // const transferTransaction = new anchor.web3.Transaction().add(
-      //   modifyComputeUnits,
-      //   tx
-      // );
+  //     // const transferTransaction = new anchor.web3.Transaction().add(
+  //     //   modifyComputeUnits,
+  //     //   tx
+  //     // );
 
-      let size = getTxSize(tx, wallet.payer.publicKey);
-      console.log("size ::", size);
+  //     let size = getTxSize(tx, wallet.payer.publicKey);
+  //     console.log("size ::", size);
 
-      const txSig = await anchor.web3.sendAndConfirmTransaction(
-        connection,
-        tx,
-        [wallet.payer],
-        { skipPreflight: false }
-      );
-      console.log("TxHash ::", txSig);
-    }
-    catch (ex) {
-      console.log(ex);
-    }
-  });
-
+  //     const txSig = await anchor.web3.sendAndConfirmTransaction(
+  //       connection,
+  //       tx,
+  //       [wallet.payer],
+  //       { skipPreflight: false }
+  //     );
+  //     console.log("TxHash ::", txSig);
+  //   }
+  //   catch (ex) {
+  //     console.log(ex);
+  //   }
+  // });
   // it("Lock721", async () => {
 
   //   const nftKey = new anchor.web3.PublicKey("DBXskGEvW8jkdCaBfrqLmMUQPV1wMGJZTMQiVWBcBvt5");
@@ -1368,17 +1364,16 @@ describe("bridge", async () => {
       fee: new BN(0),
     })
 
-    const message = serialize(claimData);
-    const msgHash = createHash("SHA256").update(message).digest();
-    const signature = await ed.sign(msgHash, wallet.payer.secretKey.slice(0, 32));
+    let txHashArray = Array.from(createHash("SHA256").update(claimData.transactionHash).digest());
 
-    const signatures = [new SignatureInfo({
-      publicKey: wallet.publicKey,
-      sig: Array.from(signature)
-    })];
+    let txHash = new TxHash({
+      txHash: txHashArray
+    });
 
-
-
+    [threshold, thresholdBump] = await PublicKey.findProgramAddress(
+      [new Uint8Array(createHash("SHA256").update(serialize(txHash)).digest())],
+      program.programId
+    );
 
     [selfTokens, selfTokensBump] = await PublicKey.findProgramAddress(
       [new Uint8Array(createHash("SHA256").update(Buffer.from(`self_tokens${claimData.tokenId}${claimData.sourceChain}${claimData.sourceNftContractAddress}`)).digest())],
@@ -1585,6 +1580,22 @@ describe("bridge", async () => {
     console.log(isCollectionExists, isUnlock);
     // console.log(otherTokens.toString());
 
+
+    // add addresses to the `lookupTableAddress` table via an `extend` instruction
+    const extendInstruction = anchor.web3.AddressLookupTableProgram.extendLookupTable({
+      payer: payer.publicKey,
+      authority: payer.publicKey,
+      lookupTable: new anchor.web3.PublicKey(""),
+      addresses: [
+        payer.publicKey,
+        anchor.web3.SystemProgram.programId,
+        // list more `publicKey` addresses here
+      ],
+    });
+
+    // Send this `extendInstruction` in a transaction to the cluster
+    // to insert the listing of `addresses` into your lookup table with address `lookupTableAddress`
+
     try {
       const modifyComputeUnits =
         anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
@@ -1601,6 +1612,7 @@ describe("bridge", async () => {
         tx = await program.methods.claimNftWithCollectionCreation(data)
           .accounts({
             bridge: bridge,
+            threshold: threshold,
             otherTokens: otherTokens,
             selfTokens: selfTokens,
             originalToDuplicateMapping: otdm,
@@ -1627,14 +1639,14 @@ describe("bridge", async () => {
         let size = getTxSize(transferTransaction, wallet.payer.publicKey);
         console.log("size ::", size);
 
-        const txSig = await anchor.web3.sendAndConfirmTransaction(
-          connection,
-          transferTransaction,
-          [wallet.payer, newMint],
-          { skipPreflight: false }
-        );
+        // const txSig = await anchor.web3.sendAndConfirmTransaction(
+        //   connection,
+        //   transferTransaction,
+        //   [wallet.payer, newMint],
+        //   { skipPreflight: false }
+        // );
 
-        console.log(txSig);
+        // console.log("gand33o", txSig);
       }
       else if (isCollectionExists && !isUnlock) {
         console.log("lllllllllllllllllaaaaaaaaaaaaaaaaaaaaa");
@@ -1721,7 +1733,7 @@ describe("bridge", async () => {
       }
     }
     catch (ex) {
-      //console.log(ex);
+      console.log(ex);
       console.dir(ex.logs, { 'maxArrayLength': null });
     }
   });
