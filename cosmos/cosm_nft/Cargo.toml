@@ -1,0 +1,15 @@
+[package]
+name = "cosm_nft"
+version = "0.1.0"
+edition = "2021"
+
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw2 = { workspace = true }
+cw721-base = { workspace = true, features = ["library"] }
+thiserror = { workspace = true }
