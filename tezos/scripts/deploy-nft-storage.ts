@@ -10,7 +10,7 @@ const stdio = createInterface({
 
 config();
 
-import NftContract from "../artifacts/NFTStorage.json";
+import NftContract from "../build/NFTStorage.json";
 
 const RPC_ENDPOINT = process.env.RPC_ENDPOINT!;
 const SK = process.env.SK!;

@@ -12,7 +12,7 @@ config();
 
 export type NFTStorageInitArgs = { owner: string; collection: string };
 
-import SftContract from "../artifacts/SFTStorage.json";
+import SftContract from "../build/SFTStorage.json";
 
 const RPC_ENDPOINT = process.env.RPC_ENDPOINT!;
 const SK = process.env.SK!;

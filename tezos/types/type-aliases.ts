@@ -74,6 +74,8 @@ export const tas = {
 	bytes: createStringTypeTas<bytes>(),
 	contract: createStringTypeTas<contract>(),
 	chest: createStringTypeTas<chest>(),
+	signature: createStringTypeTas<signature>(),
+	key: createStringTypeTas<key>(),
 	chest_key: createStringTypeTas<chest_key>(),
 	timestamp: (value: string | Date): timestamp => new Date(value).toISOString() as timestamp,
 

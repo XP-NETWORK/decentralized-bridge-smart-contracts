@@ -11,7 +11,7 @@ const stdio = createInterface({
 
 config();
 
-import Bridge from "../artifacts/Bridge.json";
+import Bridge from "../build/Bridge.json";
 import { deployStorageFactory } from "./deploy-storage-factory";
 import { deployCollectionFactory } from "./deploy-collection-factory";
 

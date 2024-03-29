@@ -10,7 +10,7 @@ const stdio = createInterface({
 
 config();
 
-import CollectionFactory from "../artifacts/CollectionFactory.json";
+import CollectionFactory from "../build/CollectionFactory.json";
 
 const RPC_ENDPOINT = process.env.RPC_ENDPOINT!;
 const SK = process.env.SK!;

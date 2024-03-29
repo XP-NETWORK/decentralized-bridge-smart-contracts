@@ -1,5 +1,5 @@
 import { MichelsonMap, TezosToolkit } from "@taquito/taquito";
-import NFT from "../artifacts/NFT.json";
+import NFT from "../build/NFT.json";
 import { NFTContractType } from "../types/NFT.types";
 import { tas } from "../types/type-aliases";
 import { MultiAssetCode } from "../types/MultiAsset.code";
