@@ -51,7 +51,7 @@ export namespace CollectionFactory {
             ltez: tez,
             s: NFT.NFT.storage
         ): [operation, address] =>
-            (create_contract_of_file `../artifacts/NFT.tz`)(op, ltez, s);
+            (create_contract_of_file `../build/NFT.tz`)(op, ltez, s);
         let originate: [operation, address] =
             createMyContract(None(), 0mutez, storage);
         let new_collection_to_store =

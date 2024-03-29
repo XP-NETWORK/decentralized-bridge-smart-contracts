@@ -44,7 +44,7 @@ export namespace StorageFactory {
             ltez: tez,
             s: { owner: address, collection: address, locked: set<nat> }
         ): [operation, address] =>
-            (create_contract_of_file `../artifacts/NFTStorage.tz`)(op, ltez, s);
+            (create_contract_of_file `../build/NFTStorage.tz`)(op, ltez, s);
         let originate: [operation, address] =
             createMyContract(None(), 0mutez, storage);
         let new_collection_to_store =
@@ -67,7 +67,7 @@ export namespace StorageFactory {
             ltez: tez,
             s: { owner: address, collection: address }
         ): [operation, address] =>
-            (create_contract_of_file `../artifacts/SFTStorage.tz`)(op, ltez, s);
+            (create_contract_of_file `../build/SFTStorage.tz`)(op, ltez, s);
         let originate: [operation, address] =
             createMyContract(None(), 0mutez, storage);
         let new_collection_to_store =
