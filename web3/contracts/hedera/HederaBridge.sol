@@ -3,19 +3,21 @@ pragma solidity ^0.8.20;
 
 import "hardhat/console.sol";
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+// import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/INFTStorageERC721.sol";
-import "./interfaces/INFTStorageERC1155.sol";
-import "./interfaces/IERC721Royalty.sol";
-import "./interfaces/IERC1155Royalty.sol";
 import "./interfaces/INFTStorageDeployer.sol";
-import "./interfaces/INFTCollectionDeployer.sol";
-import "./AddressUtilityLib.sol";
+import "../AddressUtilityLib.sol";
+import "../../lib/hedera/contracts/hts-precompile/HederaTokenService.sol";
+import "../../lib/hedera/contracts/hts-precompile/IHederaTokenService.sol";
+import "../../lib/hedera/contracts/hts-precompile/HederaResponseCodes.sol";
+import "../../lib/hedera/contracts/hts-precompile/ExpiryHelper.sol";
+import "../../lib/hedera/contracts/hts-precompile/KeyHelper.sol";
+import "../../lib/hedera/contracts/hts-precompile/FeeHelper.sol";
+import "./interfaces/IHTSCompatabilityLayer.sol";
+import "./BiDirectionalTokenInfoMapLib.sol";
 /**
  * @dev Stucture to store signature with signer public address
  */
@@ -39,14 +41,25 @@ struct Validator {
     uint pendingReward;
 }
 
-contract Bridge {
+contract HederaBridge is
+    HederaTokenService,
+    ExpiryHelper,
+    FeeHelper,
+    KeyHelper
+{
     using ECDSA for bytes32;
     using AddressUtilityLib for string;
-
+    using BiDirectionalTokenInfoMapLib for TokenInfo;
+    int64 public constant DEFAULT_EXPIRY = 7890000;
+    int64 public constant MAX_INT = 0xFFFFFFFF;
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
 
-    INFTCollectionDeployer public collectionDeployer;
+    mapping(string => mapping(string => mapping(uint256 => TokenInfo)))
+        public keyToValue;
+    mapping(string => mapping(string => mapping(uint256 => TokenInfo)))
+        public valueToKey;
+
     INFTStorageDeployer public storageDeployer;
 
     uint256 public validatorsCount = 0;
@@ -64,20 +77,13 @@ contract Bridge {
     // collectionAddress => source NftStorage721
     mapping(string => mapping(string => address))
         public originalStorageMapping721;
-    // collectionAddress => source NftStorage1155
-    mapping(string => mapping(string => address))
-        public originalStorageMapping1155;
 
     // collectionAddress => source NftStorage721
     mapping(string => mapping(string => address))
         public duplicateStorageMapping721;
-    // collectionAddress => source NftStorage1155
-    mapping(string => mapping(string => address))
-        public duplicateStorageMapping1155;
 
     string public selfChain = "";
     string constant TYPEERC721 = "singular"; // a more general term to accomodate non-evm chains
-    string constant TYPEERC1155 = "multiple"; // a more general term to accomodate non-evm chains
 
     struct ClaimData {
         uint256 tokenId; // Unique ID for the NFT transfer
@@ -111,13 +117,6 @@ contract Bridge {
 
     event UnLock721(address to, uint256 tokenId, address contractAddr);
 
-    event UnLock1155(
-        address to,
-        uint256 tokenId,
-        address contractAddr,
-        uint256 amount
-    );
-
     event Claimed(
         string sourceChain, // Chain from where the NFT is being transferred
         string transactionHash // Transaction hash of the transfer on the source chain
@@ -150,22 +149,15 @@ contract Bridge {
     constructor(
         address[] memory _validators,
         string memory _chainType,
-        address _collectionDeployer,
         address _storageDeployer
     ) {
-        require(
-            _collectionDeployer != address(0),
-            "Address cannot be zero address!"
-        );
         require(
             _storageDeployer != address(0),
             "Address cannot be zero address!"
         );
 
-        collectionDeployer = INFTCollectionDeployer(_collectionDeployer);
         storageDeployer = INFTStorageDeployer(_storageDeployer);
 
-        collectionDeployer.setOwner(address(this));
         storageDeployer.setOwner(address(this));
 
         selfChain = _chainType;
@@ -257,6 +249,56 @@ contract Bridge {
             .contractAddress
             .compareStrings("");
 
+        TokenInfo memory tinfo;
+
+        if (
+            BiDirectionalTokenInfoMapLib.containsValue(
+                TokenInfo(
+                    tokenId,
+                    selfChain,
+                    addressToString(sourceNftContractAddress),
+                    true
+                ),
+                keyToValue,
+                valueToKey
+            )
+        ) {
+            tinfo = BiDirectionalTokenInfoMapLib.getId(
+                TokenInfo(
+                    tokenId,
+                    selfChain,
+                    addressToString(sourceNftContractAddress),
+                    true
+                ),
+                keyToValue,
+                valueToKey
+            );
+        }
+
+        uint256 mutid = 0;
+
+        if (tinfo.exists) {
+            mutid = tinfo.tokenId;
+        } else {
+            mutid = tokenId;
+            BiDirectionalTokenInfoMapLib.insert(
+                TokenInfo(
+                    tokenId,
+                    selfChain,
+                    addressToString(sourceNftContractAddress),
+                    true
+                ),
+                TokenInfo(
+                    tokenId,
+                    selfChain,
+                    addressToString(sourceNftContractAddress),
+                    true
+                ),
+                keyToValue,
+                valueToKey
+            );
+        }
+
         // isOriginal
         if (isOriginal) {
             transferToStorage721(
@@ -268,7 +310,7 @@ contract Bridge {
             // if original i.e does not exist in duplicate mapping
             // emit the sourceNftContractAddress we got as argument
             emit Locked(
-                tokenId,
+                mutid,
                 destinationChain,
                 destinationUserAddress,
                 addressToString(sourceNftContractAddress),
@@ -284,7 +326,7 @@ contract Bridge {
             );
             // if duplicate, emit original address
             emit Locked(
-                tokenId,
+                mutid,
                 destinationChain,
                 destinationUserAddress,
                 originalCollectionAddress.contractAddress,
@@ -295,66 +337,82 @@ contract Bridge {
         }
     }
 
-    function lock1155(
-        uint256 tokenId, // Unique ID for the NFT transfer
-        string memory destinationChain, // Chain to where the NFT is being transferred
-        string memory destinationUserAddress, // User's address in the destination chain
-        address sourceNftContractAddress, // Address of the NFT contract in the source chain
-        uint256 tokenAmount
-    ) external {
-        require(
-            sourceNftContractAddress != address(0),
-            "sourceNftContractAddress cannot be zero address"
+    function deployCollection(
+        string memory name,
+        string memory symbol,
+        int64 royaltyNum,
+        address royaltyReceiver
+    ) private returns (address) {
+        IHederaTokenService.TokenKey[]
+            memory keys = new IHederaTokenService.TokenKey[](1);
+        keys[0] = getSingleKey(
+            KeyHelper.KeyType.SUPPLY,
+            KeyHelper.KeyValueType.CONTRACT_ID,
+            address(this)
         );
-        require(tokenAmount > 0, "token amount must be > than zero");
-        // Check if sourceNftContractAddress is original or duplicate
-        DuplicateToOriginalContractInfo
-            memory originalCollectionAddress = duplicateToOriginalMapping[
-                sourceNftContractAddress
-            ][selfChain];
 
-        bool isOriginal = originalCollectionAddress
-            .contractAddress
-            .compareStrings("");
-
-        if (isOriginal) {
-            transferToStorage1155(
-                originalStorageMapping1155,
-                sourceNftContractAddress,
-                tokenId,
-                tokenAmount
-            );
-
-            // if original i.e does not exist in duplicate mapping
-            // emit the sourceNftContractAddress we got as argument
-            emit Locked(
-                tokenId,
-                destinationChain,
-                destinationUserAddress,
-                addressToString(sourceNftContractAddress),
-                tokenAmount,
-                TYPEERC1155,
-                selfChain
+        IHederaTokenService.HederaToken memory token;
+        token.name = name;
+        token.symbol = symbol;
+        token.treasury = address(this);
+        token.memo = "";
+        token.tokenSupplyType = true;
+        token.maxSupply = MAX_INT;
+        token.freezeDefault = false;
+        token.tokenKeys = keys;
+        token.expiry = createAutoRenewExpiry(address(this), DEFAULT_EXPIRY);
+        IHederaTokenService.RoyaltyFee[] memory royaltyFees;
+        if (royaltyNum > 0) {
+            royaltyFees = new IHederaTokenService.RoyaltyFee[](1);
+            royaltyFees[0] = createRoyaltyFeeWithoutFallback(
+                royaltyNum,
+                10000,
+                royaltyReceiver
             );
         } else {
-            transferToStorage1155(
-                duplicateStorageMapping1155,
-                sourceNftContractAddress,
-                tokenId,
-                tokenAmount
-            );
-
-            // if duplicate, emit original address
-            emit Locked(
-                tokenId,
-                destinationChain,
-                destinationUserAddress,
-                originalCollectionAddress.contractAddress,
-                tokenAmount,
-                TYPEERC1155,
-                originalCollectionAddress.chain
-            );
+            royaltyFees = new IHederaTokenService.RoyaltyFee[](0);
         }
+        IHederaTokenService.FixedFee[]
+            memory fixedFees = new IHederaTokenService.FixedFee[](0);
+
+        (
+            int256 resp,
+            address createdToken
+        ) = createNonFungibleTokenWithCustomFees(token, fixedFees, royaltyFees);
+
+        require(resp == HederaResponseCodes.SUCCESS, "Failed to create token.");
+        return createdToken;
+    }
+
+    function mintHtsNft(
+        address ctr,
+        string memory tokenURI,
+        address to,
+        uint256 tokenId,
+        string memory srcChain,
+        string memory sourceNftContractAddr
+    ) private {
+        bytes[] memory metadata = new bytes[](1);
+        metadata[0] = abi.encodePacked(tokenURI);
+        (int256 resp, , int64[] memory serialNum) = mintToken(ctr, 0, metadata);
+        require(resp == HederaResponseCodes.SUCCESS, "Failed to mint token. ");
+        BiDirectionalTokenInfoMapLib.insert(
+            TokenInfo(tokenId, srcChain, sourceNftContractAddr, true),
+            TokenInfo(
+                uint256(uint64(serialNum[0])),
+                selfChain,
+                addressToString(ctr),
+                true
+            ),
+            keyToValue,
+            valueToKey
+        );
+
+        int256 tresp = transferNFT(ctr, address(this), to, serialNum[0]);
+        require(
+            tresp == HederaResponseCodes.SUCCESS,
+            "Failed to transfer minted token."
+        );
     }
 
     function claimNFT721(
@@ -411,264 +469,147 @@ contract Bridge {
         // console.log("HAS duplicate: %s", hasDuplicate);
 
         // ===============================/ hasDuplicate && hasStorage /=======================
+
+        TokenInfo memory tinfo;
+        if (
+            BiDirectionalTokenInfoMapLib.containsId(
+                TokenInfo(
+                    data.tokenId,
+                    data.sourceChain,
+                    data.sourceNftContractAddress,
+                    true
+                ),
+                keyToValue,
+                valueToKey
+            )
+        ) {
+            tinfo = BiDirectionalTokenInfoMapLib.getValue(
+                TokenInfo(
+                    data.tokenId,
+                    data.sourceChain,
+                    data.sourceNftContractAddress,
+                    true
+                ),
+                keyToValue,
+                valueToKey
+            );
+        }
+
         if (hasDuplicate && hasStorage) {
-            IERC721Royalty duplicateCollection = IERC721Royalty(
+            IHTSCompatibilityLayer htscl = IHTSCompatibilityLayer(
                 duplicateCollectionAddress.contractAddress.stringToAddress()
             );
-            address ownerOfToken;
-            try duplicateCollection.ownerOf(data.tokenId) returns (
-                address _ownerOfToken
-            ) {
-                ownerOfToken = _ownerOfToken;
-            } catch {}
 
-            if (ownerOfToken == storageContract) {
+            address ownerOfToken;
+            if (tinfo.exists) {
+                try htscl.ownerOf(tinfo.tokenId) returns (
+                    address _ownerOfToken
+                ) {
+                    ownerOfToken = _ownerOfToken;
+                } catch {}
+            } else {
+                try htscl.ownerOf(data.tokenId) returns (
+                    address _ownerOfToken
+                ) {
+                    ownerOfToken = _ownerOfToken;
+                } catch {}
+            }
+
+            if (ownerOfToken == storageContract && tinfo.exists) {
                 unLock721(
                     data.destinationUserAddress,
-                    data.tokenId,
+                    tinfo.tokenId,
                     storageContract
                 );
             } else {
-                duplicateCollection.mint(
+                mintHtsNft(
+                    duplicateCollectionAddress
+                        .contractAddress
+                        .stringToAddress(),
+                    data.metadata,
                     data.destinationUserAddress,
                     data.tokenId,
-                    data.royalty,
-                    data.royaltyReceiver,
-                    data.metadata
+                    data.sourceChain,
+                    data.sourceNftContractAddress
                 );
             }
         }
         // ===============================/ hasDuplicate && NOT hasStorage /=======================
         else if (hasDuplicate && !hasStorage) {
-            IERC721Royalty nft721Collection = IERC721Royalty(
-                duplicateCollectionAddress.contractAddress.stringToAddress()
-            );
-            nft721Collection.mint(
+            mintHtsNft(
+                duplicateCollectionAddress.contractAddress.stringToAddress(),
+                data.metadata,
                 data.destinationUserAddress,
                 data.tokenId,
-                data.royalty,
-                data.royaltyReceiver,
-                data.metadata
+                data.sourceChain,
+                data.sourceNftContractAddress
             );
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
-            IERC721Royalty newCollectionAddress = IERC721Royalty(
-                collectionDeployer.deployNFT721Collection(
-                    data.name,
-                    data.symbol
-                )
+            address newCollectionAddress = deployCollection(
+                data.name,
+                data.symbol,
+                int64(int256(data.royalty)),
+                data.royaltyReceiver
             );
-
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
                 data.sourceChain
             ] = OriginalToDuplicateContractInfo(
                 selfChain,
-                addressToString(address(newCollectionAddress))
+                addressToString(newCollectionAddress)
             );
 
-            duplicateToOriginalMapping[address(newCollectionAddress)][
+            duplicateToOriginalMapping[newCollectionAddress][
                 selfChain
             ] = DuplicateToOriginalContractInfo(
                 data.sourceChain,
                 data.sourceNftContractAddress
             );
 
-            newCollectionAddress.mint(
+            mintHtsNft(
+                newCollectionAddress,
+                data.metadata,
                 data.destinationUserAddress,
                 data.tokenId,
-                data.royalty,
-                data.royaltyReceiver,
-                data.metadata
+                data.sourceChain,
+                data.sourceNftContractAddress
             );
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
-            IERC721Royalty originalCollection = IERC721Royalty(
+            IHTSCompatibilityLayer htscl = IHTSCompatibilityLayer(
                 data.sourceNftContractAddress.stringToAddress()
             );
+            address ownerOfToken;
+            if (tinfo.exists) {
+                try htscl.ownerOf(tinfo.tokenId) returns (
+                    address _ownerOfToken
+                ) {
+                    ownerOfToken = _ownerOfToken;
+                } catch {}
+            } else {
+                try htscl.ownerOf(data.tokenId) returns (
+                    address _ownerOfToken
+                ) {
+                    ownerOfToken = _ownerOfToken;
+                } catch {}
+            }
 
-            if (originalCollection.ownerOf(data.tokenId) == storageContract) {
+            if (ownerOfToken == storageContract && tinfo.exists) {
                 unLock721(
                     data.destinationUserAddress,
-                    data.tokenId,
+                    tinfo.tokenId,
                     storageContract
                 );
             } else {
-                // console.log("HERE2");
-
-                // ============= This could be wrong. Need verification ============
-                originalCollection.mint(
+                mintHtsNft(
+                    data.sourceNftContractAddress.stringToAddress(),
+                    data.metadata,
                     data.destinationUserAddress,
                     data.tokenId,
-                    data.royalty,
-                    data.royaltyReceiver,
-                    data.metadata
-                );
-            }
-            // ============= This could be wrong. Need verification ============
-        } else {
-            // TODO: remove after testing
-            require(false, "Invalid bridge state");
-        }
-
-        emit Claimed(data.sourceChain, data.transactionHash);
-    }
-
-    function claimNFT1155(
-        ClaimData memory data,
-        bytes[] memory signatures
-    )
-        external
-        payable
-        hasCorrectFee(data.fee)
-        matchesCurrentChain(data.destinationChain)
-    {
-        require(
-            keccak256(abi.encodePacked(data.nftType)) ==
-                keccak256(abi.encodePacked(TYPEERC1155)),
-            "Invalid NFT type!"
-        );
-        bytes32 hash = createClaimDataHash(data);
-
-        require(!uniqueIdentifier[hash], "Data already processed!");
-        uniqueIdentifier[hash] = true;
-
-        address[] memory validatorsToReward = verifySignature(hash, signatures);
-        rewardValidators(data.fee, validatorsToReward);
-
-        OriginalToDuplicateContractInfo
-            memory duplicateCollectionAddress = originalToDuplicateMapping[
-                data.sourceNftContractAddress
-            ][data.sourceChain];
-
-        bool hasDuplicate = !duplicateCollectionAddress
-            .contractAddress
-            .compareStrings("");
-
-        address storageContract;
-        if (hasDuplicate) {
-            storageContract = duplicateStorageMapping1155[
-                duplicateCollectionAddress.contractAddress
-            ][selfChain];
-        } else {
-            storageContract = originalStorageMapping1155[
-                data.sourceNftContractAddress
-            ][data.sourceChain];
-        }
-
-        bool hasStorage = storageContract != address(0);
-
-        // ===============================/ Is Duplicate && Has Storage /=======================
-        if (hasDuplicate && hasStorage) {
-            IERC1155Royalty collecAddress = IERC1155Royalty(
-                duplicateCollectionAddress.contractAddress.stringToAddress()
-            );
-            uint256 balanceOfTokens = collecAddress.balanceOf(
-                storageContract,
-                data.tokenId
-            );
-            if (balanceOfTokens >= data.tokenAmount) {
-                unLock1155(
-                    data.destinationUserAddress,
-                    data.tokenId,
-                    storageContract,
-                    data.tokenAmount
-                );
-            } else {
-                uint256 toMint = data.tokenAmount - balanceOfTokens;
-                unLock1155(
-                    data.destinationUserAddress,
-                    data.tokenId,
-                    storageContract,
-                    balanceOfTokens
-                );
-                collecAddress.mint(
-                    data.destinationUserAddress,
-                    data.tokenId,
-                    toMint,
-                    data.royalty,
-                    data.royaltyReceiver,
-                    data.metadata
-                );
-            }
-        }
-        // ===============================/ Is Duplicate && No Storage /=======================
-        else if (hasDuplicate && !hasStorage) {
-            IERC1155Royalty nft1155Collection = IERC1155Royalty(
-                duplicateCollectionAddress.contractAddress.stringToAddress()
-            );
-            nft1155Collection.mint(
-                data.destinationUserAddress,
-                data.tokenId,
-                data.tokenAmount,
-                data.royalty,
-                data.royaltyReceiver,
-                data.metadata
-            );
-        }
-        // ===============================/ Not Duplicate && No Storage /=======================
-        else if (!hasDuplicate && !hasStorage) {
-            IERC1155Royalty newCollectionAddress = IERC1155Royalty(
-                collectionDeployer.deployNFT1155Collection()
-            );
-            //  new ERC1155Royalty();
-
-            // update duplicate mappings
-            originalToDuplicateMapping[data.sourceNftContractAddress][
-                data.sourceChain
-            ] = OriginalToDuplicateContractInfo(
-                selfChain,
-                addressToString(address(newCollectionAddress))
-            );
-            duplicateToOriginalMapping[address(newCollectionAddress)][
-                selfChain
-            ] = DuplicateToOriginalContractInfo(
-                data.sourceChain,
-                data.sourceNftContractAddress
-            );
-
-            newCollectionAddress.mint(
-                data.destinationUserAddress,
-                data.tokenId,
-                data.tokenAmount,
-                data.royalty,
-                data.royaltyReceiver,
-                data.metadata
-            );
-            // ===============================/ Duplicate && No Storage /=======================
-        } else if (!hasDuplicate && hasStorage) {
-            IERC1155Royalty collecAddress = IERC1155Royalty(
-                data.sourceNftContractAddress.stringToAddress()
-            );
-
-            uint256 balanceOfTokens = collecAddress.balanceOf(
-                storageContract,
-                data.tokenId
-            );
-
-            if (balanceOfTokens >= data.tokenAmount) {
-                unLock1155(
-                    data.destinationUserAddress,
-                    data.tokenId,
-                    storageContract,
-                    data.tokenAmount
-                );
-            } else {
-                uint256 toMint = data.tokenAmount - balanceOfTokens;
-                unLock1155(
-                    data.destinationUserAddress,
-                    data.tokenId,
-                    storageContract,
-                    balanceOfTokens
-                );
-                collecAddress.mint(
-                    data.destinationUserAddress,
-                    data.tokenId,
-                    toMint,
-                    data.royalty,
-                    data.royaltyReceiver,
-                    data.metadata
+                    data.sourceChain,
+                    data.sourceNftContractAddress
                 );
             }
         } else {
@@ -704,32 +645,6 @@ contract Bridge {
         nftStorageContract.unlockToken(tokenId, to);
     }
 
-    function unLock1155(
-        address to,
-        uint256 tokenId,
-        address contractAddress,
-        uint256 amountOfTokens
-    ) private {
-        // address nftStorageAddress1155 = originalStorageMapping1155[
-        //     address(contractAddress)
-        // ][sourceChain];
-
-        // require(
-        //     nftStorageAddress1155 != address(0),
-        //     "NFT Storage contract does not exist!"
-        // );
-
-        // if storage contract exists in mapping, unlock token on the
-        // storage contract
-        INFTStorageERC1155 nftStorageContract = INFTStorageERC1155(
-            contractAddress
-        );
-
-        emit UnLock1155(to, tokenId, address(contractAddress), amountOfTokens);
-
-        nftStorageContract.unlockToken(tokenId, amountOfTokens, to);
-    }
-
     function transferToStorage721(
         mapping(string => mapping(string => address)) storage storageMapping721,
         address sourceNftContractAddress,
@@ -750,47 +665,11 @@ contract Bridge {
             ] = storageAddress;
         }
 
-        IERC721(sourceNftContractAddress).safeTransferFrom(
+        transferNFT(
+            sourceNftContractAddress,
             msg.sender,
             storageAddress,
-            tokenId
-        );
-    }
-
-    function transferToStorage1155(
-        mapping(string => mapping(string => address))
-            storage storageMapping1155,
-        address sourceNftContractAddress,
-        uint256 tokenId,
-        uint256 tokenAmount
-    ) private {
-        address storageAddress = storageMapping1155[
-            addressToString(sourceNftContractAddress)
-        ][selfChain];
-
-        // NOT hasStorage
-        if (storageAddress == address(0)) {
-            storageAddress = storageDeployer.deployNFT1155Storage(
-                sourceNftContractAddress
-            );
-            // console.log("here %s", storageAddress);
-
-            storageMapping1155[addressToString(sourceNftContractAddress)][
-                selfChain
-            ] = storageAddress;
-
-            // address st = storageMapping1155[sourceNftContractAddress][
-            //     selfChain
-            // ];
-            // console.log("here st %s", st);
-        }
-
-        IERC1155(sourceNftContractAddress).safeTransferFrom(
-            msg.sender,
-            storageAddress,
-            tokenId,
-            tokenAmount,
-            ""
+            int64(uint64(tokenId))
         );
     }
 

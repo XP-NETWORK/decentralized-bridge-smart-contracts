@@ -18,3 +18,4 @@ meta/target
 temp
 build
 contract.wasm*
+.yarn

@@ -4,12 +4,13 @@ import { ethers } from "hardhat";
 
 async function main() {
 
-    const bootstrapValidator = "0x67081bD856e29d7D7B3028C34Afb331fa6b3186E"
+    const bootstrapValidator = "0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23"
     const chainFees  = [
-        ["BSC", "100000000000000", "0x67081bD856e29d7D7B3028C34Afb331fa6b3186E"],
-        ["ETH", "100000000000000", "0x67081bD856e29d7D7B3028C34Afb331fa6b3186E"],
-        ["MATIC", "100000000000000", "0x67081bD856e29d7D7B3028C34Afb331fa6b3186E"],
-        ["MULTIVERSX", "100000000000000", "2130d2c16f919f634de847801cdccefbbc1f89bdd2524d5b6b94edbf821b2b00"],
+        ["BSC", "100000000000000", "0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23"],
+        ["MATIC", "100000000000000", "0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23"],
+        ["ETH", "100000000000000", "0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23"],
+        ["MULTIVERSX", "100000000000000", "9fb927c978225cb7a93b8b3cd8d8423e176e009dc284c536d9c4372bbe128487"],
+        ["TON", "100000000", "EQAV8tH2WDuWYU7zAmkJmIwP8Ph_uIC4zBqJNIfKgRUUQewh"],
     ] 
     const bridgeStorage = await ethers.deployContract("BridgeStorage", [bootstrapValidator, chainFees]);
 
