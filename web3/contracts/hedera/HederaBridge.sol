@@ -119,7 +119,9 @@ contract HederaBridge is
 
     event Claimed(
         string sourceChain, // Chain from where the NFT is being transferred
-        string transactionHash // Transaction hash of the transfer on the source chain
+        string transactionHash, // Transaction hash of the transfer on the source chain
+        address nftContract,
+        uint256 emittedTokenId
     );
 
     modifier requireFees() {
@@ -391,7 +393,7 @@ contract HederaBridge is
         uint256 tokenId,
         string memory srcChain,
         string memory sourceNftContractAddr
-    ) private {
+    ) private returns (address, uint256) {
         bytes[] memory metadata = new bytes[](1);
         metadata[0] = abi.encodePacked(tokenURI);
         (int256 resp, , int64[] memory serialNum) = mintToken(ctr, 0, metadata);
@@ -413,6 +415,7 @@ contract HederaBridge is
             tresp == HederaResponseCodes.SUCCESS,
             "Failed to transfer minted token."
         );
+        return (ctr, uint256(uint64(serialNum[0])));
     }
 
     function claimNFT721(
@@ -521,8 +524,9 @@ contract HederaBridge is
                     tinfo.tokenId,
                     storageContract
                 );
+                emit Claimed(data.sourceChain, data.transactionHash, duplicateCollectionAddress.contractAddress.stringToAddress(), tinfo.tokenId);
             } else {
-                mintHtsNft(
+                     (address nftContract, uint256 tokenId ) = mintHtsNft(
                     duplicateCollectionAddress
                         .contractAddress
                         .stringToAddress(),
@@ -532,11 +536,13 @@ contract HederaBridge is
                     data.sourceChain,
                     data.sourceNftContractAddress
                 );
+                emit Claimed(data.sourceChain, data.transactionHash, nftContract, tokenId);
             }
+
         }
         // ===============================/ hasDuplicate && NOT hasStorage /=======================
         else if (hasDuplicate && !hasStorage) {
-            mintHtsNft(
+              (address nftContract, uint256 tokenId ) = mintHtsNft(
                 duplicateCollectionAddress.contractAddress.stringToAddress(),
                 data.metadata,
                 data.destinationUserAddress,
@@ -544,6 +550,7 @@ contract HederaBridge is
                 data.sourceChain,
                 data.sourceNftContractAddress
             );
+            emit Claimed(data.sourceChain, data.transactionHash, nftContract, tokenId);
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
@@ -568,7 +575,7 @@ contract HederaBridge is
                 data.sourceNftContractAddress
             );
 
-            mintHtsNft(
+          (address nftContract, uint256 tokenId ) = mintHtsNft(
                 newCollectionAddress,
                 data.metadata,
                 data.destinationUserAddress,
@@ -576,6 +583,9 @@ contract HederaBridge is
                 data.sourceChain,
                 data.sourceNftContractAddress
             );
+
+        
+        emit Claimed(data.sourceChain, data.transactionHash, nftContract, tokenId);
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
             IHTSCompatibilityLayer htscl = IHTSCompatibilityLayer(
@@ -603,7 +613,7 @@ contract HederaBridge is
                     storageContract
                 );
             } else {
-                mintHtsNft(
+                (address nftContract, uint256 tokenId ) = mintHtsNft(
                     data.sourceNftContractAddress.stringToAddress(),
                     data.metadata,
                     data.destinationUserAddress,
@@ -611,13 +621,13 @@ contract HederaBridge is
                     data.sourceChain,
                     data.sourceNftContractAddress
                 );
+        emit Claimed(data.sourceChain, data.transactionHash, nftContract, tokenId);
             }
         } else {
             // TODO: remove after testing
             require(false, "Invalid bridge state");
         }
 
-        emit Claimed(data.sourceChain, data.transactionHash);
     }
 
     function unLock721(

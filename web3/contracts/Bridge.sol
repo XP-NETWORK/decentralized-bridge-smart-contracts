@@ -118,9 +118,19 @@ contract Bridge {
         uint256 amount
     );
 
-    event Claimed(
+    event Claimed721(
         string sourceChain, // Chain from where the NFT is being transferred
-        string transactionHash // Transaction hash of the transfer on the source chain
+        string transactionHash, // Transaction hash of the transfer on the source chain
+        address nftContract, // The contract address from which tokens were claimed
+        uint256 tokenId  // The tokenId that was claimed
+    );
+
+    event Claim1155(
+            string sourceChain, // Chain from where the NFT is being transferred
+        string transactionHash, // Transaction hash of the transfer on the source chain
+        address nftContract, // The contract address from which tokens were claimed
+        uint256 tokenId,  // The tokenId that was claimed
+        uint256 amount // The amount of the tokens that were claimed
     );
 
     modifier requireFees() {
@@ -437,6 +447,7 @@ contract Bridge {
                     data.metadata
                 );
             }
+            emit Claimed721(data.sourceChain, data.transactionHash, address(duplicateCollection), data.tokenId);
         }
         // ===============================/ hasDuplicate && NOT hasStorage /=======================
         else if (hasDuplicate && !hasStorage) {
@@ -450,6 +461,8 @@ contract Bridge {
                 data.royaltyReceiver,
                 data.metadata
             );
+
+        emit Claimed721(data.sourceChain, data.transactionHash, address(nft721Collection), data.tokenId);
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
@@ -459,6 +472,7 @@ contract Bridge {
                     data.symbol
                 )
             );
+            
 
             // update duplicate mappings
             originalToDuplicateMapping[data.sourceNftContractAddress][
@@ -482,6 +496,8 @@ contract Bridge {
                 data.royaltyReceiver,
                 data.metadata
             );
+
+        emit Claimed721(data.sourceChain, data.transactionHash, address(newCollectionAddress), data.tokenId);
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
             IERC721Royalty originalCollection = IERC721Royalty(
@@ -506,13 +522,14 @@ contract Bridge {
                     data.metadata
                 );
             }
+
+        emit Claimed721(data.sourceChain, data.transactionHash, address(originalCollection), data.tokenId);
             // ============= This could be wrong. Need verification ============
         } else {
             // TODO: remove after testing
             require(false, "Invalid bridge state");
         }
 
-        emit Claimed(data.sourceChain, data.transactionHash);
     }
 
     function claimNFT1155(
@@ -592,6 +609,7 @@ contract Bridge {
                     data.metadata
                 );
             }
+            emit Claim1155(data.sourceChain, data.transactionHash, address(collecAddress), data.tokenId, data.tokenAmount);
         }
         // ===============================/ Is Duplicate && No Storage /=======================
         else if (hasDuplicate && !hasStorage) {
@@ -606,6 +624,8 @@ contract Bridge {
                 data.royaltyReceiver,
                 data.metadata
             );
+             emit Claim1155(data.sourceChain, data.transactionHash, address(nft1155Collection), data.tokenId, data.tokenAmount);
+            
         }
         // ===============================/ Not Duplicate && No Storage /=======================
         else if (!hasDuplicate && !hasStorage) {
@@ -636,6 +656,7 @@ contract Bridge {
                 data.royaltyReceiver,
                 data.metadata
             );
+                emit Claim1155(data.sourceChain, data.transactionHash, address(newCollectionAddress), data.tokenId, data.tokenAmount);
             // ===============================/ Duplicate && No Storage /=======================
         } else if (!hasDuplicate && hasStorage) {
             IERC1155Royalty collecAddress = IERC1155Royalty(
@@ -671,12 +692,13 @@ contract Bridge {
                     data.metadata
                 );
             }
+            emit Claim1155(data.sourceChain, data.transactionHash, address(collecAddress), data.tokenId, data.tokenAmount);
         } else {
             // TODO: remove after testing
             require(false, "Invalid bridge state");
         }
 
-        emit Claimed(data.sourceChain, data.transactionHash);
+  
     }
 
     function unLock721(
