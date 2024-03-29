@@ -65,11 +65,11 @@ export namespace Bridge {
         }
     }
     function add_token_to_locked_storage(storage: address, tid: nat): operation {
-        const ctr: contract<{token_id: nat}> =
+        const ctr: contract<{ token_id: nat }> =
             Tezos.get_entrypoint("%add_deposited_token", storage);
-        const transfer_nft_op = Tezos.transaction({token_id: tid}, 0mutez, ctr)
+        const transfer_nft_op =
+            Tezos.transaction({ token_id: tid }, 0mutez, ctr)
         return transfer_nft_op;
-
     }
     export type storage = {
         validators: big_map<address, rewards>,
@@ -127,10 +127,20 @@ export namespace Bridge {
     ): operation {
         return Tezos.emit("%unlocked", { to, token_id, contract, amt });
     }
-    function emit_claimed_ev(source_chain: string, tx_hash: string): operation {
+    function emit_claimed_ev(
+        source_chain: string,
+        tx_hash: string,
+        nft_contract: address,
+        token_id: nat
+    ): operation {
         return Tezos.emit(
             "%claimed",
-            { source_chain: source_chain, tx_hash: tx_hash }
+            {
+                source_chain: source_chain,
+                tx_hash: tx_hash,
+                nft_contract,
+                token_id
+            }
         );
     }
     function modifier_require_fees(): unit {
@@ -425,7 +435,8 @@ export namespace Bridge {
                     extract_addr(p.collection),
                     p.amt
                 );
-            let add_op = add_token_to_locked_storage(storage_contract, p.token_id)
+            let add_op =
+                add_token_to_locked_storage(storage_contract, p.token_id)
             let event_op =
                 emit_locked_ev(
                     p.token_id,
@@ -464,7 +475,8 @@ export namespace Bridge {
                     extract_addr(p.collection),
                     p.amt
                 );
-                let add_op = add_token_to_locked_storage(storage_contract, p.token_id)
+            let add_op =
+                add_token_to_locked_storage(storage_contract, p.token_id)
             let event_op =
                 emit_locked_ev(
                     p.token_id,
@@ -778,7 +790,13 @@ export namespace Bridge {
                 s.duplicate_to_original_mapping
             )
         let mint_op = mint_nft(p.dest_address, deployed, p.md, p.token_id);
-        let claim_event_op = emit_claimed_ev(p.dest_chain, p.transaction_hash);
+        let claim_event_op =
+            emit_claimed_ev(
+                p.dest_chain,
+                p.transaction_hash,
+                deployed,
+                p.token_id
+            );
         return [
             list([mint_op, claim_event_op]),
             {
@@ -837,6 +855,16 @@ export namespace Bridge {
                         p.data.metadata,
                         p.data.token_id
                     );
+                op
+                = List.cons(
+                      emit_claimed_ev(
+                          p.data.source_chain,
+                          p.data.transaction_hash,
+                          contract,
+                          p.data.token_id
+                      ),
+                      op
+                  );
                 op = List.cons(mint_op, op);
             }
         } else if (has_duplicate && ! has_storage) {
@@ -850,9 +878,20 @@ export namespace Bridge {
                     p.data.token_id
                 );
             op = List.cons(mint_op, op);
+            op
+            = List.cons(
+                  emit_claimed_ev(
+                      p.data.source_chain,
+                      p.data.transaction_hash,
+                      contract,
+                      p.data.token_id
+                  ),
+                  op
+              )
         } else if (! has_duplicate && has_storage) {
             const oc: address = extract_addr(p.data.source_nft_contract_address);
-            assert_some_with_error(storage_address,
+            assert_some_with_error(
+                storage_address,
                 "Storage not deployed for this collection"
             );
             const sc = Option.unopt(storage_address);
@@ -871,6 +910,16 @@ export namespace Bridge {
                     );
                 op = List.cons(mint_op, op);
             }
+            op
+            = List.cons(
+                  emit_claimed_ev(
+                      p.data.source_chain,
+                      p.data.transaction_hash,
+                      oc,
+                      p.data.token_id
+                  ),
+                  op
+              );
         } else if (! has_duplicate && ! has_storage) {
             let ctr = p.data.source_nft_contract_address;
             let deploy_ep: contract<{ collection: AddrOrStr }> =
@@ -900,9 +949,6 @@ export namespace Bridge {
             op = List.cons(deploy_op, List.cons(handle_final_op, op));
             return [op, storage]
         }
-        let claim_event_op =
-            emit_claimed_ev(p.data.source_chain, p.data.transaction_hash);
-        op = List.cons(claim_event_op, op);
         return [op, s];
     }
     function claim_sft(p: claim_params, s: storage): ret {
