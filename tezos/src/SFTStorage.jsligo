@@ -1,0 +1,68 @@
+#import "@ligo/fa/lib/fa2/asset/multi_asset.impl.jsligo" "MultiAsset"
+
+export namespace SFTStorage {
+    export type storage = { owner: address, collection: address };
+    type ret = [list<operation>, storage];
+    export type deposit_parameters = { token_id: nat, amt: nat }
+    export type unlock_parameters = { token_id: nat, to: address, amt: nat }
+    function transfer_fa2(
+        from_: address,
+        to_: address,
+        token_id: nat,
+        amt: nat,
+        store: storage
+    ): operation {
+        const ctr: contract<MultiAsset.TZIP12.transfer> =
+            Tezos.get_entrypoint("%transfer", store.collection);
+        const params =
+            list(
+                [
+                    {
+                        from_: from_,
+                        txs: list(
+                            [{ to_: to_, amount: amt, token_id: token_id }]
+                        )
+                    }
+                ]
+            );
+        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        return transfer_nft_op;
+    };
+    function only_owner(store: storage): unit {
+        if (Tezos.get_sender() != store.owner) {
+            failwith(
+                "Cannot perform this function since you are not the owner."
+            )
+        }
+        return unit;
+    };
+    @entry
+    function deposit_token(p: deposit_parameters, store: storage): ret {
+        const current_addr = Tezos.get_self_address();
+        const transfer_nft_op =
+            transfer_fa2(
+                Tezos.get_source(),
+                current_addr,
+                p.token_id,
+                p.amt,
+                store
+            );
+        return [list([transfer_nft_op]), store]
+    };
+    @entry
+    function unlock_token(p: unlock_parameters, store: storage): ret {
+        const current_addr = Tezos.get_self_address();
+        only_owner(store);
+        const transfer_nft_op =
+            transfer_fa2(current_addr, p.to, p.token_id, p.amt, store);
+        return [list([transfer_nft_op]), store]
+    };
+    @view
+    function get_collection_address(_: unit, store: storage): address {
+        return store.collection
+    }
+    @view
+    function get_owner(_: unit, store: storage): address {
+        return store.collection
+    }
+};

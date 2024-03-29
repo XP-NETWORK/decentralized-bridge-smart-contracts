@@ -1,0 +1,88 @@
+#import "./NFTStorage.jsligo" "NFTStorage"
+
+export namespace StorageFactory {
+    export type storage = {
+        owner: option<address>,
+        collection_to_store: map<address, address>
+    };
+    export type ret = [list<operation>, storage];
+    export type deploy_params = { collection: address };
+    export type chown_params = { new_owner: address };
+    function require_initialized(store: storage): unit {
+        if (Option.is_none(store.owner)) {
+            failwith("Contract is not initialized");
+        }
+        return unit;
+    }
+    function only_owner(store: storage): unit {
+        require_initialized(store);
+        // Unopt is fine  because we already checked that owner is not None in require_initialized
+        if (Option.unopt(store.owner) != Tezos.get_sender()) {
+            failwith("Only owner can call this function");
+        }
+        return unit;
+    }
+    @entry
+    function set_owner(p: chown_params, store: storage): ret {
+        if (Option.is_some(store.owner)) {
+            failwith("Owner already set");
+        }
+        let new_store = Some(p.new_owner);
+        return [list([]), { ...store, owner: new_store }];
+    }
+    @entry
+    function deploy_nft_storage(p: deploy_params, store: storage): ret {
+        only_owner(store);
+        // Unopt is fine  because we already checked that owner is not None in only_owner
+        let storage: { owner: address, collection: address, locked: set<nat> } = {
+            owner: Option.unopt(store.owner),
+            collection: p.collection,
+            locked: Set.empty
+        }
+        let createMyContract = (
+            op: option<key_hash>,
+            ltez: tez,
+            s: { owner: address, collection: address, locked: set<nat> }
+        ): [operation, address] =>
+            (create_contract_of_file `../artifacts/NFTStorage.tz`)(op, ltez, s);
+        let originate: [operation, address] =
+            createMyContract(None(), 0mutez, storage);
+        let new_collection_to_store =
+            Map.add(p.collection, originate[1], store.collection_to_store)
+        return [
+            list([originate[0]]),
+            { ...store, collection_to_store: new_collection_to_store }
+        ];
+    }
+    @entry
+    function deploy_sft_storage(p: deploy_params, store: storage): ret {
+        only_owner(store);
+        // Unopt is fine  because we already checked that owner is not None in only_owner
+        let storage = {
+            owner: Option.unopt(store.owner),
+            collection: p.collection
+        }
+        let createMyContract = (
+            op: option<key_hash>,
+            ltez: tez,
+            s: { owner: address, collection: address }
+        ): [operation, address] =>
+            (create_contract_of_file `../artifacts/SFTStorage.tz`)(op, ltez, s);
+        let originate: [operation, address] =
+            createMyContract(None(), 0mutez, storage);
+        let new_collection_to_store =
+            Map.add(p.collection, originate[1], store.collection_to_store)
+        return [
+            list([originate[0]]),
+            { ...store, collection_to_store: new_collection_to_store }
+        ];
+    }
+    @view
+    function get_store(collection: address, store: storage): address {
+        return Map.find(collection, store.collection_to_store)
+    }
+    @view
+    function get_owner(_: unit, store: storage): address {
+        return Option.unopt(store.owner)
+    }
+}

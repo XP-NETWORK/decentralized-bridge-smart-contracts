@@ -1,0 +1,424 @@
+export namespace BridgeStorage {
+    export type SignerAndSignature = { signer: string; signature: bytes; }
+    export type ValidatorAddressWithSignerAndSignature = {
+        validator_address: string;
+        signer_and_signature: SignerAndSignature;
+    }
+    export type storage = {
+        chain_epoch: big_map<string, nat>;
+        royalty_epoch: big_map<string, nat>;
+        validator_epoch: big_map<address, nat>;
+        staking_signatures: big_map<string, list<SignerAndSignature>>;
+        validators: big_map<address, bool>;
+        validator_status_change_votes: big_map<[address, bool, nat], nat>;
+        validator_voted: big_map<[address, address, nat], bool>;
+        chain_fee_votes: big_map<[string, nat, nat], nat>;
+        chain_fee_voted: big_map<[string, nat, address, nat], bool>;
+        chain_royalty_voted: big_map<[string, string, address, nat], bool>;
+        chain_royalty_votes: big_map<[string, string, nat], nat>;
+        validators_count: nat;
+        lock_signatures: big_map<[string, string], list<SignerAndSignature>>;
+        used_signatures: big_map<bytes, bool>;
+        chain_fee: big_map<string, nat>;
+        chain_royalty: big_map<string, string>;
+    }
+    export function bm_opt_or_default_nat<K>(map: big_map<K, nat>, key: K) {
+        const opt = Big_map.find_opt(key, map);
+        return Option.is_some(opt) ? Option.unopt(opt) : 0n;
+    }
+    export function bm_opt_or_default_bool<K>(map: big_map<K, bool>, key: K) {
+        const opt = Big_map.find_opt(key, map);
+        return Option.is_some(opt) ? Option.unopt(opt) : false;
+    }
+    export function bm_opt_or_default_string<K>(map: big_map<K, string>, key: K) {
+        const opt = Big_map.find_opt(key, map);
+        return Option.is_some(opt) ? Option.unopt(opt) : "";
+    }
+    type ret = [list<operation>, storage]
+    export function modifier_only_validator(store: storage): bool {
+        const sender = Tezos.get_sender();
+        const opt = Big_map.find_opt(sender, store.validators);
+        return match(opt) {
+            when (Some(_)):
+                do { return true }
+            when (None()):
+                do { failwith("Only validator can call this function") }
+        };
+    }
+    function require(condition: bool, message: string): unit {
+        if (! condition) {
+            failwith(message);
+        };
+    }
+    type ChangeChainFeeParams = { chain: string, fee: nat, }
+    @entry
+    function change_chain_fee(p: ChangeChainFeeParams, store: storage): ret {
+        modifier_only_validator(store);
+        let chain_epoch = Big_map.find(p.chain, store.chain_epoch);
+        let voted =
+            Big_map.find_opt(
+                [p.chain, p.fee, Tezos.get_sender(), chain_epoch],
+                store.chain_fee_voted
+            );
+        require(
+            Option.is_none(voted),
+            "You have already voted for this chain fee"
+        );
+        let updated_chain_fee_voted =
+            Big_map.update(
+                [p.chain, p.fee, Tezos.get_sender(), chain_epoch],
+                Some(true),
+                store.chain_fee_voted
+            );
+        let opt_chain_fee_votes =
+            Big_map.find_opt(
+                [p.chain, p.fee, chain_epoch],
+                store.chain_fee_votes
+            )
+        let chain_fee_votes =
+            Option.is_some(opt_chain_fee_votes) ? Option.unopt(
+                    opt_chain_fee_votes
+                ) : 0n;
+        let updated_chain_fee_votes =
+            Big_map.update(
+                [p.chain, p.fee, chain_epoch],
+                Some(chain_fee_votes + 1n),
+                store.chain_fee_votes
+            );
+        const twoByThreeValidators = ((2 * store.validators_count) / 3);
+        let opt_num_votes =
+            Big_map.find_opt(
+                [p.chain, p.fee, chain_epoch],
+                store.chain_fee_votes
+            )
+        const num_votes =
+            int(
+                Option.is_some(opt_num_votes) ? Option.unopt(opt_num_votes) : 0n
+            )
+        if (num_votes >= twoByThreeValidators + 1) {
+            // Done
+
+            let updated_chain_fee_map =
+                Big_map.update(p.chain, Some(p.fee), store.chain_fee);
+            let updated_epoch =
+                Big_map.update(
+                    p.chain,
+                    Some(chain_epoch + 1n),
+                    store.chain_epoch
+                );
+            return [
+                list([]),
+                {
+                    ...store,
+                    chain_fee: updated_chain_fee_map,
+                    chain_epoch: updated_epoch,
+                    chain_fee_voted: updated_chain_fee_voted,
+                    chain_fee_votes: updated_chain_fee_votes,
+                }
+            ];
+        }
+        return [
+            list([]),
+            {
+                ...store,
+                chain_fee_voted: updated_chain_fee_voted,
+                chain_fee_votes: updated_chain_fee_votes,
+            }
+        ];
+    }
+    type ChangeChainRoyaltyParams = { chain: string, royalty_receiver: string, };
+    @entry
+    function change_chain_royalty_receiver(
+        p: ChangeChainRoyaltyParams,
+        store: storage
+    ): ret {
+        let opt_royalty_epoch_for_chain =
+            Big_map.find_opt(p.chain, store.royalty_epoch);
+        let royalty_epoch_for_chain =
+            Option.is_some(opt_royalty_epoch_for_chain) ? Option.unopt(
+                    opt_royalty_epoch_for_chain
+                ) : 0n;
+        let opt_royalty_epoch =
+            Big_map.find_opt(
+                [
+                    p.chain,
+                    p.royalty_receiver,
+                    Tezos.get_sender(),
+                    royalty_epoch_for_chain
+                ],
+                store.chain_royalty_voted
+            );
+        require(
+            Option.is_none(opt_royalty_epoch),
+            "You have already voted for this chain royalty receiver"
+        );
+        const updated_chain_royalty_voted =
+            Big_map.update(
+                [
+                    p.chain,
+                    p.royalty_receiver,
+                    Tezos.get_sender(),
+                    royalty_epoch_for_chain
+                ],
+                Some(true),
+                store.chain_royalty_voted
+            );
+        const opt_chain_royalty_votes =
+            Big_map.find_opt(
+                [p.chain, p.royalty_receiver, royalty_epoch_for_chain],
+                store.chain_royalty_votes
+            )
+        const chain_royalty_votes =
+            Option.is_some(opt_chain_royalty_votes) ? Option.unopt(
+                    opt_chain_royalty_votes
+                ) : 0n;
+        const updated_chain_royalty_votes =
+            Big_map.update(
+                [p.chain, p.royalty_receiver, royalty_epoch_for_chain],
+                Some(chain_royalty_votes + 1n),
+                store.chain_royalty_votes
+            );
+        const twoByThreeValidators = (2 * store.validators_count) / 3;
+        const new_num_votes = chain_royalty_votes + 1;
+        if (new_num_votes >= twoByThreeValidators + 1) {
+            const updated_chain_royalty =
+                Big_map.update(
+                    p.chain,
+                    Some(p.royalty_receiver),
+                    store.chain_royalty
+                )
+            const updated_royalty_epoch =
+                Big_map.update(
+                    p.chain,
+                    Some(royalty_epoch_for_chain + 2n), // +2 because we want to skip 1 epoch
+                    store.royalty_epoch
+                )
+            return [
+                list([]),
+                {
+                    ...store,
+                    chain_royalty: updated_chain_royalty,
+                    royalty_epoch: updated_royalty_epoch,
+                    chain_royalty_voted: updated_chain_royalty_voted,
+                    chain_royalty_votes: updated_chain_royalty_votes
+                }
+            ]
+        }
+        return [
+            list([]),
+            {
+                ...store,
+                chain_royalty_voted: updated_chain_royalty_voted,
+                chain_royalty_votes: updated_chain_royalty_votes
+            }
+        ];
+    }
+    export type ChangeValidatorStatusParams = {
+        validator: address,
+        status: bool,
+    };
+    @entry
+    function change_validator_status(
+        p: ChangeValidatorStatusParams,
+        store: storage
+    ): ret {
+        let new_store = { ...store,  };
+        const validator_epoch: nat =
+            bm_opt_or_default_nat(store.validator_epoch, p.validator);
+        const validator_alread_voted =
+            bm_opt_or_default_bool(
+                store.validator_voted,
+                [p.validator, Tezos.get_sender(), validator_epoch]
+            );
+        require(validator_alread_voted == false, "You have already voted");
+        const updated_validator_voted =
+            Big_map.update(
+                [p.validator, Tezos.get_sender(), validator_epoch],
+                Some(true),
+                store.validator_voted
+            );
+        new_store = { ...new_store, validator_voted: updated_validator_voted }
+        const validator_status_change_votes_count =
+            bm_opt_or_default_nat(
+                store.validator_status_change_votes,
+                [p.validator, p.status, validator_epoch]
+            )
+        const updated_validator_status_change_votes =
+            Big_map.update(
+                [p.validator, p.status, validator_epoch],
+                Some(validator_status_change_votes_count + 1n),
+                store.validator_status_change_votes
+            );
+        new_store
+        = {
+              ...new_store,
+              validator_status_change_votes: updated_validator_status_change_votes
+          }
+        const twoByThreeValidators = (2 * store.validators_count) / 3;
+        const new_num_votes = validator_status_change_votes_count + 1;
+        if (new_num_votes >= twoByThreeValidators + 1) {
+            if (
+                p.status
+                && bm_opt_or_default_bool(store.validators, p.validator)
+                   == false
+            ) {
+                const updated_validator_count = store.validators_count + 1n;
+                new_store
+                = { ...new_store, validators_count: updated_validator_count }
+            } else if (
+                p.status == false
+                && bm_opt_or_default_bool(store.validators, p.validator) == true
+            ) {
+                const updated_validator_count = store.validators_count - 1n;
+                new_store
+                = {
+                      ...new_store,
+                      validators_count: Option.unopt(
+                          is_nat(updated_validator_count)
+                      )
+                  }
+            } else {
+                const updated_validators =
+                    Big_map.update(
+                        p.validator,
+                        Some(p.status),
+                        store.validators
+                    );
+                new_store = { ...new_store, validators: updated_validators }
+                const updated_validator_epoc =
+                    Big_map.update(
+                        p.validator,
+                        Some(validator_epoch + 1n),
+                        store.validator_epoch
+                    );
+                new_store
+                = { ...new_store, validator_epoch: updated_validator_epoc }
+            }
+        }
+        return [list([]), new_store]
+    }
+    export type ApproveStakeParams = {
+        staker: address,
+        validator_address_with_signer_and_sig: list<
+            ValidatorAddressWithSignerAndSignature
+        >
+    };
+    @entry
+    function approve_stake(p: ApproveStakeParams, store: storage): ret {
+        let new_store = { ...store,  };
+        // const assert_all_unused_signatures = (
+        //     sig: ValidatorAddressWithSignerAndSignature
+        // ) => {
+        //     const used =
+        //         bm_opt_or_default_bool(
+        //             store.used_signatures,
+        //             sig.signer_and_signature.signature
+        //         );
+        //     require(used == false, "Signature already used");
+        //     return unit;
+        // }
+
+        let check_unused_sigs = (
+            l: list<ValidatorAddressWithSignerAndSignature>,
+        ): unit => {
+            let predicate = (i: ValidatorAddressWithSignerAndSignature): unit => {
+                assert(
+                    ! bm_opt_or_default_bool(
+                        store.used_signatures,
+                        i.signer_and_signature.signature
+                    )
+                )
+            };
+            List.iter(predicate, l);
+        };
+        check_unused_sigs(p.validator_address_with_signer_and_sig);
+        let set_sigs = (l: list<ValidatorAddressWithSignerAndSignature>): big_map<
+            bytes,
+            bool
+        > => {
+            let fold_sig = (
+                [hashmap, i]: [
+                    big_map<bytes, bool>,
+                    ValidatorAddressWithSignerAndSignature
+                ]
+            ): big_map<bytes, bool> => {
+                let updated_used_signatures =
+                    Big_map.update(
+                        i.signer_and_signature.signature,
+                        Some(true),
+                        hashmap
+                    );
+                return updated_used_signatures;
+            };
+            let final = List.fold(fold_sig, l, store.used_signatures);
+            return final;
+        };
+        let updated_used_signatures =
+            set_sigs(p.validator_address_with_signer_and_sig);
+        new_store = { ...new_store, used_signatures: updated_used_signatures };
+        let push_sigs = (l: list<ValidatorAddressWithSignerAndSignature>): big_map<
+            string,
+            list<SignerAndSignature>
+        > => {
+            let fold_push_sig = (
+                [hashmap, i]: [
+                    big_map<string, list<SignerAndSignature>>,
+                    ValidatorAddressWithSignerAndSignature
+                ]
+            ): big_map<string, list<SignerAndSignature>> => {
+                let opt_sigs: option<list<SignerAndSignature>> =
+                    Big_map.find_opt(i.validator_address, hashmap);
+                let sigs: list<SignerAndSignature> =
+                    Option.is_some(opt_sigs) ? Option.unopt(opt_sigs) : list([]);
+                let updated_sigs: list<SignerAndSignature> =
+                    List.cons(i.signer_and_signature, sigs)
+                let updated_hashmap: big_map<string, list<SignerAndSignature>> =
+                    Big_map.update(
+                        i.validator_address,
+                        Some(updated_sigs),
+                        hashmap
+                    );
+                return updated_hashmap;
+            };
+            List.fold(fold_push_sig, l, store.staking_signatures);
+        }
+        let updated_staking_signatures =
+            push_sigs(p.validator_address_with_signer_and_sig);
+        new_store
+        = { ...new_store, staking_signatures: updated_staking_signatures }
+        return [list([]), new_store]
+    }
+    //
+    // View Methods
+    //
+
+    @view
+    function get_staking_signature(staker_address: string, store: storage): option<
+        list<SignerAndSignature>
+    > {
+        return Big_map.find_opt(staker_address, store.staking_signatures)
+    }
+    @view
+    function get_staking_signature_count(staker_address: string, store: storage): nat {
+        const sigs = Big_map.find_opt(staker_address, store.staking_signatures)
+        return Option.is_some(sigs) ? List.length(Option.unopt(sigs)) : 0n;
+    }
+    type GetLockNftSigParams = { tx_hash: string, chain: string, }
+    @view
+    function get_lock_nft_signatures(p: GetLockNftSigParams, store: storage): list<
+        SignerAndSignature
+    > {
+        const sigs =
+            Big_map.find_opt([p.tx_hash, p.chain], store.lock_signatures);
+        return Option.is_some(sigs) ? Option.unopt(sigs) : list([]);
+    }
+    @view
+    function get_lock_nft_signatures_count(
+        p: GetLockNftSigParams,
+        store: storage
+    ): nat {
+        const sigs =
+            Big_map.find_opt([p.tx_hash, p.chain], store.lock_signatures);
+        return Option.is_some(sigs) ? List.length(Option.unopt(sigs)) : 0n;
+    }
+}
