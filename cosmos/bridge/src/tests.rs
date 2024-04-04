@@ -215,6 +215,7 @@ mod tests {
                 token_id: Default::default(),
                 royalty_receiver: Addr::unchecked("rr"),
                 token_amount: Default::default(),
+                transaction_hash: "tx_hash".to_string(),
             },
             &[],
             "test-nft-contract",

@@ -66,6 +66,7 @@ mod tests {
                 royalty: 1,
                 royalty_receiver: Addr::unchecked("receiver"),
                 metadata: "".to_string(),
+                transaction_hash: "transaction_hash".to_string(),
             },
             &[],
         );
