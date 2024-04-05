@@ -1,6 +1,6 @@
 build-release:
 	@echo "Building release..."
-	cargo build --release --target wasm32-unknown-unknown
+	RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown
 
 build-debug:
 	@echo "Building debug..."
