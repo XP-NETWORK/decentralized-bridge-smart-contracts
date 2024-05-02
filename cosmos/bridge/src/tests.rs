@@ -7,7 +7,7 @@ mod tests {
     };
 
     use cosm_nft::{init::InstantiateMsg, royalty::RoyaltyData};
-    use cosmwasm_std::{Addr, Binary, Coin};
+    use cosmwasm_std::{from_json, Addr, Binary, Coin};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use nft_store::{
         error::StorageContractError,
@@ -17,6 +17,7 @@ mod tests {
     use store_deployer::msg::{StoreFactoryExecuteMsg, StoreFactoryInstantiateMsg};
 
     use crate::{
+        events::ClaimedEventInfo,
         msg::{BridgeExecuteMsg, GetValidatorCountResponse},
         structs::{ClaimData, ClaimMsg, Lock721Msg, SignerAndSignature},
     };
@@ -257,7 +258,7 @@ mod tests {
                     collection_code_id,
                     destination_chain: "BSC".to_string(),
                     destination_user_address: "0xabc123".to_string(),
-                    source_nft_contract_address: nft_contract.clone(),
+                    source_nft_contract_address: nft_contract.to_string(),
                     token_id: "1".to_string(),
                 },
             },
@@ -321,7 +322,7 @@ mod tests {
             nft_type: "singular".to_string(),
             royalty: 1,
             royalty_receiver: Addr::unchecked("royalty_receiver"),
-            source_chain: "bsc".to_string(),
+            source_chain: "BSC".to_string(),
             source_nft_contract_address: "bruh".to_string(),
             token_id: "1".to_string(),
             symbol: "BRUH".to_string(),
@@ -345,8 +346,8 @@ mod tests {
         let signed = Binary::from(secp.sign_ecdsa(&msg, &sk).serialize_compact());
 
         let claim = app.execute_contract(
-            deployer,
-            bridge_addr,
+            deployer.clone(),
+            bridge_addr.clone(),
             &BridgeExecuteMsg::Claim721 {
                 data: ClaimMsg {
                     data: cd,
@@ -359,5 +360,53 @@ mod tests {
             &[Coin::new(1000, "uscrt")],
         );
         assert!(claim.is_ok(), "claim failed: {:?}", claim);
+        let claim = claim.unwrap();
+        let event = claim.events.iter().find(|e| {
+            e.ty == "wasm"
+                && e.attributes
+                    .iter()
+                    .find(|e| e.key == "ClaimedEventInfo")
+                    .is_some()
+        });
+        assert!(event.is_some(), "events not found");
+        let event = event.unwrap();
+        println!("{:#?}", event);
+        let cei = event
+            .attributes
+            .iter()
+            .find(|e| e.key == "ClaimedEventInfo");
+        assert!(cei.is_some(), "Not found ClaimedEventInfo");
+        let cei = cei.unwrap();
+        let json = from_json::<ClaimedEventInfo>(cei.value.clone());
+        assert!(json.is_ok(), "json is not ok");
+        let ev = json.unwrap();
+
+        let approve = app.execute_contract(
+            Addr::unchecked("claimer"),
+            ev.contract.clone(),
+            &cosm_nft::NftExecuteMsg::Approve {
+                spender: bridge_addr.to_string(),
+                token_id: "1".to_string(),
+                expires: None,
+            },
+            &[],
+        );
+        assert!(approve.is_ok(), "approve failed: {:?}", approve);
+
+        let lock = app.execute_contract(
+            deployer.clone(),
+            bridge_addr,
+            &crate::msg::BridgeExecuteMsg::Lock721 {
+                data: Lock721Msg {
+                    collection_code_id,
+                    destination_chain: "BSC".to_string(),
+                    destination_user_address: "0xabc123".to_string(),
+                    source_nft_contract_address: ev.contract.to_string(),
+                    token_id: ev.token_id,
+                },
+            },
+            &[],
+        );
+        println!("{:#?}", lock)
     }
 }

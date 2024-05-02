@@ -43,7 +43,7 @@ pub mod entry {
         };
         Ok(Response::new().set_data(to_json_binary(&offspring_info)?))
     }
-
+    #[entry_point]
     pub fn execute(
         deps: DepsMut,
         env: Env,

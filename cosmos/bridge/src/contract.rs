@@ -85,7 +85,7 @@ pub fn instantiate(
             code_id: msg.storage_deployer_code_id,
             msg: to_json_binary(&init_storage_deployer_msg)?,
             funds: vec![],
-            label: "storage_deployer".to_string(),
+            label: msg.storage_label,
         }),
         STORAGE_DEPLOYER_REPLY_ID,
     );
@@ -100,7 +100,7 @@ pub fn instantiate(
             code_id: msg.collection_deployer_code_id,
             msg: to_json_binary(&init_collection_deployer_msg)?,
             funds: vec![],
-            label: "collection_deployer".to_string(),
+            label: msg.collection_label,
         }),
         COLLECTION_DEPLOYER_REPLY_ID,
     );
@@ -383,7 +383,7 @@ fn transfer_to_storage_721(
 fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
     let addr_result = deps
         .api
-        .addr_validate(&msg.source_nft_contract_address.clone().into_string());
+        .addr_validate(&msg.source_nft_contract_address.clone());
     let self_chain = CONFIG.load(deps.storage)?.self_chain.clone();
     match addr_result {
         Ok(_v) => {}
@@ -396,7 +396,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
 
     let original_collection_address_option = DUPLICATE_TO_ORIGINAL_STORAGE.may_load(
         deps.storage,
-        (msg.source_nft_contract_address.clone(), self_chain.clone()),
+        (Addr::unchecked(msg.source_nft_contract_address.clone()), self_chain.clone()),
     )?;
 
     match original_collection_address_option {
@@ -417,7 +417,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 deps,
                 self_chain.clone(),
                 &DUPLICATE_STORAGE_721,
-                msg.source_nft_contract_address.clone(),
+                Addr::unchecked(msg.source_nft_contract_address.clone()),
                 msg.token_id,
                 msg.collection_code_id,
                 env.contract.address,
@@ -444,7 +444,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 deps,
                 self_chain,
                 &ORIGINAL_STORAGE_721,
-                msg.source_nft_contract_address.clone(),
+                Addr::unchecked(msg.source_nft_contract_address.clone(),),
                 msg.token_id,
                 msg.collection_code_id,
                 env.contract.address,

@@ -16,6 +16,8 @@ pub mod msg;
 pub mod query;
 pub mod reply;
 pub mod royalty;
+#[cfg(test)]
+pub mod tests;
 
 pub type MintExtension = RoyaltyData;
 pub type NftContract<'a> = Cw721Contract<'a, MintExtension, Empty, Empty, CW2981QueryMsg>;

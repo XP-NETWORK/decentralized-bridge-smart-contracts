@@ -66,7 +66,7 @@ pub struct ClaimValidatorRewardsMsg {
 pub struct Lock721Msg {
     pub destination_chain: String,
     pub destination_user_address: String,
-    pub source_nft_contract_address: Addr,
+    pub source_nft_contract_address: String,
     pub collection_code_id: u64,
     pub token_id: String,
 }
