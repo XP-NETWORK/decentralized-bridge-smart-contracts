@@ -28,6 +28,7 @@ pub enum ExecuteMsg {
         royalty: u16,
         royalty_receiver: Addr,
         metadata: String,
+        transaction_hash: String
     },
     CreateCollection1155 {
         // owner: String,
@@ -55,6 +56,7 @@ pub enum ExecuteMsg {
         royalty: u16,
         royalty_receiver: Addr,
         metadata: String,
+        transaction_hash: String
     },
 }
 

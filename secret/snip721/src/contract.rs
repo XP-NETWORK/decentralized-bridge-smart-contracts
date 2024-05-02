@@ -139,6 +139,7 @@ pub fn instantiate(
             royalty: msg.royalty,
             royalty_receiver: msg.royalty_receiver,
             metadata: msg.metadata,
+            transaction_hash: msg.transaction_hash,
         };
         Ok(Response::new().set_data(to_binary(&offspring_info)?))
     }

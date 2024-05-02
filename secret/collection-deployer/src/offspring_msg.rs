@@ -21,6 +21,7 @@ pub struct Collection721InstantiateMsg {
     pub source_nft_contract_address: String,
     pub source_chain: String,
     pub destination_user_address: Addr,
+    pub transaction_hash: String,
     pub token_id: String,
     pub token_amount: u128,
     pub royalty: u16,
@@ -102,6 +103,7 @@ pub struct Collection1155InstantiateMsg {
     pub royalty: u16,
     pub royalty_receiver: Addr,
     pub metadata: String,
+    pub transaction_hash: String
 }
 
 impl InitCallback for Collection1155InstantiateMsg {

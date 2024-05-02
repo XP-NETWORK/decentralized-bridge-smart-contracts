@@ -18,5 +18,6 @@ pub struct CollectionDeployerInfo {
     pub token_amount: u128,
     pub royalty: u16,
     pub royalty_receiver: Addr,
+    pub transaction_hash: String,
     pub metadata: String,
 }
