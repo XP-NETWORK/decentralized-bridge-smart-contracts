@@ -124,17 +124,44 @@ impl UnLock1155EventInfo {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ClaimedEventInfo {
+pub struct Claimed721EventInfo {
     pub source_chain: String,
     pub transaction_hash: String,
+    pub nft_contract: String,
+    pub token_id: String,
 }
-bridge_event!(ClaimedEventInfo);
+bridge_event!(Claimed721EventInfo);
 
-impl ClaimedEventInfo {
-    pub fn new(source_chain: String, transaction_hash: String) -> Self {
+impl Claimed721EventInfo {
+    pub fn new(source_chain: String, transaction_hash: String, nft_contract: String, token_id: String) -> Self {
         Self {
             source_chain,
             transaction_hash,
+            nft_contract,
+            token_id,
+        }
+    }
+}
+
+
+#[derive(Debug, Serialize)]
+pub struct Claimed1155EventInfo {
+    pub source_chain: String,
+    pub transaction_hash: String,
+    pub nft_contract: String,
+    pub token_id: String,
+    pub amount: u128
+}
+bridge_event!(Claimed1155EventInfo);
+
+impl Claimed1155EventInfo {
+    pub fn new(source_chain: String, transaction_hash: String, nft_contract: String, token_id: String, amount: u128) -> Self {
+        Self {
+            source_chain,
+            transaction_hash,
+            nft_contract,
+            token_id,
+            amount
         }
     }
 }

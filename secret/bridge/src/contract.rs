@@ -14,8 +14,7 @@ use crate::collection_deployer_msg::{
 };
 use crate::error::ContractError;
 use crate::events::{
-    AddNewValidatorEventInfo, ClaimedEventInfo, LockedEventInfo, RewardValidatorEventInfo,
-    UnLock1155EventInfo, UnLock721EventInfo,
+    AddNewValidatorEventInfo, Claimed1155EventInfo, Claimed721EventInfo, LockedEventInfo, RewardValidatorEventInfo, UnLock1155EventInfo, UnLock721EventInfo
 };
 use crate::msg::{ExecuteMsg, QueryAnswer, QueryMsg};
 use crate::snip1155_msg::{
@@ -1109,12 +1108,24 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     funds: vec![],
                 });
 
-                let log: Vec<Attribute> = vec![UnLock721EventInfo::new(
-                    msg.data.destination_user_address,
-                    msg.data.token_id.clone(),
-                    storage_contract.0.to_string(),
-                )
-                .try_into()?];
+                let log: Vec<Attribute> = vec![
+                    UnLock721EventInfo::new(
+                        msg.data.destination_user_address,
+                        msg.data.token_id.clone(),
+                        storage_contract.0.to_string(),
+                    )
+                    .try_into()?,
+                    Claimed721EventInfo::new(
+                        msg.data.source_chain,
+                        msg.data.transaction_hash,
+                        duplicate_collection_address
+                            .contract_address
+                            .clone()
+                            .to_string(),
+                        msg.data.token_id.clone(),
+                    )
+                    .try_into()?,
+                ];
 
                 let _ = NFT_COLLECTION_OWNER.remove(
                     deps.storage,
@@ -1149,13 +1160,20 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                 };
 
                 let message = CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: duplicate_collection_address.contract_address.into_string(),
+                    contract_addr: duplicate_collection_address.contract_address.clone().into_string(),
                     code_hash: duplicate_collection_address.code_hash,
                     msg: to_binary(&create_collection_msg)?,
                     funds: vec![],
                 });
+                      let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
+                    msg.data.source_chain,
+                    msg.data.transaction_hash,
+                    duplicate_collection_address.contract_address.to_string(),
+                    msg.data.token_id,
+                )
+                .try_into()?];
 
-                Ok(Response::new().add_message(message))
+                Ok(Response::new().add_message(message).add_attributes(log))
             }
         }
     }
@@ -1186,13 +1204,20 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
             .debug(format!("mint 721 nft {}", msg.data.token_id).as_str());
 
         let message = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: duplicate_collection_address.contract_address.into_string(),
+            contract_addr: duplicate_collection_address.contract_address.clone().into_string(),
             code_hash: duplicate_collection_address.code_hash,
             msg: to_binary(&create_collection_msg)?,
             funds: vec![],
         });
+          let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
+            msg.data.source_chain,
+            msg.data.transaction_hash,
+            duplicate_collection_address.contract_address.to_string(),
+            msg.data.token_id,
+        )
+        .try_into()?];
 
-        Ok(Response::new().add_message(message))
+        Ok(Response::new().add_message(message).add_attributes(log))
     }
     // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
     else if !has_duplicate && !has_storage {
@@ -1253,7 +1278,13 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     msg.data.token_id.clone(),
                     storage_contract.0.to_string(),
                 )
-                .try_into()?];
+                .try_into()?,   Claimed721EventInfo::new(
+                        msg.data.source_chain,
+                        msg.data.transaction_hash,
+                        msg.data.source_nft_contract_address.clone(),
+                        msg.data.token_id.clone(),
+                    )
+                    .try_into()?,];
 
                 let _ = NFT_COLLECTION_OWNER.remove(
                     deps.storage,
@@ -1291,23 +1322,28 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     .debug(format!("mint 721 nft {}", msg.data.token_id).as_str());
 
                 let message = CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: msg.data.source_nft_contract_address,
+                    contract_addr: msg.data.source_nft_contract_address.clone(),
                     code_hash,
                     msg: to_binary(&create_collection_msg)?,
                     funds: vec![],
                 });
 
-                Ok(Response::new().add_message(message))
+                let clog: Vec<Attribute> = vec![Claimed721EventInfo::new(
+                    msg.data.source_chain,
+                    msg.data.transaction_hash,
+                    msg.data.source_nft_contract_address,
+                    msg.data.token_id,
+                )
+                .try_into()?];
+
+                Ok(Response::new().add_message(message).add_attributes(clog))
             }
         }
     } else {
         return Err(StdError::generic_err("Invalid bridge state"));
     }?;
 
-    let log: Vec<Attribute> =
-        vec![ClaimedEventInfo::new(msg.data.source_chain, msg.data.transaction_hash).try_into()?];
-
-    Ok(res.add_attributes(log))
+    Ok(res)
 }
 
 fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdResult<Response> {
@@ -1452,7 +1488,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         storage_contract.0.to_string(),
                         msg.data.token_amount,
                     )
-                    .try_into()?];
+                    .try_into()?, Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
 
                     let _ = NFT_COLLECTION_OWNER.remove(
                         deps.storage,
@@ -1489,7 +1525,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         storage_contract.0.to_string(),
                         _v.1,
                     )
-                    .try_into()?];
+                    .try_into()?,  Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
 
                     let _ = NFT_COLLECTION_OWNER.remove(
                         deps.storage,
@@ -1524,6 +1560,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         funds: vec![],
                     });
 
+
                     Ok(Response::new()
                         .add_messages(vec![message_unlock, message_mint])
                         .add_attributes(log))
@@ -1550,13 +1587,14 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             .debug(format!("mint 1155 nft {}", msg.data.token_id).as_str());
 
         let message = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
-            contract_addr: duplicate_collection_address.contract_address.into_string(),
+            contract_addr: duplicate_collection_address.contract_address.clone().into_string(),
             code_hash: duplicate_collection_address.code_hash,
             msg: to_binary(&create_collection_msg)?,
             funds: vec![],
         });
+        let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
 
-        Ok(Response::new().add_message(message))
+        Ok(Response::new().add_message(message).add_attributes(emit))
     }
     // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
     else if !has_duplicate && !has_storage {
@@ -1621,7 +1659,9 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 storage_contract.0.to_string(),
                 msg.data.token_amount,
             )
-            .try_into()?];
+            .try_into()?, 
+            Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, msg.data.source_nft_contract_address.clone(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?
+            ];
 
             let _ = NFT_COLLECTION_OWNER.remove(
                 deps.storage,
@@ -1657,7 +1697,8 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 storage_contract.0.to_string(),
                 original_collection.amount.into(),
             )
-            .try_into()?];
+            .try_into()?,
+                     Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, msg.data.source_nft_contract_address.clone(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
 
             let _ = NFT_COLLECTION_OWNER.remove(
                 deps.storage,
@@ -1697,10 +1738,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
         return Err(StdError::generic_err("Invalid bridge state"));
     }?;
 
-    let log: Vec<Attribute> =
-        vec![ClaimedEventInfo::new(msg.data.source_chain, msg.data.transaction_hash).try_into()?];
-
-    Ok(res.add_attributes(log))
+    Ok(res)
 }
 // Queries
 #[entry_point]
@@ -2029,7 +2067,7 @@ fn register_collection_721_impl(
         deps.storage,
         &(reply_info.address.clone(), self_chain),
         &DuplicateToOriginalContractInfo {
-            chain: reply_info.source_chain,
+            chain: reply_info.source_chain.clone(),
             contract_address: reply_info.source_nft_contract_address,
             code_hash: "".to_string(),
         },
@@ -2065,9 +2103,17 @@ fn register_collection_721_impl(
         msg: to_binary(&create_collection_msg)?,
         funds: vec![],
     });
+    let emit: Vec<Attribute> = vec![Claimed721EventInfo::new(
+        reply_info.source_chain,
+        reply_info.transaction_hash,
+        reply_info.address.to_string(),
+        reply_info.token_id,
+    )
+    .try_into()?];
 
     Ok(Response::new()
         .add_message(message)
+        .add_attributes(emit)
         .add_attribute("collection_address_721", &reply_info.address))
 }
 
@@ -2094,7 +2140,7 @@ fn register_collection_1155_impl(
         deps.storage,
         &(reply_info.address.clone(), self_chain),
         &DuplicateToOriginalContractInfo {
-            chain: reply_info.source_chain,
+            chain: reply_info.source_chain.clone(),
             contract_address: reply_info.source_nft_contract_address,
             code_hash: "".to_string(),
         },
@@ -2122,8 +2168,11 @@ fn register_collection_1155_impl(
         funds: vec![],
     });
 
+    let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(reply_info.source_chain, reply_info.transaction_hash, reply_info.address.to_string(), reply_info.token_id, reply_info.token_amount).try_into()?];
+
     Ok(Response::new()
         .add_message(message)
+        .add_attributes(emit)
         .add_attribute("collection_address_1155", &reply_info.address))
 }
 

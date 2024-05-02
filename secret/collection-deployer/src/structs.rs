@@ -26,6 +26,7 @@ pub struct ReplyCollectionInfo {
     pub code_hash: String,
     pub source_nft_contract_address: String,
     pub source_chain: String,
+    pub transaction_hash: String,
     pub destination_user_address: Addr,
     pub token_id: String,
     pub token_amount: u128,
