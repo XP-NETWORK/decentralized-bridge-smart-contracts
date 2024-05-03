@@ -68,7 +68,7 @@ pub fn instantiate(
 
     let state = State {
         collection_deployer: _env.contract.address.clone(),
-        storage_deployer: _env.contract.address,
+        storage_deployer: _env.contract.address.clone(),
         validators_count,
         self_chain: msg.chain_type,
         type_erc_721: "singular".to_owned(),
@@ -128,7 +128,7 @@ pub fn instantiate(
     Ok(Response::new().add_submessages(vec![
         init_storage_deployer_sub_msg,
         init_collection_deployer_submsg,
-    ]))
+    ]).add_attribute("bridge_contract_address", _env.contract.address))
 }
 
 #[entry_point]

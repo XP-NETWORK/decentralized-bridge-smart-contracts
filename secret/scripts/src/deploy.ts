@@ -147,8 +147,8 @@ export async function deploy() {
       [Buffer.from(validator.pubkey).toString("base64"), validator.address],
     ],
     chain_type: "SECRET",
-    storage_label: "Secret Nft Store",
-    collection_label: "Secret Nft Contract",
+    storage_label: "XP NFT Store Deployer",
+    collection_label: "XP NFT Collection Deployer",
     collection721_code_info: {
       code_id: parseInt(nftCodeId),
       code_hash: (
@@ -159,35 +159,41 @@ export async function deploy() {
     },
     storage721_code_info: {
       code_id: parseInt(storage721CodeId),
-      code_hash: (await sc.query.compute.codeHashByCodeId({
-        code_id: storage721CodeId
-      }))
-        .code_hash,
+      code_hash: (
+        await sc.query.compute.codeHashByCodeId({
+          code_id: storage721CodeId,
+        })
+      ).code_hash,
     },
     collection1155_code_info: {
       code_id: parseInt(sftCodeId),
-      code_hash: (await sc.query.compute.codeHashByCodeId({
-        code_id: sftCodeId
-      })).code_hash,
+      code_hash: (
+        await sc.query.compute.codeHashByCodeId({
+          code_id: sftCodeId,
+        })
+      ).code_hash,
     },
     storage1155_code_info: {
       code_id: parseInt(storage1155CodeId),
-      code_hash: (await sc.query.compute.codeHashByCodeId({
-        code_id: storage1155CodeId
-      }))
-        .code_hash,
+      code_hash: (
+        await sc.query.compute.codeHashByCodeId({
+          code_id: storage1155CodeId,
+        })
+      ).code_hash,
     },
     collection_deployer_code_info: {
       code_id: parseInt(cdCodeId),
-      code_hash: (await sc.query.compute.codeHashByCodeId({
-        code_id: cdCodeId
-      })).code_hash,
+      code_hash: (
+        await sc.query.compute.codeHashByCodeId({
+          code_id: cdCodeId,
+        })
+      ).code_hash,
     },
     storage_deployer_code_info: {
       code_id: parseInt(storageDeployerCodeId),
       code_hash: (
         await sc.query.compute.codeHashByCodeId({
-            code_id: storageDeployerCodeId
+          code_id: storageDeployerCodeId,
         })
       ).code_hash,
     },
@@ -198,7 +204,7 @@ export async function deploy() {
       {
         code_id: bridgeCodeId,
         init_msg: initMsg,
-        label: "XP Bridge Secret",
+        label: "XP Bridge V3",
         sender: validator.address,
       },
 
