@@ -16,7 +16,7 @@ use crate::error::ContractError;
 use crate::events::{
     AddNewValidatorEventInfo, Claimed1155EventInfo, Claimed721EventInfo, LockedEventInfo, RewardValidatorEventInfo, UnLock1155EventInfo, UnLock721EventInfo
 };
-use crate::msg::{ExecuteMsg, QueryAnswer, QueryMsg};
+use crate::msg::{BridgeExecuteMsg, BridgeQueryAnswer, BridgeQueryMsg};
 use crate::snip1155_msg::{
     Collection1155OwnerOfResponse, Collection1155QueryMsg, Snip1155ExecuteMsg, TokenAmount,
 };
@@ -35,7 +35,7 @@ use crate::storage721_msg::Storage721ExecuteMsg;
 use crate::storage_deployer_msg::{InstantiateStorageDeployer, StorageDeployerExecuteMsg};
 use crate::structs::{
     AddValidatorMsg, ClaimData, ClaimMsg, ClaimValidatorRewardsMsg, CodeInfo,
-    DuplicateToOriginalContractInfo, InstantiateMsg, Lock1155Msg, Lock721Msg,
+    DuplicateToOriginalContractInfo, BridgeInstantiateMsg, Lock1155Msg, Lock721Msg,
     OriginalToDuplicateContractInfo, ReplyCollectionDeployerInfo, ReplyCollectionInfo,
     ReplyStorageDeployerInfo, ReplyStorageInfo, Royalty, RoyaltyInfo, SignerAndSignature, State,
     Validator, VerifyMsg,
@@ -47,7 +47,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: BridgeInstantiateMsg,
 ) -> StdResult<Response> {
     deps.api
         .debug(format!("Contract was initialized by {}", info.sender).as_str());
@@ -103,6 +103,7 @@ pub fn instantiate(
 
     let init_storage_deployer_sub_msg = SubMsg::reply_always(
         init_storage_deployer_msg.to_cosmos_msg(
+            None,
             msg.storage_label,
             msg.storage_deployer_code_info.code_id,
             msg.storage_deployer_code_info.code_hash,
@@ -118,6 +119,7 @@ pub fn instantiate(
 
     let init_collection_deployer_submsg = SubMsg::reply_always(
         init_collection_deployer_msg.to_cosmos_msg(
+            None,
             msg.collection_label,
             msg.collection_deployer_code_info.code_id,
             msg.collection_deployer_code_info.code_hash,
@@ -132,7 +134,7 @@ pub fn instantiate(
 }
 
 #[entry_point]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: BridgeExecuteMsg) -> StdResult<Response> {
     // let response = match msg {
     //     ExecuteMsg::CreateOffspring {
     //         label,
@@ -152,13 +154,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     // pad_handle_result(response, BLOCK_SIZE)
 
     match msg {
-        ExecuteMsg::AddValidator { data } => add_validator(deps, data),
-        ExecuteMsg::ClaimValidatorRewards { data } => claim_validator_rewards(deps, data),
-        ExecuteMsg::Lock721 { data } => lock721(deps, env, data),
-        ExecuteMsg::Lock1155 { data } => lock1155(deps, env, info, data),
-        ExecuteMsg::Claim721 { data } => claim721(deps, env, info, data),
-        ExecuteMsg::Claim1155 { data } => claim1155(deps, env, info, data),
-        ExecuteMsg::VerifySig { data } => verify_sig(deps, data),
+        BridgeExecuteMsg::AddValidator { data } => add_validator(deps, data),
+        BridgeExecuteMsg::ClaimValidatorRewards { data } => claim_validator_rewards(deps, data),
+        BridgeExecuteMsg::Lock721 { data } => lock721(deps, env, data),
+        BridgeExecuteMsg::Lock1155 { data } => lock1155(deps, env, info, data),
+        BridgeExecuteMsg::Claim721 { data } => claim721(deps, env, info, data),
+        BridgeExecuteMsg::Claim1155 { data } => claim1155(deps, env, info, data),
+        BridgeExecuteMsg::VerifySig { data } => verify_sig(deps, data),
     }
 }
 
@@ -1742,55 +1744,55 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
 }
 // Queries
 #[entry_point]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: BridgeQueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetValidatorsCount {} => to_binary(&validators_count(deps)?),
-        QueryMsg::GetValidator { address } => to_binary(&validators(deps, address)?),
-        QueryMsg::GetCollectionDeployer {} => to_binary(&collection_deployer(deps)?),
-        QueryMsg::GetStorageDeployer {} => to_binary(&storage_deployer(deps)?),
-        QueryMsg::GetOriginalStorage721 {
+        BridgeQueryMsg::GetValidatorsCount {} => to_binary(&validators_count(deps)?),
+        BridgeQueryMsg::GetValidator { address } => to_binary(&validators(deps, address)?),
+        BridgeQueryMsg::GetCollectionDeployer {} => to_binary(&collection_deployer(deps)?),
+        BridgeQueryMsg::GetStorageDeployer {} => to_binary(&storage_deployer(deps)?),
+        BridgeQueryMsg::GetOriginalStorage721 {
             contract_address,
             chain,
         } => to_binary(&original_storage721(deps, contract_address, chain)?),
-        QueryMsg::GetDuplicateStorage721 {
+        BridgeQueryMsg::GetDuplicateStorage721 {
             contract_address,
             chain,
         } => to_binary(&duplicate_storage721(deps, contract_address, chain)?),
-        QueryMsg::GetOriginalToDuplicate {
+        BridgeQueryMsg::GetOriginalToDuplicate {
             contract_address,
             chain,
         } => to_binary(&original_to_duplicate(deps, contract_address, chain)?),
-        QueryMsg::GetDuplicateToOriginal {
+        BridgeQueryMsg::GetDuplicateToOriginal {
             contract_address,
             chain,
         } => to_binary(&duplicate_to_original(deps, contract_address, chain)?),
     }
 }
 
-fn validators_count(deps: Deps) -> StdResult<QueryAnswer> {
+fn validators_count(deps: Deps) -> StdResult<BridgeQueryAnswer> {
     let state = config_read(deps.storage).load()?;
-    Ok(QueryAnswer::ValidatorCountResponse {
+    Ok(BridgeQueryAnswer::ValidatorCountResponse {
         count: state.validators_count,
     })
 }
 
-fn validators(deps: Deps, address: Binary) -> StdResult<QueryAnswer> {
+fn validators(deps: Deps, address: Binary) -> StdResult<BridgeQueryAnswer> {
     let validator_option = VALIDATORS_STORAGE.get(deps.storage, &address);
-    Ok(QueryAnswer::Validator {
+    Ok(BridgeQueryAnswer::Validator {
         data: validator_option,
     })
 }
 
-fn collection_deployer(deps: Deps) -> StdResult<QueryAnswer> {
+fn collection_deployer(deps: Deps) -> StdResult<BridgeQueryAnswer> {
     let collection_deployer = config_read(deps.storage).load()?.collection_deployer;
-    Ok(QueryAnswer::CollectionDeployer {
+    Ok(BridgeQueryAnswer::CollectionDeployer {
         data: collection_deployer,
     })
 }
 
-fn storage_deployer(deps: Deps) -> StdResult<QueryAnswer> {
+fn storage_deployer(deps: Deps) -> StdResult<BridgeQueryAnswer> {
     let storage_deployer = config_read(deps.storage).load()?.storage_deployer;
-    Ok(QueryAnswer::StorageDeployer {
+    Ok(BridgeQueryAnswer::StorageDeployer {
         data: storage_deployer,
     })
 }
@@ -1799,9 +1801,9 @@ fn original_storage721(
     deps: Deps,
     contract_address: String,
     chain: String,
-) -> StdResult<QueryAnswer> {
+) -> StdResult<BridgeQueryAnswer> {
     let storage_option = ORIGINAL_STORAGE_721.get(deps.storage, &(contract_address, chain));
-    Ok(QueryAnswer::Storage {
+    Ok(BridgeQueryAnswer::Storage {
         data: storage_option,
     })
 }
@@ -1810,9 +1812,9 @@ fn duplicate_storage721(
     deps: Deps,
     contract_address: String,
     chain: String,
-) -> StdResult<QueryAnswer> {
+) -> StdResult<BridgeQueryAnswer> {
     let storage_option = DUPLICATE_STORAGE_721.get(deps.storage, &(contract_address, chain));
-    Ok(QueryAnswer::Storage {
+    Ok(BridgeQueryAnswer::Storage {
         data: storage_option,
     })
 }
@@ -1821,10 +1823,10 @@ fn original_to_duplicate(
     deps: Deps,
     contract_address: String,
     chain: String,
-) -> StdResult<QueryAnswer> {
+) -> StdResult<BridgeQueryAnswer> {
     let storage_option =
         ORIGINAL_TO_DUPLICATE_STORAGE.get(deps.storage, &(contract_address, chain));
-    Ok(QueryAnswer::OriginalToDuplicate {
+    Ok(BridgeQueryAnswer::OriginalToDuplicate {
         data: storage_option,
     })
 }
@@ -1833,10 +1835,10 @@ fn duplicate_to_original(
     deps: Deps,
     contract_address: Addr,
     chain: String,
-) -> StdResult<QueryAnswer> {
+) -> StdResult<BridgeQueryAnswer> {
     let storage_option =
         DUPLICATE_TO_ORIGINAL_STORAGE.get(deps.storage, &(contract_address, chain));
-    Ok(QueryAnswer::DuplicateToOriginal {
+    Ok(BridgeQueryAnswer::DuplicateToOriginal {
         data: storage_option,
     })
 }
@@ -2196,7 +2198,7 @@ mod tests {
 
         let validator_pub_key =
             to_binary(&"secret1w5fw0m5cad30lsu8x65m57ad5s80f0fmg3jfal".to_string()).unwrap();
-        let init_msg = InstantiateMsg {
+        let init_msg = BridgeInstantiateMsg {
             validators: vec![(validator_pub_key.clone(), info.sender.clone())],
             chain_type: "SECRET".to_string(),
             storage_label: "storage11".to_string(),
@@ -2238,12 +2240,12 @@ mod tests {
         assert_eq!(2, res.messages.len());
 
         let validators_count_binary =
-            query(deps.as_ref(), mock_env(), QueryMsg::GetValidatorsCount {}).unwrap();
+            query(deps.as_ref(), mock_env(), BridgeQueryMsg::GetValidatorsCount {}).unwrap();
 
         let validator_info_binary = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::GetValidator {
+            BridgeQueryMsg::GetValidator {
                 address: validator_pub_key,
             },
         )
@@ -2252,35 +2254,35 @@ mod tests {
         let collection_deployer_binary = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::GetCollectionDeployer {},
+            BridgeQueryMsg::GetCollectionDeployer {},
         )
         .unwrap();
 
         let storage_deployer_binary =
-            query(deps.as_ref(), mock_env(), QueryMsg::GetStorageDeployer {}).unwrap();
+            query(deps.as_ref(), mock_env(), BridgeQueryMsg::GetStorageDeployer {}).unwrap();
 
-        let validators_count_answer = from_binary::<QueryAnswer>(&validators_count_binary).unwrap();
-        let validator_answer = from_binary::<QueryAnswer>(&validator_info_binary).unwrap();
+        let validators_count_answer = from_binary::<BridgeQueryAnswer>(&validators_count_binary).unwrap();
+        let validator_answer = from_binary::<BridgeQueryAnswer>(&validator_info_binary).unwrap();
         let collection_deployer_answer =
-            from_binary::<QueryAnswer>(&collection_deployer_binary).unwrap();
-        let storage_deployer_answer = from_binary::<QueryAnswer>(&storage_deployer_binary).unwrap();
+            from_binary::<BridgeQueryAnswer>(&collection_deployer_binary).unwrap();
+        let storage_deployer_answer = from_binary::<BridgeQueryAnswer>(&storage_deployer_binary).unwrap();
 
         match validators_count_answer {
-            QueryAnswer::ValidatorCountResponse { count } => {
+            BridgeQueryAnswer::ValidatorCountResponse { count } => {
                 assert_eq!(1, count);
             }
             _ => panic!("query error"),
         }
 
         match validator_answer {
-            QueryAnswer::Validator { data } => {
+            BridgeQueryAnswer::Validator { data } => {
                 assert_eq!(true, data.unwrap().added);
             }
             _ => panic!("query error"),
         }
 
         match collection_deployer_answer {
-            QueryAnswer::CollectionDeployer { data } => {
+            BridgeQueryAnswer::CollectionDeployer { data } => {
                 let valid_addr = deps.api.addr_validate(&data.into_string());
                 assert!(valid_addr.is_ok());
             }
@@ -2288,7 +2290,7 @@ mod tests {
         }
 
         match storage_deployer_answer {
-            QueryAnswer::StorageDeployer { data } => {
+            BridgeQueryAnswer::StorageDeployer { data } => {
                 let valid_addr = deps.api.addr_validate(&data.into_string());
                 assert!(valid_addr.is_ok());
             }

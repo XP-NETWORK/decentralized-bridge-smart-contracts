@@ -8,4 +8,4 @@ pub mod receiver;
 pub mod royalties;
 pub mod state;
 pub mod token;
-pub mod collection_deployer_msg;
+pub mod reply;

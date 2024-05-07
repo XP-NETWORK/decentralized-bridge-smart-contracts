@@ -3,7 +3,7 @@ use cosmwasm_std::{
 };
 use secret_toolkit::utils::HandleCallback;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::msg::{Storage1155ExecuteMsg, Storage1155InstantiateMsg};
 use crate::snip1155_transfer_msg::Snip1155ExecuteMsg;
 use crate::state::{COLLECTION1155_ADDRESS, COLLECTION1155_CODE, OWNER};
 use crate::storage_deployer_msg::StorageDeployerInfo;
@@ -13,7 +13,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: Storage1155InstantiateMsg,
 ) -> StdResult<Response> {
     deps.api
         .debug(format!("Storage 1155 was initialized by {}", info.sender).as_str());
@@ -35,7 +35,7 @@ pub fn instantiate(
 }
 
 #[entry_point]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: Storage1155ExecuteMsg) -> StdResult<Response> {
     if OWNER.load(deps.storage)? != info.sender {
         return Err(StdError::generic_err("Unauthorized"));
     }
@@ -43,7 +43,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         // ExecuteMsg::DepositToken { token_id, amount } => {
         //     deposit_token(deps, env, _info, token_id, amount)
         // }
-        ExecuteMsg::UnLockToken {
+        Storage1155ExecuteMsg::UnLockToken {
             token_id,
             amount,
             to,
