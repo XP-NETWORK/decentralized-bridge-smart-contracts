@@ -1,12 +1,12 @@
 import { SecretNetworkClient, Wallet } from "secretjs";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 
 export async function deploy() {
   const wallet = new Wallet(process.env.WALLET!);
 
   const sc = new SecretNetworkClient({
-    chainId: "secretdev-1",
-    url: "http://localhost:1317",
+    chainId: "pulsar-3",
+    url: "https://api.pulsar.scrttestnet.com",
     wallet,
     walletAddress: wallet.address,
   });
@@ -14,7 +14,6 @@ export async function deploy() {
   const accounts = await wallet.getAccounts();
   const validator = (await wallet.getAccounts())[0];
   console.log("Validator:", validator.address);
-  const rpc = "https://rpc.testcosmos.directory/terra2testnet";
 
   console.log(
     `Balance:`,
@@ -24,15 +23,15 @@ export async function deploy() {
     })
   );
 
-  const snip721_wasm = readFileSync("./artifacts/snip721.gz");
-  const snip1155_wasm = readFileSync("./artifacts/snip1155.gz");
+  const snip721_wasm = readFileSync("./artifacts/snip721.wasm.gz");
+  const snip1155_wasm = readFileSync("./artifacts/snip1155.wasm.gz");
   const collection_deployer_wasm = readFileSync(
-    "./artifacts/collection-deployer.gz"
+    "./artifacts/collection_deployer.wasm.gz"
   );
-  const storage721_wasm = readFileSync("./artifacts/storage721.gz");
-  const storage1155_wasm = readFileSync("./artifacts/storage1155.gz");
-  const storage_deployer_wasm = readFileSync("./artifacts/storage-deployer.gz");
-  const bridge_wasm = readFileSync("./artifacts/bridge.gz");
+  const storage721_wasm = readFileSync("./artifacts/storage721.wasm.gz");
+  const storage1155_wasm = readFileSync("./artifacts/storage1155.wasm.gz");
+  const storage_deployer_wasm = readFileSync("./artifacts/storage_deployer.wasm.gz");
+  const bridge_wasm = readFileSync("./artifacts/bridge.wasm.gz");
 
   const uploadNft = await sc.tx.compute.storeCode(
     {
@@ -45,6 +44,7 @@ export async function deploy() {
       gasLimit: 5000000,
     }
   );
+  console.log(uploadNft)
   const nftCodeId = uploadNft.arrayLog?.find((e) => e.key === "code_id")?.value!;
   console.log("Uploaded Nft contract code. Code ID: ", nftCodeId);
 
@@ -212,7 +212,16 @@ export async function deploy() {
         gasLimit: 5000000,
       }
     );
-    console.log(`Bridge instantiate result:`, exec);
+    writeFileSync("./code_id.json", JSON.stringify({
+      nftCodeId,
+      storage721CodeId,
+      storage1155CodeId,
+      storageDeployerCodeId,
+      cdCodeId,
+      sftCodeId,
+      bridgeCodeId
+    }))
+    console.log(`Bridge instantiate result:`, JSON.stringify(exec));
 }
 
 deploy();

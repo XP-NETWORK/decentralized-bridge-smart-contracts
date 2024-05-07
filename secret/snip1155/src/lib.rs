@@ -1,3 +1,4 @@
+#[cfg(not(feature = "library"))]
 pub mod handles;
 pub mod queries;
 pub mod msg;
