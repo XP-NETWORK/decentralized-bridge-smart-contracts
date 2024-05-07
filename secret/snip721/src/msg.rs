@@ -3,8 +3,10 @@
 use cosmwasm_std::{Addr, Binary, Coin};
 use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
+use secret_toolkit::utils::HandleCallback;
 use serde::{Deserialize, Serialize};
 
+use crate::contract::BLOCK_SIZE;
 use crate::expiration::Expiration;
 use crate::mint_run::{MintRunInfo, SerialNumber};
 use crate::royalties::{DisplayRoyaltyInfo, RoyaltyInfo};
@@ -110,6 +112,10 @@ pub struct PostInstantiateCallback {
     pub send: Vec<Coin>,
 }
 
+
+impl HandleCallback for Snip721ExecuteMsg {
+    const BLOCK_SIZE: usize = BLOCK_SIZE;
+}
 
 
 #[derive(Serialize, Deserialize, JsonSchema)]
