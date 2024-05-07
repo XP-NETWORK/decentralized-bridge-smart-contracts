@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Executes
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {
+pub enum BridgeExecuteMsg {
     AddValidator { data: AddValidatorMsg },
     ClaimValidatorRewards { data: ClaimValidatorRewardsMsg },
     Lock721 { data: Lock721Msg },
@@ -23,7 +23,7 @@ pub enum ExecuteMsg {
 /// Queries
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
+pub enum BridgeQueryMsg {
     // GetCount returns the current count as a json-encoded number
     GetValidatorsCount {},
     GetValidator {
@@ -52,7 +52,7 @@ pub enum QueryMsg {
 /// responses to queries
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryAnswer {
+pub enum BridgeQueryAnswer {
     ValidatorCountResponse {
         count: i128,
     },

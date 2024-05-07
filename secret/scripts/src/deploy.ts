@@ -5,8 +5,8 @@ export async function deploy() {
   const wallet = new Wallet(process.env.WALLET!);
 
   const sc = new SecretNetworkClient({
-    chainId: "pulsar-3",
-    url: "https://api.pulsar.scrttestnet.com",
+    chainId: "secretdev-1",
+    url: "http://localhost:1317",
     wallet,
     walletAddress: wallet.address,
   });

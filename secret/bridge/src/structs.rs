@@ -42,7 +42,7 @@ pub struct SignerAndSignature {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InstantiateMsg {
+pub struct BridgeInstantiateMsg {
     pub validators: Vec<(Binary, Addr)>,
     pub chain_type: String,
     // pub collection_deployer: Addr,

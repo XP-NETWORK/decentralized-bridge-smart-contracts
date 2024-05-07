@@ -5,7 +5,7 @@ use serde::Serialize;
 /// an offspring in the factory after the callback.
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct CollectionDeployerInfo {
+pub struct ReplyCollectionInfo {
     /// label used when initializing offspring
     pub label: String,
     pub owner: Addr,
@@ -18,6 +18,6 @@ pub struct CollectionDeployerInfo {
     pub token_amount: u128,
     pub royalty: u16,
     pub royalty_receiver: Addr,
-    pub transaction_hash: String,
     pub metadata: String,
+    pub transaction_hash: String
 }

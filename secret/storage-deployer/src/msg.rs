@@ -6,7 +6,7 @@ use crate::structs::CodeInfo;
 
 /// Instantiation message
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InstantiateMsg {
+pub struct StorageDeployerInstantiateMsg {
     /// collection code info
     pub storage721_code_info: CodeInfo,
     pub storage1155_code_info: CodeInfo,
@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
 /// Handle messages
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {
+pub enum StorageDeployerExecuteMsg {
     /// CreateOffspring will instantiate a new offspring contract
     CreateStorage721 {
         label: String,
@@ -45,7 +45,7 @@ pub enum ResponseStatus {
 /// Responses from handle functions
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleAnswer {
+pub enum StorageDeployerHandleAnswer {
     /// generic status response
     Status {
         /// success or failure

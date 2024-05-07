@@ -17,7 +17,7 @@ use secret_toolkit::permit::Permit;
 /////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)] //PartialEq
-pub struct InstantiateMsg {
+pub struct Snip1155InstantiateMsg {
     /// if `false` the contract will instantiate permanently as a no-admin (permissionless) contract
     pub has_admin: bool,
     /// if `admin` == `None` && `has_admin` == `true`, the instantiator will be admin
@@ -51,7 +51,7 @@ pub struct InstantiateMsg {
 /// See [HandleAnswer](crate::msg::HandleAnswer) for the response messages for each variant.
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {
+pub enum Snip1155ExecuteMsg {
     /// curates new token_ids. Only curators can access this function.
     CurateTokenIds {
         initial_tokens: Vec<CurateTokenId>,
@@ -220,7 +220,7 @@ pub enum ExecuteMsg {
 /// [HandleMsg](crate::msg::HandleMsg), which has more details
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteAnswer {
+pub enum Snip1155ExecuteAnswer {
     CurateTokenIds { status: ResponseStatus },
     MintTokens { status: ResponseStatus },
     BurnTokens { status: ResponseStatus },
@@ -251,7 +251,7 @@ pub enum ExecuteAnswer {
 /// for the response messages for each variant, which has more detail.
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
+pub enum Snip1155QueryMsg {
     /// returns public information of the SNIP1155 contract
     ContractInfo {},
     Balance {
@@ -303,7 +303,7 @@ pub enum QueryMsg {
     },
 }
 
-impl QueryMsg {
+impl Snip1155QueryMsg {
     pub fn get_validation_params(&self) -> StdResult<(Vec<&Addr>, String)> {
         match self {
             Self::Balance {
@@ -361,7 +361,7 @@ pub enum QueryWithPermit {
 /// the query responses for each [QueryMsg](crate::msg::QueryMsg) variant
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryAnswer {
+pub enum Snip1155QueryAnswer {
     /// returns contract-level information:
     ContractInfo {
         // the address of the admin, or `None` for an admin-free contract

@@ -197,6 +197,7 @@ fn try_create_collection_721(
     let offspring_code = SNIP721_CODE.load(deps.storage)?;
     let init_submsg = SubMsg::reply_always(
         initmsg.to_cosmos_msg(
+            None,
             name + &symbol,
             offspring_code.code_id,
             offspring_code.code_hash,
@@ -267,6 +268,7 @@ fn try_create_collection_1155(
     let offspring_code = SNIP1155_CODE.load(deps.storage)?;
     let init_submsg = SubMsg::reply_always(
         initmsg.to_cosmos_msg(
+            None,
             name + &symbol,
             offspring_code.code_id,
             offspring_code.code_hash,

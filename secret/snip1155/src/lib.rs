@@ -3,6 +3,6 @@ pub mod queries;
 pub mod msg;
 pub mod state;
 pub mod receiver;
-pub mod collection_deployer_msg;
+pub mod reply;
 #[cfg(test)]
 pub mod unittest;
