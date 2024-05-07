@@ -1,8 +1,9 @@
+use common::CodeInfo;
 use cosmwasm_std::Addr;
 use secret_toolkit::utils::InitCallback;
 use serde::{Deserialize, Serialize};
 
-use crate::{state::BLOCK_SIZE, structs::CodeInfo};
+use crate::state::BLOCK_SIZE;
 
 #[derive(Serialize, Deserialize)]
 pub struct StorageInstantiateMsg {

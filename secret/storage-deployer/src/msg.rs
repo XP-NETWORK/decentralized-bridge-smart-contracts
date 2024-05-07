@@ -1,8 +1,10 @@
 use cosmwasm_std::Addr;
 use schemars::JsonSchema;
+use secret_toolkit::utils::{HandleCallback, InitCallback};
 use serde::{Deserialize, Serialize};
+use common::CodeInfo;
 
-use crate::structs::CodeInfo;
+use crate::state::BLOCK_SIZE;
 
 /// Instantiation message
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -54,4 +56,12 @@ pub enum StorageDeployerHandleAnswer {
         #[serde(skip_serializing_if = "Option::is_none")]
         message: Option<String>,
     },
+}
+
+impl HandleCallback for StorageDeployerExecuteMsg {
+    const BLOCK_SIZE: usize = BLOCK_SIZE;
+}
+
+impl InitCallback for StorageDeployerInstantiateMsg {
+    const BLOCK_SIZE: usize = BLOCK_SIZE;
 }

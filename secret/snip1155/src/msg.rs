@@ -10,7 +10,7 @@ use crate::state::{
     txhistory::Tx,
 };
 
-use secret_toolkit::permit::Permit;
+use secret_toolkit::{permit::Permit, utils::{HandleCallback, Query}};
 
 /////////////////////////////////////////////////////////////////////////////////
 // Init messages
@@ -44,6 +44,12 @@ pub struct Snip1155InstantiateMsg {
 /////////////////////////////////////////////////////////////////////////////////
 // Handle Messages
 /////////////////////////////////////////////////////////////////////////////////
+/// 
+const BLOCK_SIZE: usize = 256;
+impl HandleCallback for Snip1155ExecuteMsg {
+    const BLOCK_SIZE: usize = BLOCK_SIZE;
+}
+
 
 /// Handle messages to SNIP1155 contract.
 ///
@@ -430,6 +436,10 @@ pub enum Snip1155QueryAnswer {
 pub enum ResponseStatus {
     Success,
     Failure,
+}
+
+impl Query for Snip1155QueryMsg {
+    const BLOCK_SIZE: usize = 256;
 }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema, Debug)]

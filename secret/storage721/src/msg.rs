@@ -1,8 +1,8 @@
+use common::CodeInfo;
 use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::structs::CodeInfo;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Storage721InstantiateMsg {

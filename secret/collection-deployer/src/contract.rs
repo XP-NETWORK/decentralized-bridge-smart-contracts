@@ -4,6 +4,7 @@ use cosmwasm_std::{
 };
 
 use secret_toolkit::utils::{pad_handle_result, InitCallback};
+use snip1155::state::state_structs::CurateTokenId;
 
 use crate::bridge_msg::BridgeInfo;
 use crate::error::ContractError;
@@ -13,12 +14,12 @@ use crate::state::{
 };
 use crate::structs::ReplyCollectionInfo;
 use crate::{
-    msg::{ExecuteMsg, InstantiateMsg},
+    msg::{CollectionDeployerExecuteMsg, CollectionDeployerInstantiateMsg},
     state::OWNER,
 };
 
 use crate::offspring_msg::{
-    Collection1155InstantiateMsg, Collection721InstantiateMsg, CurateTokenId,
+    Collection1155InstantiateMsg, Collection721InstantiateMsg,
 };
 
 ////////////////////////////////////// Init ///////////////////////////////////////
@@ -37,7 +38,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: CollectionDeployerInstantiateMsg,
 ) -> Result<Response, ContractError> {
     OWNER.save(deps.storage, &info.sender)?;
     SNIP721_CODE.save(deps.storage, &msg.collection721_code_info)?;
@@ -63,13 +64,13 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: ExecuteMsg,
+    msg: CollectionDeployerExecuteMsg,
 ) -> Result<Response, ContractError> {
     if OWNER.load(deps.storage)? != info.sender {
         return Err(ContractError::Unauthorized {});
     }
     let response = match msg {
-        ExecuteMsg::CreateCollection721 {
+        CollectionDeployerExecuteMsg::CreateCollection721 {
             owner,
             name,
             symbol,
@@ -98,7 +99,7 @@ pub fn execute(
             metadata,
             transaction_hash
         ),
-        ExecuteMsg::CreateCollection1155 {
+        CollectionDeployerExecuteMsg::CreateCollection1155 {
             name,
             symbol,
             has_admin,
