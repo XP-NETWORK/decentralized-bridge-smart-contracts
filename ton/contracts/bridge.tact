@@ -133,6 +133,7 @@ message UnLock721Event {
     contractAddress: Address;
 }
 message ClaimedEvent {
+    newlyDeployCollection: Address;
     sourceChain: String; // Chain from where the NFT is being transferred
     transactionHash: String; // Transaction hash of the transfer on the source chain
 }
@@ -418,7 +419,7 @@ contract Bridge {
     }
 
     receive(msg: HiFromDeployNFT721Collection){
-        emit(ClaimedEvent{sourceChain: msg.sourceChain, transactionHash: msg.transactionHash}.toCell());
+        emit(ClaimedEvent{newlyDeployCollection: msg.newlyDeployCollection, sourceChain: msg.sourceChain, transactionHash: msg.transactionHash}.toCell());
     }
 
     receive(msg: Lock721){

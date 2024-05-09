@@ -61,6 +61,7 @@ message HiFromDeployNFT721Storage {
 }
 
 message HiFromDeployNFT721Collection{
+    newlyDeployCollection: Address;
     sourceChain: String;
     transactionHash: String;
 }

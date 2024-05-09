@@ -44,6 +44,7 @@ contract NFTCollectionDeployer {
                 bounce: true,
                 mode: SendIgnoreErrors,
                 body: HiFromDeployNFT721Collection{
+                    newlyDeployCollection: collectionAddress,
                     sourceChain: msg.source_chain,
                     transactionHash: msg.transaction_hash
                 }.toCell()
