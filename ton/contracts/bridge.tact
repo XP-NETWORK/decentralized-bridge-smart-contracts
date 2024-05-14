@@ -133,6 +133,7 @@ message UnLock721Event {
     contractAddress: Address;
 }
 message ClaimedEvent {
+    tokenId: Int as uint256;
     newlyDeployCollection: Address;
     sourceChain: String; // Chain from where the NFT is being transferred
     transactionHash: String; // Transaction hash of the transfer on the source chain
@@ -419,7 +420,7 @@ contract Bridge {
     }
 
     receive(msg: HiFromDeployNFT721Collection){
-        emit(ClaimedEvent{newlyDeployCollection: msg.newlyDeployCollection, sourceChain: msg.sourceChain, transactionHash: msg.transactionHash}.toCell());
+        emit(ClaimedEvent{tokenId: msg.tokenId, newlyDeployCollection: msg.newlyDeployCollection, sourceChain: msg.sourceChain, transactionHash: msg.transactionHash}.toCell());
     }
 
     receive(msg: Lock721){
@@ -485,8 +486,11 @@ contract Bridge {
         let hasDuplicate: Bool = false;
         let hasStorage: Bool = false;
         let storageContract: Address? = null;
+        let lastCollectionAddress: Address? = null;
+        let lastTokenId: Int? = null;
         let tokenKey: Int = beginCell().storeInt(msg.data.data1.tokenId, 64).storeSlice(msg.data.data1.sourceChain.asSlice()).storeSlice(msg.data.data3.sourceNftContractAddress).endCell().hash();
         let isTokenExists: Address? = self.tokenInfoGetSelf.get(tokenKey);
+
         if(duplicateCollectionAddress != null){
             hasDuplicate = true;
             duplicateCollectionAddressNotNull = duplicateCollectionAddress!!;
@@ -501,6 +505,7 @@ contract Bridge {
         if(storageContract != null){
             hasStorage = true;
         }
+
         if(hasDuplicate && hasStorage){
             if(isTokenExists != null){
                 self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!);
@@ -518,6 +523,9 @@ contract Bridge {
                 let nftAddress: Address = contractAddress(nftStateInit);
                 self.tokenInfoKeySelf.set(nftAddress, Token{tokenId: msg.data.data1.tokenId, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress});
                 self.tokenInfoGetSelf.set(tokenKey, nftAddress);
+                lastCollectionAddress = duplicateCollectionAddressNotNull.contractAddress;
+                lastTokenId = duplicateCollectionAddressNotNull.lastIndex + 1;
+                
                 send(SendParameters{
                     value: ton("0.07"),
                     to: nftAddress,
@@ -548,6 +556,10 @@ contract Bridge {
                 let nftAddress: Address = contractAddress(nftStateInit);
                 self.tokenInfoKeySelf.set(nftAddress, Token{tokenId: msg.data.data1.tokenId, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress});
                 self.tokenInfoGetSelf.set(tokenKey, nftAddress);
+                
+                lastCollectionAddress = duplicateCollectionAddressNotNull.contractAddress;
+                lastTokenId = duplicateCollectionAddressNotNull.lastIndex + 1;
+                
                 send(SendParameters{
                     value: ton("0.07"),
                     to: nftAddress,
@@ -580,25 +592,28 @@ contract Bridge {
                     }
                 );
 
-        let collectionInit: StateInit = initOf NftCollection(myAddress(), msg.data.data4.newContent, msg.data.data4.royalty);
-        let collectionAddress: Address = contractAddress(collectionInit);
+                let collectionInit: StateInit = initOf NftCollection(myAddress(), msg.data.data4.newContent, msg.data.data4.royalty);
+                let collectionAddress: Address = contractAddress(collectionInit);
 
-        // update duplicate mappings
+                // update duplicate mappings
 
-        let nftStateInit: StateInit = initOf NftItem(collectionAddress, 0, myAddress(), msg.data.data4.newContent);
+                let nftStateInit: StateInit = initOf NftItem(collectionAddress, 0, myAddress(), msg.data.data4.newContent);
 
-        let nftAddress: Address = contractAddress(nftStateInit);
+                let nftAddress: Address = contractAddress(nftStateInit);
 
-        self.originalToDuplicateMapping.set(key1, OriginalToDuplicateContractInfo{keyChain: msg.data.data1.sourceChain, chain: self.selfChain, contractAddress: nftAddress, lastIndex: 0, collectionContent: emptyCell()});
+                self.originalToDuplicateMapping.set(key1, OriginalToDuplicateContractInfo{keyChain: msg.data.data1.sourceChain, chain: self.selfChain, contractAddress: nftAddress, lastIndex: 0, collectionContent: emptyCell()});
 
-        self.duplicateToOriginalMapping.set(nftAddress, DuplicateToOriginalContractInfo{keyChain: self.selfChain, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress, lastIndex: 0, collectionContent: emptyCell()});
+                self.duplicateToOriginalMapping.set(nftAddress, DuplicateToOriginalContractInfo{keyChain: self.selfChain, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress, lastIndex: 0, collectionContent: emptyCell()});
 
-        self.tokenInfoKeySelf.set(nftAddress, Token{tokenId: msg.data.data1.tokenId, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress});
-        self.tokenInfoGetSelf.set(tokenKey, nftAddress);
-        
+                self.tokenInfoKeySelf.set(nftAddress, Token{tokenId: msg.data.data1.tokenId, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress});
+                self.tokenInfoGetSelf.set(tokenKey, nftAddress);
         }
         else if (!hasDuplicate && hasStorage){
             let originalCollection: Address = sourceNftContractAddressSlice.loadAddress();
+
+            lastCollectionAddress = originalCollection;
+            lastTokenId = msg.data.data1.tokenId;
+
             if(isTokenExists != null){
                self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!);
             }
@@ -617,6 +632,9 @@ contract Bridge {
         }
         else{
             require(false, "Invalid bridge state");
+        }
+        if (lastCollectionAddress != null && lastTokenId != null){
+           emit(ClaimedEvent{tokenId: lastTokenId!!, newlyDeployCollection: lastCollectionAddress!!, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
         }
         // emit(ClaimedEvent{sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
     }
