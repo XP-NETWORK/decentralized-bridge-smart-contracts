@@ -382,8 +382,15 @@ contract HederaBridge is
             address createdToken
         ) = createNonFungibleTokenWithCustomFees(token, fixedFees, royaltyFees);
 
-        require(resp == HederaResponseCodes.SUCCESS, "Failed to create token.");
+        require(resp == HederaResponseCodes.SUCCESS, concatErrorCode("Failed to create token.", resp));
         return createdToken;
+    }
+
+    function concatErrorCode(
+        string memory message,
+        int256 errorCode
+    ) private pure returns (string memory) {
+        return string(abi.encodePacked(message, " Error code: ", errorCode));
     }
 
     function mintHtsNft(
@@ -397,7 +404,7 @@ contract HederaBridge is
         bytes[] memory metadata = new bytes[](1);
         metadata[0] = abi.encodePacked(tokenURI);
         (int256 resp, , int64[] memory serialNum) = mintToken(ctr, 0, metadata);
-        require(resp == HederaResponseCodes.SUCCESS, "Failed to mint token. ");
+        require(resp == HederaResponseCodes.SUCCESS, concatErrorCode("Failed to mint token. ", resp));
         BiDirectionalTokenInfoMapLib.insert(
             TokenInfo(tokenId, srcChain, sourceNftContractAddr, true),
             TokenInfo(
@@ -413,7 +420,7 @@ contract HederaBridge is
         int256 tresp = transferNFT(ctr, address(this), to, serialNum[0]);
         require(
             tresp == HederaResponseCodes.SUCCESS,
-            "Failed to transfer minted token."
+            concatErrorCode("Failed to transfer minted token.", tresp)
         );
         return (ctr, uint256(uint64(serialNum[0])));
     }
