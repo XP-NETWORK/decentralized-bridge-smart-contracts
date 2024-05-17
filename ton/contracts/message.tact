@@ -23,7 +23,7 @@ message(0x5fcc3d14) Transfer {
     response_destination: Address;
     custom_payload: Cell?;
     forward_amount: Int as coins;
-    forward_payload: Slice as remaining;
+    forward_payload: Slice;
 }
 message(0x05138d91) OwnershipAssigned {
     query_id: Int as uint64;
