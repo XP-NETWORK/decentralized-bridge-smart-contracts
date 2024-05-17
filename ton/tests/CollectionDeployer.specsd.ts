@@ -1,5 +1,5 @@
 import { ContractSystem, testKey } from "@tact-lang/emulator";
-import { Address, beginCell, toNano } from "ton-core";
+import { Address, beginCell, toNano } from '@ton/core';
 import { sign } from "ton-crypto";
 import { NFTCollectionDeployer } from "../build/Bridge/tact_NFTCollectionDeployer";
 

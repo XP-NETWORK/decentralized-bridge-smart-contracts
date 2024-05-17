@@ -1,7 +1,6 @@
-import { Address, Dictionary, beginCell, toNano, Message } from 'ton-core';
+import { Address, Dictionary, beginCell, toNano, Message } from '@ton/core';
 import { Bridge, ClaimData, SignerAndSignature, storeClaimData } from '../wrappers/Bridge';
-import { NetworkProvider } from '@ton-community/blueprint';
-import { testKey } from '@tact-lang/emulator';
+import { NetworkProvider } from '@ton/blueprint';
 import { NFTCollectionDeployer } from '../build/Bridge/tact_NFTCollectionDeployer';
 import { NftCollection } from '../build/Bridge/tact_NftCollection';
 import { sign } from 'ton-crypto';
@@ -10,9 +9,6 @@ import { Slice } from '@ton/core';
 
 export async function run(provider: NetworkProvider) {
 
-    let key = testKey('aaaapopop');
-    console.log("key", key.publicKey.toString("hex"));
-    console.log("key", key.secretKey.toString("hex"));
 
     let publicKey = beginCell().storeBuffer(Buffer.from("5aba2a59ffcef4fc7894ac0682dd419b18a54c30b55d0db0e244f15b1a7f87b2", "hex")).endCell().beginParse().loadUintBig(256);
 

@@ -1,6 +1,6 @@
-import { Address, Builder, Dictionary, DictionaryValue, beginCell, toNano, Sender } from 'ton-core';
+import { Address, Builder, Dictionary, DictionaryValue, beginCell, toNano, Sender } from '@ton/core';
 import { AddValidator, Bridge, NewValidator, SignerAndSignature, loadSignerAndSignature, storeAddValidator, storeNewValidator, storeSignerAndSignature } from '../wrappers/Bridge';
-import { NetworkProvider, sleep } from '@ton-community/blueprint';
+import { NetworkProvider, sleep } from '@ton/blueprint';
 import { sign } from 'ton-crypto';
 import { testKey } from '@tact-lang/emulator';
 

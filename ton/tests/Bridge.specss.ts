@@ -1,6 +1,6 @@
 import { Bridge } from "../wrappers/Bridge";
 import { ContractSystem, testKey } from "@tact-lang/emulator";
-import { Address, beginCell, toNano } from "ton-core";
+import { Address, beginCell, toNano } from "@ton/core";
 import { sign } from "ton-crypto";
 
 describe('wallet', () => {

@@ -1,10 +1,10 @@
 import { Bridge, ClaimData, SignerAndSignature, storeClaimData } from "../wrappers/Bridge";
 import { ContractSystem, testKey } from "@tact-lang/emulator";
-import { Address, beginCell, toNano } from "ton-core";
+import { Address, beginCell, toNano } from '@ton/core';
 import { sign } from "ton-crypto";
 import { NFTStorageDeployer } from "../build/Bridge/tact_NFTStorageDeployer";
 import { NFTCollectionDeployer } from "../build/Bridge/tact_NFTCollectionDeployer";
-import { Dictionary } from "ton";
+import { Dictionary } from '@ton/core';
 import { NftCollection } from "../build/Bridge/tact_NftCollection";
 import { NFTStorageERC721 } from "../build/Bridge/tact_NFTStorageERC721";
 
