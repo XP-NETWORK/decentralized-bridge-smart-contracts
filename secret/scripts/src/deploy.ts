@@ -44,7 +44,6 @@ export async function deploy() {
       gasLimit: 5000000,
     }
   );
-  console.log(uploadNft)
   const nftCodeId = uploadNft.arrayLog?.find((e) => e.key === "code_id")?.value!;
   console.log("Uploaded Nft contract code. Code ID: ", nftCodeId);
 
@@ -59,6 +58,7 @@ export async function deploy() {
       gasLimit: 5000000,
     }
   );
+  console.log(uploadSft);
   const sftCodeId = uploadSft.arrayLog?.find((e) => e.key === "code_id")?.value!;
   console.log("Uploaded SFT contract code. Code ID: ", sftCodeId);
 
@@ -144,11 +144,16 @@ export async function deploy() {
 
   const initMsg = {
     validators: [
-      [Buffer.from(validator.pubkey).toString("base64"), validator.address],
+      [
+        Buffer.from(
+          "03aa85dad948edcdc8b9d301a89a2917d1d6e3b841bbcecfc79556e544a6bdadaa", "hex"
+        ).toString("base64"),
+        validator.address,
+      ],
     ],
     chain_type: "SECRET",
-    storage_label: "XP NFT Store Deployer",
-    collection_label: "XP NFT Collection Deployer",
+    storage_label: "XPBridge Version-4 NFT Store Deployer",
+    collection_label: "XPBridge Version-4 NFT Collection Deployer",
     collection721_code_info: {
       code_id: parseInt(nftCodeId),
       code_hash: (
@@ -204,7 +209,7 @@ export async function deploy() {
       {
         code_id: bridgeCodeId,
         init_msg: initMsg,
-        label: "XP Bridge V3",
+        label: "XPBridge Version-4",
         sender: validator.address,
       },
 
@@ -221,7 +226,7 @@ export async function deploy() {
       sftCodeId,
       bridgeCodeId
     }))
-    console.log(`Bridge instantiate result:`, JSON.stringify(exec));
+    console.log(`Bridge instantiate result:`, JSON.stringify(exec, null, 4));
 }
 
 deploy();

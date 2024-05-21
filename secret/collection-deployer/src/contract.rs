@@ -178,13 +178,13 @@ fn try_create_collection_721(
     // };
 
     let initmsg = Collection721InstantiateMsg {
-        label: name.clone() + &symbol,
+        label: name.clone() + &symbol + &source_nft_contract_address,
         owner: owner_addr.clone(),
         admin: Some(owner_addr.into_string()),
         name: name.clone(),
         symbol: symbol.clone(),
         entropy: name.clone() + &symbol,
-        source_nft_contract_address,
+        source_nft_contract_address: source_nft_contract_address.clone(),
         source_chain,
         destination_user_address,
         token_id,
@@ -199,7 +199,7 @@ fn try_create_collection_721(
     let init_submsg = SubMsg::reply_always(
         initmsg.to_cosmos_msg(
             None,
-            name + &symbol,
+            name + &symbol + &source_nft_contract_address,
             offspring_code.code_id,
             offspring_code.code_hash,
             None,
@@ -222,8 +222,8 @@ fn try_create_collection_721(
 fn try_create_collection_1155(
     deps: DepsMut,
     _env: Env,
-    name: String,
-    symbol: String,
+    _name: String,
+    _symbol: String,
     has_admin: bool,
     admin: Option<Addr>,
     curators: Vec<Addr>,
@@ -254,8 +254,8 @@ fn try_create_collection_1155(
         curators,
         initial_tokens,
         entropy,
-        label,
-        source_nft_contract_address,
+        label: label.clone(),
+        source_nft_contract_address: source_nft_contract_address.clone(),
         source_chain,
         destination_user_address,
         token_id,
@@ -270,7 +270,7 @@ fn try_create_collection_1155(
     let init_submsg = SubMsg::reply_always(
         initmsg.to_cosmos_msg(
             None,
-            name + &symbol,
+            label,
             offspring_code.code_id,
             offspring_code.code_hash,
             None,
