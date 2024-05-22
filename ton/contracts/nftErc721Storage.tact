@@ -2,11 +2,13 @@ import "@stdlib/deploy";
 import "./message.tact";
 message UnlockToken {
     to: Address;
+    token_id: Int;
 }
 
 contract NFTStorageERC721 {
     owner: Address;
     collectionAddress: Address;
+    nftItemAddresses: map<Int, Address>;
     init(collectionAddress: Address, bridgeAddress: Address){
         self.owner = bridgeAddress;
         self.collectionAddress = collectionAddress;
@@ -17,6 +19,7 @@ contract NFTStorageERC721 {
     }
 
     receive(msg: StorageDeploy){
+        self.nftItemAddresses.set(msg.tokenId, msg.nftItemAddress);
         send(SendParameters{
                 value: ton("0.07"),
                 to: self.owner,
@@ -31,7 +34,8 @@ contract NFTStorageERC721 {
                     destinationChain: msg.destinationChain,
                     destinationUserAddress: msg.destinationUserAddress,
                     sourceNftContractAddressLock: msg.sourceNftContractAddressLock,
-                    sourceChain: msg.sourceChain
+                    sourceChain: msg.sourceChain,
+                    nftItemAddress: msg.nftItemAddress
                 }.toCell()
             }
         );
@@ -57,9 +61,10 @@ contract NFTStorageERC721 {
 
     receive(msg: UnlockToken){
         self.onlyOwner(context().sender);
+        let nftItemAddress: Address = self.nftItemAddresses.get(msg.token_id)!!;
         send(SendParameters{
                 value: ton("0.07"),
-                to: self.collectionAddress,
+                to: nftItemAddress,
                 bounce: true,
                 mode: SendIgnoreErrors,
                 body: Transfer{

@@ -5,10 +5,11 @@ message DeployNFT721Storage {
     isOriginal: Bool;
     key: Int;
     tokenId: Int;
-    destinationChain: String;
-    destinationUserAddress: String;
+    destinationChain: Cell;
+    destinationUserAddress: Cell;
     sourceNftContractAddressLock: Slice;
     sourceChain: String;
+    nftItemAddress: Address;
 }
 
 contract NFTStorageDeployer {
@@ -42,7 +43,8 @@ contract NFTStorageDeployer {
                     destinationChain: msg.destinationChain,
                     destinationUserAddress: msg.destinationUserAddress,
                     sourceNftContractAddressLock: msg.sourceNftContractAddressLock,
-                    sourceChain: msg.sourceChain
+                    sourceChain: msg.sourceChain,
+                    nftItemAddress: msg.nftItemAddress
                 }.toCell()
             }
         );

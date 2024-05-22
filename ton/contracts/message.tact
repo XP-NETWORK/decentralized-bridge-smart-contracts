@@ -28,7 +28,7 @@ message(0x5fcc3d14) Transfer {
 message(0x05138d91) OwnershipAssigned {
     query_id: Int as uint64;
     prev_owner: Address;
-    forward_payload: Slice as remaining;
+    forward_payload: Slice;
 }
 message(0xd53276db) Excesses {
     query_id: Int as uint64;
@@ -54,10 +54,11 @@ message HiFromDeployNFT721Storage {
     isOriginal: Bool;
     key: Int;
     tokenId: Int;
-    destinationChain: String;
-    destinationUserAddress: String;
+    destinationChain: Cell;
+    destinationUserAddress: Cell;
     sourceNftContractAddressLock: Slice;
     sourceChain: String;
+    nftItemAddress: Address;
 }
 
 message HiFromDeployNFT721Collection{
@@ -74,8 +75,9 @@ message StorageDeploy {
     isOriginal: Bool;
     key: Int;
     tokenId: Int;
-    destinationChain: String;
-    destinationUserAddress: String;
+    destinationChain: Cell;
+    destinationUserAddress: Cell;
     sourceNftContractAddressLock: Slice;
     sourceChain: String;
+    nftItemAddress: Address;
 }
