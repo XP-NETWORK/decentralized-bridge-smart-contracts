@@ -188,7 +188,7 @@ contract Bridge {
         let storageAddress: Address? = storageMapping721.get(key);
         if(storageAddress == null){
             send(SendParameters{
-                    value: ton("0.07"),
+                    value: ton("0.3"),
                     to: self.storageDeployer,
                     mode: SendIgnoreErrors,
                     bounce: true,

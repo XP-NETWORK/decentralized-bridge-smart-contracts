@@ -29,7 +29,7 @@ contract NFTStorageDeployer {
         let nftStorageERC721Init: StateInit = initOf NFTStorageERC721(msg.collectionAddress, self.owner);
         let nftStorageERC721Address: Address = contractAddress(nftStorageERC721Init);
         send(SendParameters{
-                value: ton("0.07"), // pay for message and potential deployment
+                value: ton("0.2"), // pay for message and potential deployment
                 to: nftStorageERC721Address,
                 mode: SendIgnoreErrors,
                 bounce: true,

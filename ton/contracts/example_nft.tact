@@ -5,7 +5,7 @@ const gasConsumption: Int = ton("0.02");
 
 
 contract TestnetNftCollection with Deployable {
-    next_item_index: Int = -1;
+    next_item_index: Int = 0;
     owner_address: Address;
     royalty_params: RoyaltyParams?;                      
     collection_content: Cell;   
@@ -22,15 +22,14 @@ contract TestnetNftCollection with Deployable {
         let tonBalanceBeforeMsg: Int = myBalance() - msgValue;
         let storageFee: Int = minTonsForStorage - min(tonBalanceBeforeMsg, minTonsForStorage);
         msgValue = msgValue - (storageFee + gasConsumption);
-        self.mint(msg.owner, msgValue, msg.content);
+        self.mint(msg.owner, msgValue, msg.content, msg.token_id);
 
         emit(LogEventMintRecord{ minter: sender(), item_id: self.next_item_index, generate_number: nativeRandom() }.toCell());
     }
 
     // ===== Private Methods ===== //
-    fun mint(owner: Address, msgValue: Int, content: Cell) {
-        require(self.next_item_index >= 0, "non-sequential NFTs");
-        let nft_init: StateInit = self.getNftItemInit(self.next_item_index);
+    fun mint(owner: Address, msgValue: Int, content: String, tid: Int) {
+        let nft_init: StateInit = self.getNftItemInit(tid);
         send(SendParameters{
                 to: contractAddress(nft_init), 
                 value: msgValue, 
@@ -116,7 +115,7 @@ contract TestnetNftItem {
         require(!self.is_initialized, "already initialized");
         self.is_initialized = true;
         self.owner = msg.new_owner;
-        self.individual_content = msg.content;
+        self.individual_content = msg.content.asSlice().asCell();
         send(SendParameters{
             to: msg.new_owner,
             value: msgValue,
@@ -195,6 +194,7 @@ contract TestnetNftItem {
     get fun get_nft_data(): GetNftData {
         let b: StringBuilder = beginString();
         let collectionData: String = (self.individual_content!!).asSlice().asString();
+        b.append(collectionData);
 
         return GetNftData {
             is_initialized: self.is_initialized, 
@@ -208,11 +208,11 @@ contract TestnetNftItem {
 
 message MintOne {
     new_owner: Address;
-    content: Cell;
+    content: String;
 }
 
 message Mint {
     token_id: Int;
     owner: Address;
-    content: Cell;
+    content: String;
 }

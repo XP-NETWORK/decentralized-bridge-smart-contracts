@@ -21,7 +21,7 @@ contract NFTStorageERC721 {
     receive(msg: StorageDeploy){
         self.nftItemAddresses.set(msg.tokenId, msg.nftItemAddress);
         send(SendParameters{
-                value: ton("0.07"),
+                value: ton("0.1"),
                 to: self.owner,
                 bounce: true,
                 mode: SendIgnoreErrors,
