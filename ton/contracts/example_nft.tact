@@ -11,6 +11,7 @@ contract TestnetNftCollection with Deployable {
     collection_content: Cell;   
 
     init(owner_address: Address, collection_content: Cell, royalty_params: RoyaltyParams){
+
         self.owner_address = owner_address;
         self.collection_content = collection_content; 
         self.royalty_params = royalty_params;
@@ -28,7 +29,7 @@ contract TestnetNftCollection with Deployable {
     }
 
     // ===== Private Methods ===== //
-    fun mint(owner: Address, msgValue: Int, content: String, tid: Int) {
+    fun mint(owner: Address, msgValue: Int, content: Cell, tid: Int) {
         let nft_init: StateInit = self.getNftItemInit(tid);
         send(SendParameters{
                 to: contractAddress(nft_init), 
@@ -64,11 +65,9 @@ contract TestnetNftCollection with Deployable {
 
     // ------------------ Get Function  ------------------ //
     get fun get_collection_data(): CollectionData {     
-        let b: StringBuilder = beginString();
-        let collectionDataString: String = self.collection_content.asSlice().asString();
         return CollectionData{
             next_item_index: self.next_item_index, 
-            collection_content: b.toCell(), 
+            collection_content: self.collection_content, 
             owner_address: self.owner_address
         };
     }
@@ -115,7 +114,7 @@ contract TestnetNftItem {
         require(!self.is_initialized, "already initialized");
         self.is_initialized = true;
         self.owner = msg.new_owner;
-        self.individual_content = msg.content.asSlice().asCell();
+        self.individual_content = msg.content;
         send(SendParameters{
             to: msg.new_owner,
             value: msgValue,
@@ -192,27 +191,24 @@ contract TestnetNftItem {
 
     // --------- Get Function  --------- //
     get fun get_nft_data(): GetNftData {
-        let b: StringBuilder = beginString();
-        let collectionData: String = (self.individual_content!!).asSlice().asString();
-        b.append(collectionData);
 
         return GetNftData {
             is_initialized: self.is_initialized, 
             index: self.item_index, 
             collection_address: self.collection_address, 
             owner_address: self.owner!!,
-            individual_content: b.toCell()
+            individual_content: self.individual_content!!
         };
     }
 }
 
 message MintOne {
     new_owner: Address;
-    content: String;
+    content: Cell;
 }
 
 message Mint {
     token_id: Int;
     owner: Address;
-    content: String;
+    content: Cell;
 }

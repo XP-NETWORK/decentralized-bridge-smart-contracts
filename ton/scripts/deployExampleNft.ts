@@ -6,10 +6,7 @@ export async function run(provider: NetworkProvider) {
     const exampleNft = provider.open(
         await TestnetNftCollection.fromInit(
             Address.parse('EQDAnW6XFiIVI_s0ZD2rXZuyM-GynJFfJQOPXwz_3rCIA9db'),
-            beginCell()
-                .storeInt(1, 8)
-                .storeStringRefTail('https://api.jsonbin.io/v3/b/664f3240e41b4d34e4f8302c?meta=false')
-                .endCell(),
+            beginCell().storeInt(1, 8).storeStringTail('https://api.jsonbin.io/v3/b/664f3240e41b4d34e4f8302c?meta=false').endCell(),
             {
                 $$type: 'RoyaltyParams',
                 denominator: 10000n,
