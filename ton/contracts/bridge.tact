@@ -244,17 +244,22 @@ contract Bridge {
         let percentage: Int = 0;
         let validatorsToReward: map<Int, Address> = emptyMap();
         let validatorsKeys: map<Int, Int> = emptyMap();
+        let requireUnique: map<Int, Bool> = emptyMap();
 
         repeat(len) {
             let sig: SignerAndSignature = sigs.get(counter)!!;
-            let ok: Bool = checkSignature(hash, sig.signature, sig.key);
-            let vv: Validator = self.Validator(sig.key)!!;
-            if(ok && vv.added){
-                validatorsToReward.set(percentage, vv.address);
-                validatorsKeys.set(percentage, sig.key);
-                percentage = percentage + 1;
+            let alreadySigned: Bool? = requireUnique.get(sig.key);
+            if (alreadySigned == null) {
+                requireUnique.set(sig.key, true);
+                let ok: Bool = checkSignature(hash, sig.signature, sig.key);
+                let vv: Validator = self.Validator(sig.key)!!;
+                if(ok && vv.added){
+                    validatorsToReward.set(percentage, vv.address);
+                    validatorsKeys.set(percentage, sig.key);
+                    percentage = percentage + 1;
+                }
+                counter = counter + 1;
             }
-            counter = counter + 1;
         }
 
         require(percentage >= (((self.validatorsCount * 2)/3)+1),"Threshold not reached!");
