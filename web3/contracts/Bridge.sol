@@ -75,6 +75,8 @@ contract Bridge {
     mapping(string => mapping(string => address))
         public duplicateStorageMapping1155;
 
+    mapping(address validator => bool signed) private uniqueValidators;
+
     string public selfChain = "";
     string constant TYPEERC721 = "singular"; // a more general term to accomodate non-evm chains
     string constant TYPEERC1155 = "multiple"; // a more general term to accomodate non-evm chains
@@ -838,20 +840,23 @@ contract Bridge {
     function verifySignature(
         bytes32 hash,
         bytes[] memory signatures
-    ) private view returns (address[] memory) {
+    ) private returns (address[] memory) {
         uint256 percentage = 0;
         address[] memory validatorsToReward = new address[](signatures.length);
-        // console.log("validator1: %s", validatorsArray[0]);
-        // console.log("validator2: %s", validatorsArray[1]);
 
         for (uint256 i = 0; i < signatures.length; i++) {
             address signer = recover(hash, signatures[i]);
             // console.log("signer: %s", signer);
 
-            if (validators[signer].added) {
+            if (validators[signer].added && uniqueValidators[signer] == false) {
                 percentage += 1;
                 validatorsToReward[i] = signer;
+                uniqueValidators[signer] = true;
             }
+        }
+        // Cleanup the mapping
+        for (uint256 i = 0; i < validatorsToReward.length; i++) {
+            delete uniqueValidators[validatorsToReward[i]];
         }
         // emit LogHash(hash, signatures);
         // console.log("Percentage: %s", percentage);
