@@ -6,6 +6,7 @@ import "hardhat/console.sol";
 // import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/INFTStorageERC721.sol";
 import "./interfaces/INFTStorageDeployer.sol";
@@ -50,6 +51,7 @@ contract HederaBridge is
     using ECDSA for bytes32;
     using AddressUtilityLib for string;
     using BiDirectionalTokenInfoMapLib for TokenInfo;
+    using Strings for string;
     int64 public constant DEFAULT_EXPIRY = 7890000;
     int64 public constant MAX_INT = 0xFFFFFFFF;
     mapping(address => Validator) public validators;
@@ -61,6 +63,8 @@ contract HederaBridge is
         public valueToKey;
 
     INFTStorageDeployer public storageDeployer;
+
+    mapping(address validator => bool signed) private uniqueValidators;
 
     uint256 public validatorsCount = 0;
 
@@ -382,7 +386,10 @@ contract HederaBridge is
             address createdToken
         ) = createNonFungibleTokenWithCustomFees(token, fixedFees, royaltyFees);
 
-        require(resp == HederaResponseCodes.SUCCESS, concatErrorCode("Failed to create token.", resp));
+        require(
+            resp == HederaResponseCodes.SUCCESS,
+            concatErrorCode("Failed to create token.", resp)
+        );
         return createdToken;
     }
 
@@ -390,7 +397,14 @@ contract HederaBridge is
         string memory message,
         int256 errorCode
     ) private pure returns (string memory) {
-        return string(abi.encodePacked(message, " Error code: ", errorCode));
+        return
+            string(
+                abi.encodePacked(
+                    message,
+                    " Error code: ",
+                    Strings.toString(uint256(errorCode))
+                )
+            );
     }
 
     function mintHtsNft(
@@ -404,7 +418,10 @@ contract HederaBridge is
         bytes[] memory metadata = new bytes[](1);
         metadata[0] = abi.encodePacked(tokenURI);
         (int256 resp, , int64[] memory serialNum) = mintToken(ctr, 0, metadata);
-        require(resp == HederaResponseCodes.SUCCESS, concatErrorCode("Failed to mint token. ", resp));
+        require(
+            resp == HederaResponseCodes.SUCCESS,
+            concatErrorCode("Failed to mint token. ", resp)
+        );
         BiDirectionalTokenInfoMapLib.insert(
             TokenInfo(tokenId, srcChain, sourceNftContractAddr, true),
             TokenInfo(
@@ -531,9 +548,16 @@ contract HederaBridge is
                     tinfo.tokenId,
                     storageContract
                 );
-                emit Claimed(data.sourceChain, data.transactionHash, duplicateCollectionAddress.contractAddress.stringToAddress(), tinfo.tokenId);
+                emit Claimed(
+                    data.sourceChain,
+                    data.transactionHash,
+                    duplicateCollectionAddress
+                        .contractAddress
+                        .stringToAddress(),
+                    tinfo.tokenId
+                );
             } else {
-                     (address nftContract, uint256 tokenId ) = mintHtsNft(
+                (address nftContract, uint256 tokenId) = mintHtsNft(
                     duplicateCollectionAddress
                         .contractAddress
                         .stringToAddress(),
@@ -543,13 +567,17 @@ contract HederaBridge is
                     data.sourceChain,
                     data.sourceNftContractAddress
                 );
-                emit Claimed(data.sourceChain, data.transactionHash, nftContract, tokenId);
+                emit Claimed(
+                    data.sourceChain,
+                    data.transactionHash,
+                    nftContract,
+                    tokenId
+                );
             }
-
         }
         // ===============================/ hasDuplicate && NOT hasStorage /=======================
         else if (hasDuplicate && !hasStorage) {
-              (address nftContract, uint256 tokenId ) = mintHtsNft(
+            (address nftContract, uint256 tokenId) = mintHtsNft(
                 duplicateCollectionAddress.contractAddress.stringToAddress(),
                 data.metadata,
                 data.destinationUserAddress,
@@ -557,7 +585,12 @@ contract HederaBridge is
                 data.sourceChain,
                 data.sourceNftContractAddress
             );
-            emit Claimed(data.sourceChain, data.transactionHash, nftContract, tokenId);
+            emit Claimed(
+                data.sourceChain,
+                data.transactionHash,
+                nftContract,
+                tokenId
+            );
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
@@ -582,7 +615,7 @@ contract HederaBridge is
                 data.sourceNftContractAddress
             );
 
-          (address nftContract, uint256 tokenId ) = mintHtsNft(
+            (address nftContract, uint256 tokenId) = mintHtsNft(
                 newCollectionAddress,
                 data.metadata,
                 data.destinationUserAddress,
@@ -591,8 +624,12 @@ contract HederaBridge is
                 data.sourceNftContractAddress
             );
 
-        
-        emit Claimed(data.sourceChain, data.transactionHash, nftContract, tokenId);
+            emit Claimed(
+                data.sourceChain,
+                data.transactionHash,
+                nftContract,
+                tokenId
+            );
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
             IHTSCompatibilityLayer htscl = IHTSCompatibilityLayer(
@@ -620,7 +657,7 @@ contract HederaBridge is
                     storageContract
                 );
             } else {
-                (address nftContract, uint256 tokenId ) = mintHtsNft(
+                (address nftContract, uint256 tokenId) = mintHtsNft(
                     data.sourceNftContractAddress.stringToAddress(),
                     data.metadata,
                     data.destinationUserAddress,
@@ -628,13 +665,17 @@ contract HederaBridge is
                     data.sourceChain,
                     data.sourceNftContractAddress
                 );
-        emit Claimed(data.sourceChain, data.transactionHash, nftContract, tokenId);
+                emit Claimed(
+                    data.sourceChain,
+                    data.transactionHash,
+                    nftContract,
+                    tokenId
+                );
             }
         } else {
             // TODO: remove after testing
             require(false, "Invalid bridge state");
         }
-
     }
 
     function unLock721(
@@ -712,7 +753,7 @@ contract HederaBridge is
     function verifySignature(
         bytes32 hash,
         bytes[] memory signatures
-    ) private view returns (address[] memory) {
+    ) private returns (address[] memory) {
         uint256 percentage = 0;
         address[] memory validatorsToReward = new address[](signatures.length);
         // console.log("validator1: %s", validatorsArray[0]);
@@ -722,10 +763,16 @@ contract HederaBridge is
             address signer = recover(hash, signatures[i]);
             // console.log("signer: %s", signer);
 
-            if (validators[signer].added) {
+            if (validators[signer].added && uniqueValidators[signer] == false) {
                 percentage += 1;
                 validatorsToReward[i] = signer;
+                uniqueValidators[signer] = true;
             }
+        }
+
+        // Cleanup the mapping
+        for (uint256 i = 0; i < validatorsToReward.length; i++) {
+            delete uniqueValidators[validatorsToReward[i]];
         }
         // emit LogHash(hash, signatures);
         // console.log("Percentage: %s", percentage);
