@@ -10,12 +10,15 @@ module bridge::aptos_nft_bridge {
   use aptos_token_objects::royalty::{Self};
   use std::option::{Self};
   use aptos_framework::primary_fungible_store;
+  use aptos_framework::fungible_asset;
   use aptos_std::ed25519;
   use std::hash;
   use std::bcs;
   use aptos_framework::coin;
   use aptos_framework::aptos_coin::AptosCoin;
   use aptos_std::simple_map::{Self, SimpleMap};
+  use aptos_framework::account::{Self, SignerCapability};
+  use std::debug;
 
   const E_ALREADY_INITIALIZED: u64 = 0;
   const E_NOT_BRIDGE_ADMIN: u64 = 1;
@@ -34,6 +37,7 @@ module bridge::aptos_nft_bridge {
 
   struct Bridge has key {
     validators: SimpleMap<vector<u8>, Validator>,
+    signer_cap: SignerCapability,
   }
 
   struct SignatureInfo has drop {
@@ -67,13 +71,14 @@ module bridge::aptos_nft_bridge {
     verified
   }
 
-  public entry fun initialize(admin: &signer, validators: vector<vector<u8>>) {
+  public entry fun initialize(admin: &signer, validators: vector<vector<u8>>, seed: vector<u8>) {
     let admin_addr = signer::address_of(admin);
-    let total_validators = vector::length(&validators);
     assert!(admin_addr == @bridge, E_NOT_BRIDGE_ADMIN);
+    let total_validators = vector::length(&validators);
     assert!(!exists<Bridge>(admin_addr), E_ALREADY_INITIALIZED);
     assert!(total_validators > 0, E_VALIDATORS_LENGTH_ZERO);
 
+    let (_, signer_cap) = account::create_resource_account(admin, seed);
     let validators_to_add = &mut simple_map::create<vector<u8>, Validator>();
 
     for (i in 0..(total_validators - 1)) {
@@ -85,6 +90,7 @@ module bridge::aptos_nft_bridge {
       admin,
       Bridge {
         validators: *validators_to_add,
+        signer_cap
       }
     );
   }
@@ -136,6 +142,8 @@ module bridge::aptos_nft_bridge {
     
     let admin_addr = signer::address_of(&admin);
     assert!(admin_addr == @bridge, E_NOT_BRIDGE_ADMIN);
+    assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
+
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
 
     should_meet_thershold(signatures, &public_keys, bcs::to_bytes(&validator), &bridge_data.validators);
@@ -147,21 +155,31 @@ module bridge::aptos_nft_bridge {
     coin::transfer<AptosCoin>(&admin, to, validator_reward.pending_reward);
   }
 
-  public entry fun lock_721(owner: &signer, object: Object<AptosToken>) {
-    object::transfer(owner, object, @bridge);
+  fun retrieve_bridge_resource_address(): address acquires Bridge {
+    assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
+
+    let bridge_data = borrow_global<Bridge>(@bridge);
+    let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
+    signer::address_of(&bridge_signer_from_cap)
   }
 
-  public entry fun lock_1155(owner: &signer, object: Object<AptosToken>, amount: u64) {
+  public entry fun lock_721(owner: &signer, object: Object<AptosToken>) acquires Bridge {
+    let bridge_resource_addr = retrieve_bridge_resource_address();
+
+    object::transfer(owner, object, bridge_resource_addr);
+  }
+
+  public entry fun lock_1155(owner: &signer, object: Object<AptosToken>, amount: u64) acquires Bridge {
+    let bridge_resource_addr = retrieve_bridge_resource_address();
+
     primary_fungible_store::transfer(
       owner,
       object,
-      @bridge,
+      bridge_resource_addr,
       amount
     );
   }
 
-  // TODO: if token owner is admin unlock instead of mint. 
-  // TODO: Add validators approval and reward
   // TODO: Create Collection if donesn't exist already.
   public entry fun claim_721(
     user: signer,
@@ -194,26 +212,34 @@ module bridge::aptos_nft_bridge {
 
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
     should_meet_thershold(signatures, &public_keys, bcs::to_bytes(&data), &bridge_data.validators);
-    reward_validators(fee, &public_keys);
+    reward_validators(fee, &public_keys, &mut bridge_data.validators);
 
-    // if
-    let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
-    token::create_named_token(
-      &user,
-      collection,
-      description,
-      name,
-      option::some(royalty),
-      uri,
-    );
+    let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
+    let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
+    
+    let token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
+    let token_object = object::address_to_object<AptosToken>(token_addr);
 
+    // if locked nft. transfer from resource account to user
+    // else mint new one.
+    if (object::owner(token_object) == bridge_resource_addr) {
+      object::transfer(&bridge_signer_from_cap, token_object, user_addr);
+    } else {
+      let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
+      token::create_named_token(
+        &user,
+        collection,
+        description,
+        name,
+        option::some(royalty),
+        uri,
+      );
+    }
   }
 
-  // TODO: if token owner is admin unlock instead of mint.
-  // TODO: Add validators approval and reward.
   // TODO: Create Collection if donesn't exist already.
   public entry fun claim_1155(
-    creator: signer,
+    user: signer,
     collection: String,
     name: String,
     description: String,
@@ -225,42 +251,116 @@ module bridge::aptos_nft_bridge {
     royalty_points_numerator: u64,
     royalty_points_denominator: u64,
     royalty_payee_address: address,
+    fee: u64,
+    signatures: vector<vector<u8>>, 
+    public_keys: vector<vector<u8>>
   ) {
-    let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
 
-    let new_armor_type_constructor_ref = &token::create(
-      &creator,
+    let user_addr = signer::address_of(&user);
+
+    let data = CalimData {
+      user: user_addr,
       collection,
+      name,
       description,
-      name,
-      option::some(royalty),
       uri,
-    );
-    // Make this armor token fungible so there can multiple instances of it.
-    primary_fungible_store::create_primary_store_enabled_fungible_asset(
-      new_armor_type_constructor_ref,
-      option::some(maximum),
-      name,
-      symbol,
-      0, // NFT cannot be divided so decimals is 0,
-      icon_uri,
-      project_uri,
-    );
-  }
-
-  fun reward_validators(fee: u64, validators: &vector<vector<u8>>) acquires Bridge {
-    assert!(fee > 0, E_INVALID_FEE);
+      royalty_points_numerator,
+      royalty_points_denominator,
+      royalty_payee_address,
+      fee,
+    };
+    
+    coin::transfer<AptosCoin>(&user, @bridge, fee);
 
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
+    should_meet_thershold(signatures, &public_keys, bcs::to_bytes(&data), &bridge_data.validators);
+    reward_validators(fee, &public_keys, &mut bridge_data.validators);
+
+    let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
+    let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
+    
+    let token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
+    let token_object = object::address_to_object<AptosToken>(token_addr);
+
+    // if locked nft. transfer from resource account to user
+    // else mint new one.
+    if (object::owner(token_object) == bridge_resource_addr) {
+      let balance_of_tokens = fungible_asset::maximum(token_object);
+      if(balance_of_tokens >= maximum) {
+        primary_fungible_store::transfer(
+          &bridge_signer_from_cap,
+          object,
+          user_addr,
+          maximum
+        );
+      } else {
+        let to_mint = maximum - balance_of_tokens;
+        
+        primary_fungible_store::transfer(
+          &bridge_signer_from_cap,
+          object,
+          user_addr,
+          balance_of_tokens
+        );
+
+        let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
+
+        // TODO: donot create new ref instead store the ref and reuse it here.
+        let new_nft_constructor_ref = &token::create(
+          &user,
+          collection,
+          description,
+          name,
+          option::some(royalty),
+          uri,
+        );
+        // Make this nft token fungible so there can multiple instances of it.
+        primary_fungible_store::create_primary_store_enabled_fungible_asset(
+          new_nft_constructor_ref,
+          option::some(to_mint),
+          name,
+          symbol,
+          0, // NFT cannot be divided so decimals is 0,
+          icon_uri,
+          project_uri,
+        );
+      }
+    } else {
+      let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
+
+      let new_nft_constructor_ref = &token::create(
+        &user,
+        collection,
+        description,
+        name,
+        option::some(royalty),
+        uri,
+      );
+      // Make this nft token fungible so there can multiple instances of it.
+      primary_fungible_store::create_primary_store_enabled_fungible_asset(
+        new_nft_constructor_ref,
+        option::some(maximum),
+        name,
+        symbol,
+        0, // NFT cannot be divided so decimals is 0,
+        icon_uri,
+        project_uri,
+      );
+    }
+  }
+
+  fun reward_validators(fee: u64, validators_to_reward: &vector<vector<u8>>, all_validators: &mut SimpleMap<vector<u8>, Validator>) {
+    assert!(fee > 0, E_INVALID_FEE);
+
     let total_rewards = coin::balance<AptosCoin>(@bridge);
     assert!(total_rewards >= fee, E_NO_REWARDS_AVAILABLE);
     
-    let total_validators_to_reward = vector::length(validators);
+    let total_validators_to_reward = vector::length(validators_to_reward);
     let fee_per_validator = fee / total_validators_to_reward;
 
     for (i in 0..(total_validators_to_reward - 1)) {
-      let validator = vector::borrow(validators, i);
-      let validator_reward = simple_map::borrow_mut(&mut bridge_data.validators, validator);
+      let validator = vector::borrow(validators_to_reward, i);
+      let validator_reward = simple_map::borrow_mut(all_validators, validator);
       *validator_reward = Validator { pending_reward: validator_reward.pending_reward + fee_per_validator};
     };
 
@@ -289,5 +389,4 @@ module bridge::aptos_nft_bridge {
 
   //   initialize(&admin, validators);
   // }
-
 }
