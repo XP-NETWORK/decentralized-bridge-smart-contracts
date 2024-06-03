@@ -10,9 +10,14 @@ bridge="_"
 bridge="02ab672f24715554b29d2c2fde52ef3eac6df9a7b9e0a443a68074b3bf0699fc"
 
 [dependencies]
-AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "devnet" }
-AptosTokenObjects = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-token-objects/", rev = "devnet" }
+# AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "devnet" }
+# AptosTokenObjects = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-token-objects/", rev = "devnet" }
+# AptosStdlib = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-stdlib", rev = "devnet" }
+AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework", rev = "devnet" }
+AptosTokenObjects = { local = "../../aptos-core/aptos-move/framework/aptos-token-objects/", rev = "devnet" }
+AptosStdlib = { local = "../../aptos-core/aptos-move/framework/aptos-stdlib" }
 
 [dev-dependencies]
 AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework", rev = "devnet" }
 AptosTokenObjects = { local = "../../aptos-core/aptos-move/framework/aptos-token-objects/", rev = "devnet" }
+AptosStdlib = { local = "../../aptos-core/aptos-move/framework/aptos-stdlib" }
