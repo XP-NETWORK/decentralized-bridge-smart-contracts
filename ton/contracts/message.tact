@@ -69,6 +69,8 @@ message HiFromDeployNFT721Collection{
 }
 message CollectionDeploy {
     newOwner: Address;
+    metadata: Cell;
+    token_id: Int;
 }
 message StorageDeploy {
     sourceNftContractAddress: Address;

@@ -28,34 +28,30 @@ contract NftCollection {
         let tonBalanceBeforeMsg: Int = (myBalance() - msgValue);
         let storageFee: Int = (minTonsForStorage - min(tonBalanceBeforeMsg, minTonsForStorage));
         msgValue = (msgValue - (storageFee + gasConsumption));
-        self.mint(msg.newOwner, msgValue);
+        self.mint(msg.newOwner, msgValue, msg.metadata, msg.token_id);
     }
 
-    receive("Mint"){
+    receive(msg: Mint){
         let ctx: Context = context(); // get sender Info
         let msgValue: Int = ctx.value;
         let tonBalanceBeforeMsg: Int = (myBalance() - msgValue);
         let storageFee: Int = (minTonsForStorage - min(tonBalanceBeforeMsg, minTonsForStorage));
         msgValue = (msgValue - (storageFee + gasConsumption));
-        self.mint(ctx.sender, msgValue);
+        self.mint(msg.owner, msgValue, msg.content, msg.token_id);
     }
 
     // ===== Private Methods ===== //
-     fun mint(sender: Address, msgValue: Int) {
+     fun mint(sender: Address, msgValue: Int, content: Cell, tid: Int) {
         require(self.next_item_index >= 0, "non-sequential NFTs");
-        let nft_init: StateInit = self.getNftItemInit(self.next_item_index);
+        let nft_init: StateInit = self.getNftItemInit(tid);
         send(SendParameters{
                 to: contractAddress(nft_init),
                 value: msgValue,
                 bounce: false,
                 mode: SendIgnoreErrors,
-                body: Transfer{
-                    query_id: 0,
+                body: MintOne{
                     new_owner: sender,
-                    response_destination: self.owner_address,
-                    custom_payload: emptyCell(),
-                    forward_amount: 0,
-                    forward_payload: emptySlice()
+                    content: content,
                 }.toCell(),
                 code: nft_init.code,
                 data: nft_init.data
@@ -83,13 +79,10 @@ contract NftCollection {
 
     // ------------------ Get Function  ------------------ //
     get fun get_collection_data(): CollectionData {
-        let b: StringBuilder = beginString();
-        let collectionDataString: String = self.collection_content.asSlice().asString();
-        b.append(collectionDataString);
         return
             CollectionData{
                 next_item_index: self.next_item_index,
-                collection_content: b.toCell(),
+                collection_content: self.collection_content,
                 owner_address: self.owner_address
             };
     }
@@ -127,6 +120,24 @@ contract NftItem {
         self.owner = collection_address;
         self.individual_content = individual_content;
         self.is_initialized = false;
+    }
+
+     receive(msg: MintOne) {
+        require(context().sender == self.collection_address, "not from collection");
+        let msgValue: Int = context().value; // Check the gasCost for storage
+        let tonBalanceBeforeMsg: Int = (myBalance() - msgValue);
+        let storageFee: Int = (minTonsForStorage - min(tonBalanceBeforeMsg, minTonsForStorage));
+        msgValue = (msgValue - (storageFee + gasConsumption));
+        require(!self.is_initialized, "already initialized");
+        self.is_initialized = true;
+        self.owner = msg.new_owner;
+        self.individual_content = msg.content;
+        send(SendParameters{
+            to: msg.new_owner,
+            value: msgValue,
+            mode: SendPayGasSeparately,
+            body: Excesses { query_id: 420 }.toCell()
+        });
     }
 
     receive(msg: Transfer){
@@ -195,16 +206,25 @@ contract NftItem {
 
     // --------- Get Function  --------- //
     get fun get_nft_data(): GetNftData {
-        let b: StringBuilder = beginString();
-        let collectionData: String = self.individual_content.asSlice().asString();
-        b.append(collectionData);
         return
             GetNftData{
                 is_initialized: self.is_initialized,
                 index: self.item_index,
                 collection_address: self.collection_address,
                 owner_address: self.owner,
-                individual_content: b.toCell()
+                individual_content: self.individual_content
             };
     }
+}
+
+
+message MintOne {
+    new_owner: Address;
+    content: Cell;
+}
+
+message Mint {
+    token_id: Int;
+    owner: Address;
+    content: Cell;
 }

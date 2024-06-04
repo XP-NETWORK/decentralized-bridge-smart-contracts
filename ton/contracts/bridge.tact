@@ -48,7 +48,7 @@ struct ClaimData3 {
     fee: Int as uint64; // fee that needs to be paid by the user to the bridge,
     sourceNftContractAddress: Slice; // Address of the NFT contract in the source chain
     royaltyReceiver: Address; // address of user who is going to receive royalty
-    metadata: String; // Metadata related to the NFT being transferred
+    metadata: Cell; // Metadata related to the NFT being transferred
 }
 struct ClaimData4 {
     newContent: Cell;
@@ -490,7 +490,6 @@ contract Bridge {
         let isTokenExists: Address? = self.tokenInfoGetSelf.get(tokenKey);
 
         if(duplicateCollectionAddress != null){
-            dump("Duplicate Address isnt null");
             hasDuplicate = true;
             duplicateCollectionAddressNotNull = duplicateCollectionAddress!!;
         }
@@ -506,7 +505,6 @@ contract Bridge {
         }
 
         if(hasDuplicate && hasStorage){
-            dump("has duplicate && has storage");
             if(isTokenExists != null){
                 self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!);
             }
@@ -516,7 +514,7 @@ contract Bridge {
                     to: duplicateCollectionAddressNotNull.contractAddress,
                     mode: SendIgnoreErrors,
                     bounce: true,
-                    body: "Mint".asComment()
+                    body: Mint{token_id: msg.data.data1.tokenId, owner: msg.data.data1.destinationUserAddress, content: msg.data.data3.metadata}.toCell(),
                     }
                 );
                 let nftStateInit: StateInit = initOf NftItem(duplicateCollectionAddressNotNull.contractAddress, duplicateCollectionAddressNotNull.lastIndex + 1, self.collectionDeployer, duplicateCollectionAddressNotNull.collectionContent);
@@ -525,32 +523,16 @@ contract Bridge {
                 self.tokenInfoGetSelf.set(tokenKey, nftAddress);
                 lastCollectionAddress = duplicateCollectionAddressNotNull.contractAddress;
                 lastTokenId = duplicateCollectionAddressNotNull.lastIndex + 1;
-                
-                send(SendParameters{
-                    value: ton("0.07"),
-                    to: nftAddress,
-                    mode: SendIgnoreErrors,
-                    bounce: false,
-                    body: Transfer{
-                        query_id: 0,
-                        new_owner: msg.data.data1.destinationUserAddress,
-                        response_destination: context().sender,
-                        custom_payload: emptyCell(),
-                        forward_amount: 0,
-                        forward_payload: emptySlice()
-                    }.toCell()
-                    }
-                );
             }
         }
         else if (hasDuplicate && !hasStorage){
-            dump("has duplicate && !storage");
             send(SendParameters{
-                    value: ton("0.07"),
+                    value: ton("0.1"),
                     to: duplicateCollectionAddressNotNull.contractAddress,
                     mode: SendIgnoreErrors,
                     bounce: true,
-                    body: "Mint".asComment()
+                    body: Mint{token_id: msg.data.data1.tokenId, owner: msg.data.data1.destinationUserAddress, content: msg.data.data3.metadata}.toCell(),
+                    
                     }
                 );
                 let nftStateInit: StateInit = initOf NftItem(duplicateCollectionAddressNotNull.contractAddress, duplicateCollectionAddressNotNull.lastIndex + 1, self.collectionDeployer, duplicateCollectionAddressNotNull.collectionContent);
@@ -560,25 +542,8 @@ contract Bridge {
                 
                 lastCollectionAddress = duplicateCollectionAddressNotNull.contractAddress;
                 lastTokenId = duplicateCollectionAddressNotNull.lastIndex + 1;
-                
-                send(SendParameters{
-                    value: ton("0.07"),
-                    to: nftAddress,
-                    mode: SendIgnoreErrors,
-                    bounce: false,
-                    body: Transfer{
-                        query_id: 0,
-                        new_owner: msg.data.data1.destinationUserAddress,
-                        response_destination: context().sender,
-                        custom_payload: emptyCell(),
-                        forward_amount: 0,
-                        forward_payload: emptySlice()
-                    }.toCell()
-                    }
-                );
         }
         else if (!hasDuplicate && !hasStorage){
-            dump("!duplicate && !storage");
                 send(SendParameters{
                     value: ton("0.9"),
                     to: self.collectionDeployer,
@@ -589,7 +554,9 @@ contract Bridge {
                         royalty_params: msg.data.data4.royalty,
                         destination_user_address: msg.data.data1.destinationUserAddress,
                         source_chain: msg.data.data1.sourceChain,
-                        transaction_hash: msg.data.data4.transactionHash
+                        transaction_hash: msg.data.data4.transactionHash,
+                        metadata: msg.data.data3.metadata,
+                        token_id: msg.data.data1.tokenId
                     }.toCell()
                     }
                 );
@@ -611,7 +578,6 @@ contract Bridge {
                 self.tokenInfoGetSelf.set(tokenKey, nftAddress);
         }
         else if (!hasDuplicate && hasStorage){
-            dump("!duplicate && storage");
             let originalCollection: Address = sourceNftContractAddressSlice.loadAddress();
 
             lastCollectionAddress = originalCollection;
@@ -627,7 +593,8 @@ contract Bridge {
                     to: originalCollection,
                     mode: SendIgnoreErrors,
                     bounce: true,
-                    body: "Mint".asComment()
+                    body:  Mint{token_id: msg.data.data1.tokenId, owner: msg.data.data1.destinationUserAddress, content: msg.data.data3.metadata}.toCell(),
+
                     }
                 );
             }

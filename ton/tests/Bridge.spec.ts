@@ -66,7 +66,7 @@ describe('Bridge', () => {
             data3: {
                 $$type: "ClaimData3",
                 fee: toNano("0.1"),
-                metadata: 'https://example.org',
+                metadata: beginCell().storeInt(1, 8).storeStringTail('https://example.org').endCell(),
                 royaltyReceiver: deployer.address,
                 sourceNftContractAddress: beginCell()
                     .storeSlice(
@@ -130,7 +130,7 @@ describe('Bridge', () => {
                 data3: {
                     $$type: "ClaimData3",
                     fee: toNano("0.1"),
-                    metadata: 'https://example.org',
+                    metadata: beginCell().storeInt(1, 8).storeStringTail('https://example.org').endCell(),
                     royaltyReceiver: deployer.address,
                     sourceNftContractAddress: beginCell()
                         .storeSlice(
@@ -174,7 +174,7 @@ describe('Bridge', () => {
                 })
             })
         }
-        // console.log(txns.transactions.map(flattenTransaction))
+        console.log(txns.transactions.map(flattenTransaction))
     })
 
 });
