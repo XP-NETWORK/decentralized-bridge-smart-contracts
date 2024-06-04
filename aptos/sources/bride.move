@@ -5,6 +5,7 @@ module bridge::aptos_nft_bridge {
   use std::string::{Self, String};
   use std::bcs;
   use std::option::{Self};
+  use std::debug;
   use aptos_std::ed25519;
   use aptos_std::simple_map::{Self, SimpleMap};
   use aptos_framework::object;
@@ -295,7 +296,7 @@ module bridge::aptos_nft_bridge {
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
     let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
 
-    let token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
+    let token_addr = token::create_token_address(&owner_address, &collection, &name);
     let token_object = object::address_to_object<AptosToken>(token_addr);
     
     let collection_address = collection::create_collection_address(&bridge_resource_addr, &collection);
@@ -315,7 +316,8 @@ module bridge::aptos_nft_bridge {
       } else {
         simple_map::add(&mut bridge_data.nft_collections_counter, collection_address, 0);
         nft_token_id = &0;
-      }
+      };
+      table::add(&mut bridge_data.nft_collection_tokens, CollectionNftObject { collection: collection_address, nft_address: token_addr}, *nft_token_id);
     };
 
     let key_duplicate = DuplicateToOriginalKey {
@@ -369,7 +371,7 @@ module bridge::aptos_nft_bridge {
     
     let owner_address = signer::address_of(owner);
 
-    let token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
+    let token_addr = token::create_token_address(&owner_address, &collection, &name);
     let token_object = object::address_to_object<AptosToken>(token_addr);
 
     let collection_address = collection::create_collection_address(&bridge_resource_addr, &collection);
@@ -389,7 +391,8 @@ module bridge::aptos_nft_bridge {
       } else {
         simple_map::add(&mut bridge_data.nft_collections_counter, collection_address, 0);
         nft_token_id = &0;
-      }
+      };
+      table::add(&mut bridge_data.nft_collection_tokens, CollectionNftObject { collection: collection_address, nft_address: token_addr}, *nft_token_id);
     };
 
     let key_duplicate = DuplicateToOriginalKey {
@@ -763,27 +766,60 @@ module bridge::aptos_nft_bridge {
   }
 
   // #[test(admin = @bridge)]
-  // #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
-  // public entry fun test_flow(admin: signer) {
-  //   use std::debug;
+  // // #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
+  // public entry fun test_flow(admin: signer) acquires Bridge {
 
   //   let admin_addr = signer::address_of(&admin);
   //   // debug::print(&admin_addr);
     
-  //   // let validators: vector<vector<u8>> = vector::empty<vector<u8>>();
-  //   // vector::push_back(&mut validators, b"0x6");
-  //   // vector::push_back(&mut validators, b"0x7");
+  //   let validators: vector<vector<u8>> = vector::empty<vector<u8>>();
+  //   vector::push_back(&mut validators, b"0x6");
+  //   vector::push_back(&mut validators, b"0x7");
 
   //   // debug::print(&exists<Bridge>(admin_addr));
-  //   // initialize(&admin, validators);
-  //   // let bridge = borrow_global<Bridge>(admin_addr);
+  //   initialize(&admin, validators, b"xyz", b"APTOS");
 
+  //   lock_721(
+  //     &admin, 
+  //     string::utf8(b"Panda Collection"), 
+  //     string::utf8(b"Panda # 01"), 
+  //     b"BSC", 
+  //     1,
+  //     b"0x123",
+  //   );
+
+  //   claim_721(
+  //     admin,
+  //     string::utf8(b"Panda Collection"),
+  //     string::utf8(b"Panda # 01"),
+  //     string::utf8(b"First Panda Nft"),
+  //     string::utf8(b"First Panda Nft"),
+  //     10,
+  //     2,
+  //     admin_addr,
+  //     10,
+  //     vector<vector<u8>>[b"a",b"b"], 
+  //     vector<vector<u8>>[b"a",b"b"],
+  //     b"APTOS",
+  //     b"BSC",
+  //     b"0123",
+  //     0,
+  //     b"a123",
+  //     b"singular"
+  //   )
+
+  //   let bridge_data = borrow_global<Bridge>(admin_addr);
+  //   let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
+  //   let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
+
+  //   let collection_address = collection::create_collection_address(&bridge_resource_addr, &string::utf8(b"Panda Collection"));
+  //   let nft_collection_counter = simple_map::borrow(&bridge_data.nft_collections_counter, &collection_address);
+  //   debug::print(&*nft_collection_counter);
   //   // assert!((vector::length(&bridge.validators) as u64) == 2, 1);
   //   // assert!(*vector::borrow(&bridge.validators, 0) == b"@0x6", 2);
   //   // assert!(*vector::borrow(&bridge.validators, 1) == b"@0x7", 3);
   //   // assert!(bridge.deployed_collections == vector::empty<address>(), 4);
-  //   debug::print(&admin_addr);
-  //   debug::print(&address_to_vector(admin_addr));
+  //   // debug::print(&address_to_vector(admin_addr));
 
   //   // initialize(&admin, validators);
   // }
