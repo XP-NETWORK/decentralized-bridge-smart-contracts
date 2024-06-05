@@ -765,6 +765,11 @@ module bridge::aptos_nft_bridge {
 
   }
 
+  // TODO: remove this before deployment
+  public entry fun move_resource(sender: &signer) acquires Bridge {
+    let _ = move_from<Bridge>(Signer::address_of(sender));
+  }
+
   // #[test(admin = @bridge)]
   // // #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
   // public entry fun test_flow(admin: signer) acquires Bridge {

@@ -1,0 +1,29 @@
+{
+  "name": "aptos",
+  "version": "1.0.0",
+  "description": "- `sources` - source code of all the moudules of the project.\r - `tests` - tests for the contracts.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aptos-labs/ts-sdk": "^1.18.0",
+    "dotenv": "^16.4.5",
+    "ts-mocha": "^10.0.0",
+    "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.16",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.14.1",
+    "chai": "^5.1.1",
+    "mocha": "^10.4.0",
+    "typescript": "^5.4.5"
+  }
+}

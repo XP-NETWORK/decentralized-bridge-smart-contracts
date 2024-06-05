@@ -4,10 +4,10 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-bridge="_"
+bridge="_" # set this to the admin account when deploying to mainnetS
 
 [dev-addresses]
-bridge="02ab672f24715554b29d2c2fde52ef3eac6df9a7b9e0a443a68074b3bf0699fc"
+bridge="4894ba94151905fb7e74c7e65c7c2a078b1e291aa19d340533159268ee552f94"
 
 [dependencies]
 # AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "devnet" }
