@@ -398,8 +398,8 @@ contract Bridge {
     }
 
     receive(msg: HiFromDeployNFT721Storage){
-        // dump("😑 handling hi from deploy nft 721 storage");
-        // dump(msg.storageAddress);
+        let sender: Address = contractAddress(initOf NFTStorageERC721(msg.sourceNftContractAddress, myAddress()));
+        require(sender == context().sender, "Only Storage Contract can call");
         if(msg.isOriginal){
             self.originalStorageMapping721.set(msg.key, msg.storageAddress);
         }
@@ -411,6 +411,7 @@ contract Bridge {
     }
 
     receive(msg: HiFromDeployNFT721Collection){
+        require(context().sender == self.collectionDeployer, "Only collection deployer can call this message");
         emit(ClaimedEvent{tokenId: msg.tokenId, newlyDeployCollection: msg.newlyDeployCollection, sourceChain: msg.sourceChain, transactionHash: msg.transactionHash}.toCell());
     }
 

@@ -40,7 +40,11 @@ contract NFTStorageERC721 {
             }
         );
     }
-
+    
+    receive(msg: Excesses) {
+        
+    }
+ 
     receive("DepositTokens"){
         send(SendParameters{
                 value: ton("0.07"),
