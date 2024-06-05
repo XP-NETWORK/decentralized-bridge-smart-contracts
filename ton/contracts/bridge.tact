@@ -657,4 +657,8 @@ contract Bridge {
     get fun Collections(key: Int): Address?{
         return self.collections.get(key);
     }
+
+    receive() {
+        
+    }
 }
