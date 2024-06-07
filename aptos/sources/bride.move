@@ -25,14 +25,15 @@ module bridge::aptos_nft_bridge {
   const E_NOT_BRIDGE_ADMIN: u64 = 1;
   const E_VALIDATORS_LENGTH_ZERO: u64 = 2;
   const E_VALIDATOR_ALREADY_EXIST: u64 = 3;
-  const THERSHOLD_NOT_REACHED: u64 = 4;
-  const E_INVALID_GK: u64 = 5;
+  const E_THERSHOLD_NOT_REACHED: u64 = 4;
+  const E_INVALID_PK: u64 = 5;
   const E_INVALID_SIGNATURE: u64 = 6;
   const E_NOT_INITIALIZED: u64 = 7;
   const E_INVALID_FEE: u64 = 8;
   const E_NO_REWARDS_AVAILABLE: u64 = 9;
   const E_INVALID_DESTINATION_CHAIN: u64 = 9;
   const E_INVALID_NFT_TYPE: u64 = 10;
+  const E_SIGNATURES_PUBLIC_KEYS_LENGTH_NOT_SAME: u64 = 11;
 
   const TYPE_ERC721: vector<u8> = b"singular";
   const TYPE_ERC1155: vector<u8> = b"multiple";
@@ -179,10 +180,11 @@ module bridge::aptos_nft_bridge {
     let percentage = &mut 0;
     let processed_validators = &mut vector::empty<vector<u8>>(); 
 
-    for (i in 0..(signatures_count - 1)) {
+    for (i in 0..signatures_count) {
       let signature = *vector::borrow(&signatures, i);
       let public_key = *vector::borrow(public_keys, i);
-      let valid_signature = is_sig_valid(signature, public_key, bcs::to_bytes(&data));
+      let valid_signature = is_sig_valid(signature, public_key, data);
+      assert!(valid_signature == true, E_INVALID_SIGNATURE);
       let is_validator = simple_map::contains_key(validators, &public_key);
       let validator_already_processed = vector::contains(processed_validators, &public_key);
 
@@ -192,8 +194,8 @@ module bridge::aptos_nft_bridge {
       }
     };
 
-    let validators_count = vector::length(processed_validators);
-    assert!(*percentage >= ((validators_count * 2) / 3) + 1, THERSHOLD_NOT_REACHED);
+    let validators_count = simple_map::length(validators);
+    assert!(*percentage >= ((validators_count * 2) / 3) + 1, E_THERSHOLD_NOT_REACHED);
   }
 
   fun retrieve_bridge_resource_address(): address acquires Bridge {
@@ -217,8 +219,10 @@ module bridge::aptos_nft_bridge {
     let (_, signer_cap) = account::create_resource_account(admin, seed);
     let validators_to_add = &mut simple_map::create<vector<u8>, Validator>();
 
-    for (i in 0..(total_validators - 1)) {
+    for (i in 0..total_validators) {
       let validator = *vector::borrow(&validators, i);
+      let validated_pk = ed25519::new_validated_public_key_from_bytes(validator);
+      assert!(!option::is_none(&validated_pk), E_INVALID_PK);
       simple_map::add(validators_to_add, validator, Validator { pending_reward: 0 });
     };
 
@@ -245,12 +249,17 @@ module bridge::aptos_nft_bridge {
   ) acquires Bridge {
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
+    let validated_pk = ed25519::new_validated_public_key_from_bytes(validator);
+    assert!(!option::is_none(&validated_pk), E_INVALID_PK);
+
     let signatures_count = vector::length(&signatures);
+    let public_keys_count = vector::length(&public_keys);
 
     assert!(signatures_count > 0, E_VALIDATORS_LENGTH_ZERO);
     assert!(!simple_map::contains_key(&mut bridge_data.validators, &validator), E_VALIDATOR_ALREADY_EXIST);
+    assert!(signatures_count == public_keys_count, E_SIGNATURES_PUBLIC_KEYS_LENGTH_NOT_SAME);
 
-    assert_meets_validator_thershold(signatures, &public_keys, bcs::to_bytes(&validator), &bridge_data.validators);
+    assert_meets_validator_thershold(signatures, &public_keys, validator, &bridge_data.validators);
 
     event::emit(AddNewValidatorEvent { validator });
     simple_map::add(&mut bridge_data.validators, validator, Validator { pending_reward: 0 });
@@ -757,7 +766,7 @@ module bridge::aptos_nft_bridge {
     let total_validators_to_reward = vector::length(validators_to_reward);
     let fee_per_validator = fee / total_validators_to_reward;
 
-    for (i in 0..(total_validators_to_reward - 1)) {
+    for (i in 0..total_validators_to_reward) {
       let validator = vector::borrow(validators_to_reward, i);
       let validator_reward = simple_map::borrow_mut(all_validators, validator);
       *validator_reward = Validator { pending_reward: validator_reward.pending_reward + fee_per_validator};
@@ -765,67 +774,72 @@ module bridge::aptos_nft_bridge {
 
   }
 
-  // TODO: remove this before deployment
-  public entry fun move_resource(sender: &signer) acquires Bridge {
-    let _ = move_from<Bridge>(Signer::address_of(sender));
+  #[test(admin = @bridge)]
+  // #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
+  public entry fun test_flow(admin: signer) acquires Bridge {
+    let validators: vector<vector<u8>> = vector::empty<vector<u8>>();
+    vector::push_back(&mut validators, x"993b64508bb383925de1f530d74a47b5adbfab99f90352e13304453fb4e851e0");
+    vector::push_back(&mut validators, x"bc792ac70b012512a64b5a71fa0546db6a21f7dea81f535b5de4a885d3562b84");
+    vector::push_back(&mut validators, x"90b032568336f664f102c7d7fd623d817ca60a0a19dccb2810b2b5f40c39aba2");
+    vector::push_back(&mut validators, x"e378dfcedb0de84e7586887d394954108637d838cc20aa5d10e1279ec00c3481");
+
+    // debug::print(&exists<Bridge>(admin_addr));
+    initialize(&admin, validators, b"xyz", b"APTOS");
+
+    let validator: vector<u8> = x"34f07647631ffbb14592eb21476da270028d8e7bc56e4c50e2c9ce499164f230";
+    let signatures: vector<vector<u8>> = vector<vector<u8>>[
+      x"add5d0838793aa09a29c84a24132533a5501f130d79151ed4d755853f19c7c83b321d7cb86f503d02a08929dcfa156e8191a19a17e54894a171099889d1d9e03",
+      // x"3d65911f684278ee487f204220bb021e174938baf6531bc743b61f999e22c627705350b279321e3a8ac51985b8544a4fe2368a0448d131254153d029c91ffa0d"
+    ];
+    let public_keys: vector<vector<u8>> = vector<vector<u8>>[
+      x"993b64508bb383925de1f530d74a47b5adbfab99f90352e13304453fb4e851e0",
+      // x"bc792ac70b012512a64b5a71fa0546db6a21f7dea81f535b5de4a885d3562b84",
+    ];
+    add_validator(validator, signatures, public_keys);
+    // debug::print(&admin_addr);
+
+    // lock_721(
+    //   &admin, 
+    //   string::utf8(b"Panda Collection"), 
+    //   string::utf8(b"Panda # 01"), 
+    //   b"BSC", 
+    //   1,
+    //   b"0x123",
+    // );
+
+    // claim_721(
+    //   admin,
+    //   string::utf8(b"Panda Collection"),
+    //   string::utf8(b"Panda # 01"),
+    //   string::utf8(b"First Panda Nft"),
+    //   string::utf8(b"First Panda Nft"),
+    //   10,
+    //   2,
+    //   admin_addr,
+    //   10,
+    //   vector<vector<u8>>[b"a",b"b"], 
+    //   vector<vector<u8>>[b"a",b"b"],
+    //   b"APTOS",
+    //   b"BSC",
+    //   b"0123",
+    //   0,
+    //   b"a123",
+    //   b"singular"
+    // )
+
+    // let bridge_data = borrow_global<Bridge>(admin_addr);
+    // let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
+    // let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
+
+    // let collection_address = collection::create_collection_address(&bridge_resource_addr, &string::utf8(b"Panda Collection"));
+    // let nft_collection_counter = simple_map::borrow(&bridge_data.nft_collections_counter, &collection_address);
+    // debug::print(&*nft_collection_counter);
+    // assert!((vector::length(&bridge.validators) as u64) == 2, 1);
+    // assert!(*vector::borrow(&bridge.validators, 0) == b"@0x6", 2);
+    // assert!(*vector::borrow(&bridge.validators, 1) == b"@0x7", 3);
+    // assert!(bridge.deployed_collections == vector::empty<address>(), 4);
+    // debug::print(&address_to_vector(admin_addr));
+
+    // initialize(&admin, validators);
   }
-
-  // #[test(admin = @bridge)]
-  // // #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
-  // public entry fun test_flow(admin: signer) acquires Bridge {
-
-  //   let admin_addr = signer::address_of(&admin);
-  //   // debug::print(&admin_addr);
-    
-  //   let validators: vector<vector<u8>> = vector::empty<vector<u8>>();
-  //   vector::push_back(&mut validators, b"0x6");
-  //   vector::push_back(&mut validators, b"0x7");
-
-  //   // debug::print(&exists<Bridge>(admin_addr));
-  //   initialize(&admin, validators, b"xyz", b"APTOS");
-
-  //   lock_721(
-  //     &admin, 
-  //     string::utf8(b"Panda Collection"), 
-  //     string::utf8(b"Panda # 01"), 
-  //     b"BSC", 
-  //     1,
-  //     b"0x123",
-  //   );
-
-  //   claim_721(
-  //     admin,
-  //     string::utf8(b"Panda Collection"),
-  //     string::utf8(b"Panda # 01"),
-  //     string::utf8(b"First Panda Nft"),
-  //     string::utf8(b"First Panda Nft"),
-  //     10,
-  //     2,
-  //     admin_addr,
-  //     10,
-  //     vector<vector<u8>>[b"a",b"b"], 
-  //     vector<vector<u8>>[b"a",b"b"],
-  //     b"APTOS",
-  //     b"BSC",
-  //     b"0123",
-  //     0,
-  //     b"a123",
-  //     b"singular"
-  //   )
-
-  //   let bridge_data = borrow_global<Bridge>(admin_addr);
-  //   let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
-  //   let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
-
-  //   let collection_address = collection::create_collection_address(&bridge_resource_addr, &string::utf8(b"Panda Collection"));
-  //   let nft_collection_counter = simple_map::borrow(&bridge_data.nft_collections_counter, &collection_address);
-  //   debug::print(&*nft_collection_counter);
-  //   // assert!((vector::length(&bridge.validators) as u64) == 2, 1);
-  //   // assert!(*vector::borrow(&bridge.validators, 0) == b"@0x6", 2);
-  //   // assert!(*vector::borrow(&bridge.validators, 1) == b"@0x7", 3);
-  //   // assert!(bridge.deployed_collections == vector::empty<address>(), 4);
-  //   // debug::print(&address_to_vector(admin_addr));
-
-  //   // initialize(&admin, validators);
-  // }
 }
