@@ -830,123 +830,102 @@ pub trait BridgeContract {
         if data.nft_type.eq(TYPE_ERC721) {
             self.send()
                 .esdt_system_sc_proxy()
-                .issue_non_fungible(
+                .issue_and_set_all_roles(
                     payment,
-                    &data.name,
-                    &data.symbol,
-                    NonFungibleTokenProperties {
-                        can_change_owner: true,
-                        can_freeze: true,
-                        can_pause: true,
-                        can_transfer_create_role: true,
-                        can_upgrade: true,
-                        can_wipe: true,
-                        can_add_special_roles: true,
-                    },
+                    data.name.clone(),
+                    data.symbol.clone(),
+                    EsdtTokenType::NonFungible,
+                    0
                 )
                 .callback(
                     self.callbacks()
-                        .esdt_set_special_roles(identifier, owner, data, mvuri),
+                                    .after_transfer_callback( data, mvuri),
                 )
      .async_call_and_exit();
 
         } else if data.nft_type.eq(TYPE_ERC1155) {
             self.send()
                 .esdt_system_sc_proxy()
-                .issue_semi_fungible(
-                    payment,
-                    &data.name,
-                    &data.symbol,
-                    SemiFungibleTokenProperties {
-                        can_change_owner: true,
-                        can_freeze: true,
-                        can_pause: true,
-                        can_transfer_create_role: true,
-                        can_upgrade: true,
-                        can_wipe: true,
-                        can_add_special_roles: true,
-                    },
-                )
+                .issue_and_set_all_roles(payment, data.name.clone(), data.symbol.clone(), EsdtTokenType::SemiFungible, 0)
                 .callback(
                     self.callbacks()
-                        .esdt_set_special_roles(identifier, owner, data, mvuri),
+                        .after_transfer_callback( data, mvuri),
                 )
                 .async_call_and_exit();
         }
     }
 
-    #[callback]
-    fn esdt_set_special_roles(
-        &self,
-        identifier: ManagedBuffer,
-        owner: ManagedAddress,
-        data: ClaimData<Self::Api>,
-        mvuri: ManagedVec<ManagedBuffer>,
-        #[call_result] result: ManagedAsyncCallResult<TokenIdentifier>,
-    ) {
-        match result {
-            ManagedAsyncCallResult::Ok(tid) => {
-                self.collections(identifier).set(tid.clone());
-                self.send()
-                    .esdt_system_sc_proxy()
-                    .set_special_roles(
-                        &owner,
-                        &tid,
-                        [EsdtLocalRole::NftBurn, EsdtLocalRole::NftCreate]
-                            .iter()
-                            .map(|e| e.clone()),
-                    )
-                    .callback(
-                        self.callbacks()
-                            .esdt_transfer_callback(owner, tid, data, mvuri),
-                    )
-                    .async_call_and_exit()
-            }
-            ManagedAsyncCallResult::Err(err) => {
-                panic!(
-                    "Error while issuing ESDT({}): {:?}",
-                    err.err_code, err.err_msg
-                );
-            }
-        }
-    }
+    // #[callback]
+    // fn esdt_set_special_roles(
+    //     &self,
+    //     identifier: ManagedBuffer,
+    //     owner: ManagedAddress,
+    //     data: ClaimData<Self::Api>,
+    //     mvuri: ManagedVec<ManagedBuffer>,
+    //     #[call_result] result: ManagedAsyncCallResult<TokenIdentifier>,
+    // ) {
+    //     match result {
+    //         ManagedAsyncCallResult::Ok(tid) => {
+    //             self.collections(identifier).set(tid.clone());
+    //             self.send()
+    //                 .esdt_system_sc_proxy()
+    //                 .set_special_roles(
+    //                     &owner,
+    //                     &tid,
+    //                     [EsdtLocalRole::NftBurn, EsdtLocalRole::NftCreate]
+    //                         .iter()
+    //                         .map(|e| e.clone()),
+    //                 )
+    //                 .callback(
+    //                     self.callbacks()
+    //                         .esdt_transfer_callback(owner, tid, data, mvuri),
+    //                 )
+    //                 .async_call_and_exit()
+    //         }
+    //         ManagedAsyncCallResult::Err(err) => {
+    //             panic!(
+    //                 "Error while issuing ESDT({}): {:?}",
+    //                 err.err_code, err.err_msg
+    //             );
+    //         }
+    //     }
+    // }
 
-    #[callback]
-    fn esdt_transfer_callback(
-        &self,
-        owner: ManagedAddress,
-        tid: TokenIdentifier,
-        data: ClaimData<Self::Api>,
-        mvuri: ManagedVec<ManagedBuffer>,
-        #[call_result] result: ManagedAsyncCallResult<IgnoreValue>,
-    ) {
-        match result {
-            ManagedAsyncCallResult::Ok(_) => {
-                self.send()
-                    .esdt_system_sc_proxy()
-                    .transfer_ownership(&tid, &owner)
-                    .callback(self.callbacks().after_transfer_callback(tid, data, mvuri))
-                    .async_call_and_exit();
-            }
-            ManagedAsyncCallResult::Err(err) => {
-                panic!(
-                    "Error setting special roles ESDT({}): {:?}",
-                    err.err_code, err.err_msg
-                );
-            }
-        };
-    }
+    // #[callback]
+    // fn esdt_transfer_callback(
+    //     &self,
+    //     owner: ManagedAddress,
+    //     tid: TokenIdentifier,
+    //     data: ClaimData<Self::Api>,
+    //     mvuri: ManagedVec<ManagedBuffer>,
+    //     #[call_result] result: ManagedAsyncCallResult<IgnoreValue>,
+    // ) {
+    //     match result {
+    //         ManagedAsyncCallResult::Ok(_) => {
+    //             self.send()
+    //                 .esdt_system_sc_proxy()
+    //                 .transfer_ownership(&tid, &owner)
+    //                 .callback(self.callbacks().after_transfer_callback(tid, data, mvuri))
+    //                 .async_call_and_exit();
+    //         }
+    //         ManagedAsyncCallResult::Err(err) => {
+    //             panic!(
+    //                 "Error setting special roles ESDT({}): {:?}",
+    //                 err.err_code, err.err_msg
+    //             );
+    //         }
+    //     };
+    // }
 
     #[callback]
     fn after_transfer_callback(
         &self,
-        tid: TokenIdentifier,
         data: ClaimData<Self::Api>,
         mvuri: ManagedVec<ManagedBuffer>,
-        #[call_result] result: ManagedAsyncCallResult<IgnoreValue>,
+        #[call_result] result: ManagedAsyncCallResult<TokenIdentifier>,
     ) -> TokenIdentifier {
         match result {
-            ManagedAsyncCallResult::Ok(_) => {
+            ManagedAsyncCallResult::Ok(tid) => {
                 let nonce = self.send().esdt_nft_create(
                     &tid,
                     &data.token_amount,
