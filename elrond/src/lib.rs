@@ -71,11 +71,23 @@ pub trait BridgeContract {
         #[indexed] amount: BigUint,
     );
 
-    #[event("Claimed")]
-    fn claimed(
+    #[event("Claimed721")]
+    fn claimed721(
         &self,
         #[indexed] source_chain: ManagedBuffer,
         #[indexed] transaction_hash: ManagedBuffer,
+        #[indexed] token_id: TokenIdentifier,
+        #[indexed] nonce: u64,
+    );
+
+    #[event("Claimed1155")]
+    fn claimed1155(
+        &self,
+        #[indexed] source_chain: ManagedBuffer,
+        #[indexed] transaction_hash: ManagedBuffer,
+        #[indexed] token_id: TokenIdentifier,
+        #[indexed] nonce: u64,
+        #[indexed] amt: BigUint,
     );
 
     #[event("RewardValidator")]
@@ -488,8 +500,14 @@ pub trait BridgeContract {
                         let _ = self.unlock721(
                             data.destination_user_address,
                             v.token_id,
-                            data.source_nft_contract_address.into(),
+                            data.source_nft_contract_address.clone().into(),
                         );
+                        self.claimed721(
+                            data.source_chain,
+                            data.transaction_hash,
+                            data.source_nft_contract_address.into(),
+                            v.token_id,
+                        )
                     }
                     None => {
                         let nonce = self.send().esdt_nft_create(
@@ -502,12 +520,18 @@ pub trait BridgeContract {
                             &mvuri,
                         );
 
-                        self.send().transfer_esdt_via_async_call(
-                            data.destination_user_address,
-                            TokenIdentifier::from(v.address),
+                        self.send().direct_esdt(
+                            &data.destination_user_address,
+                            &TokenIdentifier::from(v.address.clone()),
                             nonce,
-                            BigUint::from(1u64),
+                            &BigUint::from(1u64),
                         );
+                        self.claimed721(
+                            data.source_chain,
+                            data.transaction_hash,
+                            TokenIdentifier::from(v.address.clone()),
+                            nonce,
+                        )
                     }
                 }
             }
@@ -518,14 +542,19 @@ pub trait BridgeContract {
                         let _ = self.unlock721(
                             data.destination_user_address,
                             v.token_id,
-                            data.source_nft_contract_address.into(),
+                            data.source_nft_contract_address.clone().into(),
                         );
+                        self.claimed721(
+                            data.source_chain,
+                            data.transaction_hash,
+                            data.source_nft_contract_address.into(),
+                            v.token_id,
+                        )
                     }
                     None => {
                         self.create_collection(
                             payment_amount.clone_value(),
                             identifier,
-                            self.blockchain().get_sc_address(),
                             data.clone(),
                             mvuri,
                         );
@@ -533,8 +562,6 @@ pub trait BridgeContract {
                 }
             }
         }
-
-        self.claimed(data.source_chain, data.transaction_hash);
     }
 
     #[payable("EGLD")]
@@ -607,11 +634,18 @@ pub trait BridgeContract {
                             let _ = self.unlock1155(
                                 data.destination_user_address,
                                 vnonce.token_id,
-                                data.source_nft_contract_address.into(),
-                                data.token_amount,
+                                data.source_nft_contract_address.clone().into(),
+                                data.token_amount.clone(),
                             );
+                            self.claimed1155(
+                                data.source_chain,
+                                data.transaction_hash,
+                                data.source_nft_contract_address.into(),
+                                vnonce.token_id,
+                                data.token_amount,
+                            )
                         } else {
-                            let to_mint = data.token_amount - balance_of_tokens.clone();
+                            let to_mint = data.token_amount.clone() - balance_of_tokens.clone();
                             let _ = self.unlock1155(
                                 data.destination_user_address.clone(),
                                 vnonce.token_id,
@@ -628,13 +662,19 @@ pub trait BridgeContract {
                                 &data.attrs,
                                 &mvuri,
                             );
-
-                            self.send().transfer_esdt_via_async_call(
-                                data.destination_user_address.clone(),
-                                TokenIdentifier::from(v.address),
+                            self.send().direct_esdt(
+                                &data.destination_user_address.clone(),
+                                &&TokenIdentifier::from(v.address.clone()),
                                 nonce,
-                                to_mint,
+                                &data.token_amount,
                             );
+                            self.claimed1155(
+                                data.source_chain,
+                                data.transaction_hash,
+                                TokenIdentifier::from(v.address.clone()),
+                                nonce,
+                                data.token_amount.clone(),
+                            )
                         }
                     }
                     None => {
@@ -648,12 +688,19 @@ pub trait BridgeContract {
                             &mvuri,
                         );
 
-                        self.send().transfer_esdt_via_async_call(
-                            data.destination_user_address,
-                            TokenIdentifier::from(v.address),
+                        self.send().direct_esdt(
+                            &data.destination_user_address.clone(),
+                            &TokenIdentifier::from(v.address.clone()),
                             nonce,
-                            data.token_amount,
+                            &data.token_amount,
                         );
+                        self.claimed1155(
+                            data.source_chain,
+                            data.transaction_hash,
+                            TokenIdentifier::from(v.address.clone()),
+                            nonce,
+                            data.token_amount.clone(),
+                        )
                     }
                 }
             }
@@ -681,7 +728,7 @@ pub trait BridgeContract {
                                 data.token_amount,
                             );
                         } else {
-                            let to_mint = data.token_amount - balance_of_tokens.clone();
+                            let to_mint = data.token_amount.clone() - balance_of_tokens.clone();
                             let _ = self.unlock1155(
                                 data.destination_user_address.clone(),
                                 vnonce.token_id,
@@ -699,19 +746,25 @@ pub trait BridgeContract {
                                 &mvuri,
                             );
 
-                            self.send().transfer_esdt_via_async_call(
-                                data.destination_user_address.clone(),
-                                TokenIdentifier::from(data.source_nft_contract_address),
+                            self.send().direct_esdt(
+                                &data.destination_user_address.clone(),
+                                &TokenIdentifier::from(data.source_nft_contract_address.clone()),
                                 nonce,
-                                to_mint,
+                                &to_mint,
                             );
+                            self.claimed1155(
+                                data.source_chain,
+                                data.transaction_hash,
+                                data.source_nft_contract_address.into(),
+                                nonce,
+                                data.token_amount.clone(),
+                            )
                         }
                     }
                     None => {
                         self.create_collection(
                             payment_amount.clone_value(),
                             identifier,
-                            self.blockchain().get_sc_address(),
                             data.clone(),
                             mvuri,
                         );
@@ -719,14 +772,12 @@ pub trait BridgeContract {
                 }
             }
         }
-
-        self.claimed(data.source_chain, data.transaction_hash);
     }
 
     fn unlock721(&self, to: ManagedAddress, nonce: u64, contract_address: TokenIdentifier) {
         self.unlock721_event(to.clone(), nonce, contract_address.clone());
         self.send()
-            .transfer_esdt_via_async_call(to, contract_address, nonce, BigUint::from(1u64));
+            .direct_esdt(&to, &contract_address, nonce, &BigUint::from(1u64));
     }
 
     fn unlock1155(
@@ -738,7 +789,7 @@ pub trait BridgeContract {
     ) {
         self.unlock1155_event(to.clone(), nonce, contract_address.clone(), amount.clone());
         self.send()
-            .transfer_esdt_via_async_call(to, contract_address, nonce, amount);
+            .direct_esdt(&to, &contract_address, nonce, &amount);
     }
 
     fn create_claim_data_hash(&self, data: ClaimData<Self::Api>) -> ManagedBuffer {
@@ -817,7 +868,6 @@ pub trait BridgeContract {
         &self,
         payment: BigUint,
         identifier: ManagedBuffer,
-        owner: ManagedAddress,
         data: ClaimData<Self::Api>,
         mvuri: ManagedVec<ManagedBuffer>,
     ) {
@@ -835,87 +885,24 @@ pub trait BridgeContract {
                     data.name.clone(),
                     data.symbol.clone(),
                     EsdtTokenType::NonFungible,
-                    0
+                    0,
                 )
-                .callback(
-                    self.callbacks()
-                                    .after_transfer_callback( data, mvuri),
-                )
-     .async_call_and_exit();
-
+                .callback(self.callbacks().after_transfer_callback(data, mvuri))
+                .async_call_and_exit();
         } else if data.nft_type.eq(TYPE_ERC1155) {
             self.send()
                 .esdt_system_sc_proxy()
-                .issue_and_set_all_roles(payment, data.name.clone(), data.symbol.clone(), EsdtTokenType::SemiFungible, 0)
-                .callback(
-                    self.callbacks()
-                        .after_transfer_callback( data, mvuri),
+                .issue_and_set_all_roles(
+                    payment,
+                    data.name.clone(),
+                    data.symbol.clone(),
+                    EsdtTokenType::SemiFungible,
+                    0,
                 )
+                .callback(self.callbacks().after_transfer_callback(data, mvuri))
                 .async_call_and_exit();
         }
     }
-
-    // #[callback]
-    // fn esdt_set_special_roles(
-    //     &self,
-    //     identifier: ManagedBuffer,
-    //     owner: ManagedAddress,
-    //     data: ClaimData<Self::Api>,
-    //     mvuri: ManagedVec<ManagedBuffer>,
-    //     #[call_result] result: ManagedAsyncCallResult<TokenIdentifier>,
-    // ) {
-    //     match result {
-    //         ManagedAsyncCallResult::Ok(tid) => {
-    //             self.collections(identifier).set(tid.clone());
-    //             self.send()
-    //                 .esdt_system_sc_proxy()
-    //                 .set_special_roles(
-    //                     &owner,
-    //                     &tid,
-    //                     [EsdtLocalRole::NftBurn, EsdtLocalRole::NftCreate]
-    //                         .iter()
-    //                         .map(|e| e.clone()),
-    //                 )
-    //                 .callback(
-    //                     self.callbacks()
-    //                         .esdt_transfer_callback(owner, tid, data, mvuri),
-    //                 )
-    //                 .async_call_and_exit()
-    //         }
-    //         ManagedAsyncCallResult::Err(err) => {
-    //             panic!(
-    //                 "Error while issuing ESDT({}): {:?}",
-    //                 err.err_code, err.err_msg
-    //             );
-    //         }
-    //     }
-    // }
-
-    // #[callback]
-    // fn esdt_transfer_callback(
-    //     &self,
-    //     owner: ManagedAddress,
-    //     tid: TokenIdentifier,
-    //     data: ClaimData<Self::Api>,
-    //     mvuri: ManagedVec<ManagedBuffer>,
-    //     #[call_result] result: ManagedAsyncCallResult<IgnoreValue>,
-    // ) {
-    //     match result {
-    //         ManagedAsyncCallResult::Ok(_) => {
-    //             self.send()
-    //                 .esdt_system_sc_proxy()
-    //                 .transfer_ownership(&tid, &owner)
-    //                 .callback(self.callbacks().after_transfer_callback(tid, data, mvuri))
-    //                 .async_call_and_exit();
-    //         }
-    //         ManagedAsyncCallResult::Err(err) => {
-    //             panic!(
-    //                 "Error setting special roles ESDT({}): {:?}",
-    //                 err.err_code, err.err_msg
-    //             );
-    //         }
-    //     };
-    // }
 
     #[callback]
     fn after_transfer_callback(
@@ -923,7 +910,7 @@ pub trait BridgeContract {
         data: ClaimData<Self::Api>,
         mvuri: ManagedVec<ManagedBuffer>,
         #[call_result] result: ManagedAsyncCallResult<TokenIdentifier>,
-    ) -> TokenIdentifier {
+    ) {
         match result {
             ManagedAsyncCallResult::Ok(tid) => {
                 let nonce = self.send().esdt_nft_create(
@@ -968,12 +955,28 @@ pub trait BridgeContract {
                     },
                 );
 
-                self.send().transfer_esdt_via_async_call(
-                    data.destination_user_address,
-                    tid,
+                self.send().direct_esdt(
+                    &data.destination_user_address,
+                    &tid,
                     nonce,
-                    data.token_amount,
+                    &BigUint::from(data.token_amount.clone()),
                 );
+                if data.token_amount == 1 {
+                    self.claimed721(
+                        data.source_chain,
+                        data.transaction_hash,
+                        tid,
+                        nonce,
+                    )
+                } else {
+                    self.claimed1155(
+                        data.source_chain,
+                        data.transaction_hash,
+                        tid,
+                        nonce,
+                        data.token_amount,
+                    )
+                }
             }
             ManagedAsyncCallResult::Err(err) => {
                 panic!(
