@@ -5,10 +5,9 @@ module bridge::aptos_nft_bridge {
   use std::string::{Self, String};
   use std::bcs;
   use std::option::{Self};
-  use std::debug;
   use aptos_std::ed25519;
   use aptos_std::simple_map::{Self, SimpleMap};
-  use aptos_framework::object;
+  use aptos_framework::object::{Self, Object};
   use aptos_framework::primary_fungible_store;
   use aptos_framework::fungible_asset::{Self, Metadata};
   use aptos_framework::coin;
@@ -16,10 +15,10 @@ module bridge::aptos_nft_bridge {
   use aptos_framework::aptos_coin::AptosCoin;
   use aptos_framework::table::{Self, Table};
   use aptos_framework::account::{Self, SignerCapability};
-  use aptos_token_objects::aptos_token::{AptosToken};
-  use aptos_token_objects::token;
+  use aptos_token_objects::token::{Self, Token};
   use aptos_token_objects::royalty::{Self};
   use aptos_token_objects::collection;
+  use std::debug;
 
   const E_ALREADY_INITIALIZED: u64 = 0;
   const E_NOT_BRIDGE_ADMIN: u64 = 1;
@@ -31,15 +30,21 @@ module bridge::aptos_nft_bridge {
   const E_NOT_INITIALIZED: u64 = 7;
   const E_INVALID_FEE: u64 = 8;
   const E_NO_REWARDS_AVAILABLE: u64 = 9;
-  const E_INVALID_DESTINATION_CHAIN: u64 = 9;
   const E_INVALID_NFT_TYPE: u64 = 10;
   const E_SIGNATURES_PUBLIC_KEYS_LENGTH_NOT_SAME: u64 = 11;
+  const E_TOKEN_AMOUNT_IS_ZERO: u64 = 12;
+  const E_CLAIM_ALREADY_PROCESSED: u64 = 13;
+  const E_INVALID_DESTINATION_CHAIN: u64 = 14;
 
   const TYPE_ERC721: vector<u8> = b"singular";
   const TYPE_ERC1155: vector<u8> = b"multiple";
 
   struct Validator has drop, store, copy {
     pending_reward: u64
+  }
+
+  struct ProcessedClaims has key {
+    claims: vector<vector<u8>>
   }
   
   struct OriginalToDuplicateKey has drop, store, copy {
@@ -90,21 +95,23 @@ module bridge::aptos_nft_bridge {
   }
 
   struct CalimData has drop, copy {
+    token_id: String,
+    source_chain: vector<u8>,
+    destination_chain: vector<u8>,
     user: address,
-    token_id: u256,
+    source_nft_contract_address: vector<u8>,
     collection: String,
-    name: String,
-    description: String,
-    uri: String,
     royalty_points_numerator: u64,
     royalty_points_denominator: u64,
     royalty_payee_address: address,
-    fee: u64,
-    source_chain: vector<u8>,
-    source_nft_contract_address: vector<u8>,
-    destination_chain: vector<u8>,
+    metadata: String,
     transaction_hash: vector<u8>,
-    nft_type: vector<u8>
+    token_amount: u256,
+    nft_type: vector<u8>,
+    fee: u64,
+    description: String,
+    uri: String,
+    symbol: String
   }
 
   #[event]
@@ -131,20 +138,20 @@ module bridge::aptos_nft_bridge {
   #[event]
   struct UnLock721Event has drop, store {
     to: address,
-    token_id: u256,
+    token_id: String,
   }
 
   #[event]
   struct UnLock1155Event has drop, store {
     to: address,
-    token_id: u256,
+    token_id: String,
     amount: u64
   }
 
   #[event]
   struct Claim721Event has drop, store {
     source_chain: vector<u8>,
-    token_id: u256,
+    token_id: String,
     transaction_hash: vector<u8>,
     nft_contract: vector<u8>
   }
@@ -152,7 +159,7 @@ module bridge::aptos_nft_bridge {
   #[event]
   struct Claim1155Event has drop, store {
     source_chain: vector<u8>,
-    token_id: u256,
+    token_id: String,
     amount: u64,
     transaction_hash: vector<u8>,
     nft_contract: vector<u8>
@@ -204,6 +211,12 @@ module bridge::aptos_nft_bridge {
     signer::address_of(&bridge_signer_from_cap)
   }
 
+  #[view]
+  public fun owns_nft(owner: address, collection: String, name: String): bool {
+    let token_addr = token::create_token_address(&owner, &collection, &name);
+    object::object_exists<Token>(token_addr)
+  }
+
   public entry fun initialize(
     admin: &signer, 
     validators: vector<vector<u8>>, 
@@ -216,7 +229,7 @@ module bridge::aptos_nft_bridge {
     assert!(!exists<Bridge>(admin_addr), E_ALREADY_INITIALIZED);
     assert!(total_validators > 0, E_VALIDATORS_LENGTH_ZERO);
 
-    let (_, signer_cap) = account::create_resource_account(admin, seed);
+    let (bridge_signer, signer_cap) = account::create_resource_account(admin, seed);
     let validators_to_add = &mut simple_map::create<vector<u8>, Validator>();
 
     for (i in 0..total_validators) {
@@ -238,6 +251,13 @@ module bridge::aptos_nft_bridge {
         duplicate_to_original_mapping: table::new(),
         nft_collection_tokens: table::new(),
         nft_collections_counter: simple_map::create<address, u256>()
+      }
+    );
+
+    move_to<ProcessedClaims>(
+      &bridge_signer,
+      ProcessedClaims {
+        claims: vector::empty<vector<u8>>()
       }
     );
   }
@@ -279,7 +299,7 @@ module bridge::aptos_nft_bridge {
 
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
 
-    assert_meets_validator_thershold(signatures, &public_keys, bcs::to_bytes(&validator), &bridge_data.validators);
+    assert_meets_validator_thershold(signatures, &public_keys, validator, &bridge_data.validators);
 
 
     let validator_reward = simple_map::borrow_mut(&mut bridge_data.validators, &validator);
@@ -301,22 +321,31 @@ module bridge::aptos_nft_bridge {
 
     let owner_address = signer::address_of(owner);
 
+    // using bride data get resource account signer and address
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
     let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
 
+    // generate token address using nft owner, collection name and nft name.
+    // use this token address to create token object. 
+    // later we will transfer this token from user to resource account
     let token_addr = token::create_token_address(&owner_address, &collection, &name);
-    let token_object = object::address_to_object<AptosToken>(token_addr);
+    let token_object = object::address_to_object<Token>(token_addr);
     
-    let collection_address = collection::create_collection_address(&bridge_resource_addr, &collection);
+    // generate collection address using owner address and collection name.
+    let collection_address = collection::create_collection_address(&owner_address, &collection);
     
+    // check if current nft already exists in the struct. 
+    // {collection_addr, nft_addr} -> token_id (autogenerated. incremental)
     let nft_already_exists = table::contains(&mut bridge_data.nft_collection_tokens, CollectionNftObject { collection: collection_address, nft_address: token_addr});
     
     let nft_token_id: &u256;
     
     if(nft_already_exists) {
+      // if it does exist get the nft id from the struct.
       nft_token_id = table::borrow(&mut bridge_data.nft_collection_tokens, CollectionNftObject { collection: collection_address, nft_address: token_addr})
     } else {
+      // else generate new id and add it to the struct {collection_addr, nft_addr} -> token_id
       let collection_counter_intilaized = simple_map::contains_key(&bridge_data.nft_collections_counter, &collection_address);
       if (collection_counter_intilaized) {
         let nft_collection_counter = simple_map::borrow_mut(&mut bridge_data.nft_collections_counter, &collection_address);
@@ -334,9 +363,11 @@ module bridge::aptos_nft_bridge {
       collection_address: bcs::to_bytes(&source_nft_contract_address),
     };
     
+    // check if nft is original (minted on APTOS)
     let is_original = !table::contains(&mut bridge_data.duplicate_to_original_mapping, key_duplicate);
 
     if(is_original) {
+      // if original: send self chain as APTOS.
       event::emit(LockedEvent {
         token_id: *nft_token_id, 
         user_address: owner_address, 
@@ -348,7 +379,7 @@ module bridge::aptos_nft_bridge {
       });
     } else {
       let original_collection_address = table::borrow(&mut bridge_data.duplicate_to_original_mapping, key_duplicate);
-
+      // if not original(minted on some other chain): send self chain as the source_chain.
       event::emit(LockedEvent { 
         token_id: *nft_token_id, 
         user_address: owner_address, 
@@ -373,6 +404,7 @@ module bridge::aptos_nft_bridge {
     source_nft_contract_address: vector<u8>,
   ) acquires Bridge {
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
+    assert!(amount > 0, E_TOKEN_AMOUNT_IS_ZERO);
 
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
@@ -381,7 +413,8 @@ module bridge::aptos_nft_bridge {
     let owner_address = signer::address_of(owner);
 
     let token_addr = token::create_token_address(&owner_address, &collection, &name);
-    let token_object = object::address_to_object<AptosToken>(token_addr);
+    let token_object = object::address_to_object<Token>(token_addr);
+    let metadata = object::convert<Token, Metadata>(token_object);
 
     let collection_address = collection::create_collection_address(&bridge_resource_addr, &collection);
     
@@ -389,9 +422,12 @@ module bridge::aptos_nft_bridge {
     
     let nft_token_id: &u256;
     
-    if(nft_already_exists) {
+    if( nft_already_exists ) {
+      
       nft_token_id = table::borrow(&mut bridge_data.nft_collection_tokens, CollectionNftObject { collection: collection_address, nft_address: token_addr})
+    
     } else {
+      
       let collection_counter_intilaized = simple_map::contains_key(&bridge_data.nft_collections_counter, &collection_address);
       if (collection_counter_intilaized) {
         let nft_collection_counter = simple_map::borrow_mut(&mut bridge_data.nft_collections_counter, &collection_address);
@@ -402,6 +438,7 @@ module bridge::aptos_nft_bridge {
         nft_token_id = &0;
       };
       table::add(&mut bridge_data.nft_collection_tokens, CollectionNftObject { collection: collection_address, nft_address: token_addr}, *nft_token_id);
+      
     };
 
     let key_duplicate = DuplicateToOriginalKey {
@@ -412,6 +449,7 @@ module bridge::aptos_nft_bridge {
     let is_original = !table::contains(&mut bridge_data.duplicate_to_original_mapping, key_duplicate);
 
     if(is_original) {
+
       event::emit(LockedEvent { 
         token_id: *nft_token_id, 
         user_address: owner_address, 
@@ -421,7 +459,9 @@ module bridge::aptos_nft_bridge {
         self_chain: bridge_data.self_chain,
         source_nft_contract_address
       });
+    
     } else {
+
       let original_collection_address = table::borrow(&mut bridge_data.duplicate_to_original_mapping, key_duplicate);
 
       event::emit(LockedEvent { 
@@ -433,20 +473,20 @@ module bridge::aptos_nft_bridge {
         self_chain: original_collection_address.source_chain,
         source_nft_contract_address: original_collection_address.source_contract
       });
+
     };
 
     primary_fungible_store::transfer(
       owner,
-      token_object,
+      metadata,
       bridge_resource_addr,
       amount
     );
   }
 
   public entry fun claim_721(
-    user: signer,
+    user: &signer,
     collection: String,
-    name: String,
     description: String,
     uri: String,
     royalty_points_numerator: u64,
@@ -458,61 +498,108 @@ module bridge::aptos_nft_bridge {
     destination_chain: vector<u8>,
     source_chain: vector<u8>,
     source_nft_contract_address: vector<u8>,
-    token_id: u256,
+    token_id: String,
     transaction_hash: vector<u8>,
-    nft_type: vector<u8>
-  ) acquires Bridge {
+    nft_type: vector<u8>,
+    metadata: String,
+    symbol: String,
+  ) acquires Bridge, ProcessedClaims {
+
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
-    assert!(hash::sha2_256(nft_type) == hash::sha2_256(TYPE_ERC721), E_INVALID_NFT_TYPE);
 
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
+
+    assert!(hash::sha2_256(nft_type) == hash::sha2_256(TYPE_ERC721), E_INVALID_NFT_TYPE);
     assert!(hash::sha2_256(bridge_data.self_chain) == hash::sha2_256(destination_chain), E_INVALID_DESTINATION_CHAIN);
 
-    let user_addr = signer::address_of(&user);
+    let user_addr = signer::address_of(user);
 
     let data = CalimData {
-      user: user_addr,
       token_id,
+      source_chain,
+      destination_chain,
+      user: user_addr,
+      source_nft_contract_address,
       collection,
-      name,
-      description,
-      uri,
       royalty_points_numerator,
       royalty_points_denominator,
       royalty_payee_address,
-      fee,
-      destination_chain,
-      source_chain,
-      source_nft_contract_address,
+      metadata,
       transaction_hash,
-      nft_type
+      token_amount: 0,
+      nft_type,
+      fee,
+      description,
+      uri,
+      symbol
     };
-    
-    assert_meets_validator_thershold(signatures, &public_keys, bcs::to_bytes(&data), &bridge_data.validators);
-    
-    coin::transfer<AptosCoin>(&user, @bridge, fee);
-
-    reward_validators(fee, &public_keys, &mut bridge_data.validators);
 
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
     let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
+    let processed_claims = borrow_global_mut<ProcessedClaims>(bridge_resource_addr);
+
+    let data_hash = hash::sha2_256(bcs::to_bytes(&data));
+    let duplicate_claim = vector::contains(&processed_claims.claims, &data_hash);
+
+    assert!(!duplicate_claim, E_CLAIM_ALREADY_PROCESSED);
+
+    vector::push_back(&mut processed_claims.claims, data_hash);
+
+    assert_meets_validator_thershold(signatures, &public_keys, bcs::to_bytes(&data), &bridge_data.validators);
     
-    let token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
-    let token_object = object::address_to_object<AptosToken>(token_addr);
+    coin::transfer<AptosCoin>(user, @bridge, fee);
+
+    reward_validators(fee, &public_keys, &mut bridge_data.validators);
+
+    let name = generate_token_name(collection, token_id);
+
+    let is_locked: bool = false;
+    let token_addr: address = @0x0;
+    let user_token_addr = token::create_token_address(&user_addr, &collection, &name);
+    let user_token_object_exists = object::object_exists<Token>(user_token_addr);
+
+    if(user_token_object_exists) {
+      
+      let token_object_user = object::address_to_object<Token>(user_token_addr);
+      
+      if(object::owner(token_object_user) == bridge_resource_addr) {
+        is_locked = true;
+        token_addr = user_token_addr;
+      }
+
+    } else {
+      
+      let resource_token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
+      let resource_object_exists = object::object_exists<Token>(resource_token_addr);
+
+      if(resource_object_exists) {
+
+        let token_object_resource = object::address_to_object<Token>(resource_token_addr);
+         if(object::owner(token_object_resource) == bridge_resource_addr) {
+          is_locked = true;
+          token_addr = resource_token_addr;
+        }
+
+      }
+    };
 
     // if locked nft. transfer from resource account to user
     // else mint new one.
     let collection_address = collection::create_collection_address(&bridge_resource_addr, &collection);
 
-    if (object::owner(token_object) == bridge_resource_addr) {
+    if (is_locked) {
+
+      let token_object = object::address_to_object<Token>(token_addr);
+
       event::emit(UnLock721Event { to: user_addr, token_id });
 
       object::transfer(&bridge_signer_from_cap, token_object, user_addr);
       
     } else {
+
       collection::create_unlimited_collection(
         &bridge_signer_from_cap,
-        string::utf8(b""),
+        collection,
         collection,
         option::none(),
         string::utf8(b""),
@@ -521,13 +608,19 @@ module bridge::aptos_nft_bridge {
       let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
 
       token::create_named_token(
-        &user,
+        &bridge_signer_from_cap,
         collection,
         description,
         name,
         option::some(royalty),
         uri,
       );
+
+      let created_token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
+
+      let token_object = object::address_to_object<Token>(created_token_addr);
+
+      object::transfer(&bridge_signer_from_cap, token_object, user_addr);
 
       let key = OriginalToDuplicateKey {
         source_chain,
@@ -570,79 +663,111 @@ module bridge::aptos_nft_bridge {
   }
 
   public entry fun claim_1155(
-    user: signer,
+    user: &signer,
     collection: String,
-    name: String,
     description: String,
-    symbol: String,
-    amount: u64,
     uri: String,
-    icon_uri: String,
-    project_uri: String,
     royalty_points_numerator: u64,
     royalty_points_denominator: u64,
     royalty_payee_address: address,
     fee: u64,
     signatures: vector<vector<u8>>, 
     public_keys: vector<vector<u8>>,
+    destination_chain: vector<u8>,
     source_chain: vector<u8>,
     source_nft_contract_address: vector<u8>,
-    destination_chain: vector<u8>,
+    token_id: String,
     transaction_hash: vector<u8>,
-    token_id: u256,
-    nft_type: vector<u8>
-  ) acquires Bridge {
-    assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
+    nft_type: vector<u8>,
+    metadata: String,
+    symbol: String,
+    amount: u64,
+    icon_uri: String,
+    project_uri: String,
+  ) acquires Bridge, ProcessedClaims {
 
+    assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
     assert!(hash::sha2_256(nft_type) == hash::sha2_256(TYPE_ERC1155), E_INVALID_NFT_TYPE);
 
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
     assert!(hash::sha2_256(bridge_data.self_chain) == hash::sha2_256(destination_chain), E_INVALID_DESTINATION_CHAIN);
 
-    let user_addr = signer::address_of(&user);
+    let user_addr = signer::address_of(user);
 
     let data = CalimData {
-      user: user_addr,
       token_id,
+      source_chain,
+      destination_chain,
+      user: user_addr,
+      source_nft_contract_address,
       collection,
-      name,
-      description,
-      uri,
       royalty_points_numerator,
       royalty_points_denominator,
       royalty_payee_address,
-      fee,
-      source_chain,
-      source_nft_contract_address,
-      destination_chain,
+      metadata,
       transaction_hash,
-      nft_type
+      token_amount: (amount as u256),
+      nft_type,
+      fee,
+      description,
+      uri,
+      symbol
     };
-    
-    coin::transfer<AptosCoin>(&user, @bridge, fee);
-
-    assert_meets_validator_thershold(signatures, &public_keys, bcs::to_bytes(&data), &bridge_data.validators);
-    reward_validators(fee, &public_keys, &mut bridge_data.validators);
 
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
     let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
-    
-    let token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
-    let token_object = object::address_to_object<AptosToken>(token_addr);
+    let processed_claims = borrow_global_mut<ProcessedClaims>(bridge_resource_addr);
 
-    collection::create_unlimited_collection(
-      &bridge_signer_from_cap,
-      string::utf8(b""),
-      collection,
-      option::none(),
-      string::utf8(b""),
-    );
+    let data_hash = hash::sha2_256(bcs::to_bytes(&data));
+    let duplicate_claim = vector::contains(&processed_claims.claims, &data_hash);
+    assert!(!duplicate_claim, E_CLAIM_ALREADY_PROCESSED);
+    
+    vector::push_back(&mut processed_claims.claims, data_hash);
+    
+    assert_meets_validator_thershold(signatures, &public_keys, bcs::to_bytes(&data), &bridge_data.validators);
+    
+    coin::transfer<AptosCoin>(user, @bridge, fee);
+
+    reward_validators(fee, &public_keys, &mut bridge_data.validators);
+    
+    let name = generate_token_name(collection, token_id);
+    let is_locked: bool = false;
+    let token_addr: address = @0x0;
+    let user_token_addr = token::create_token_address(&user_addr, &collection, &name);
+    let user_token_object_exists = object::object_exists<Token>(user_token_addr);
+
+    if(user_token_object_exists) {
+
+      let token_object_user = object::address_to_object<Token>(user_token_addr);
+      
+      if(object::owner(token_object_user) == bridge_resource_addr) {
+        is_locked = true;
+        token_addr = user_token_addr;
+      }
+
+    } else {
+
+      let resource_token_addr = token::create_token_address(&bridge_resource_addr, &collection, &name);
+      let resource_object_exists = object::object_exists<Token>(resource_token_addr);
+
+      if(resource_object_exists) {
+        let token_object_resource = object::address_to_object<Token>(resource_token_addr);
+         if(object::owner(token_object_resource) == bridge_resource_addr) {
+          is_locked = true;
+          token_addr = resource_token_addr;
+        }
+      }
+
+    };
+
     let collection_address = collection::create_collection_address(&bridge_resource_addr, &collection);
     // if locked nft. transfer from resource account to user
     // else mint new one.
-    if (object::owner(token_object) == bridge_resource_addr) {
+    if (is_locked) {
+
+      let token_object = object::address_to_object<Token>(token_addr);
       // unlock from resource account
-      let metadata = object::convert<AptosToken, Metadata>(token_object);
+      let metadata = object::convert<Token, Metadata>(token_object);
       let store = primary_fungible_store::ensure_primary_store_exists(bridge_resource_addr, metadata);
       let balance_of_tokens = fungible_asset::balance(store);
       
@@ -672,8 +797,8 @@ module bridge::aptos_nft_bridge {
 
         let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
 
-        let new_nft_constructor_ref = &token::create(
-          &user,
+        let new_nft_constructor_ref = &token::create_named_token(
+          &bridge_signer_from_cap,
           collection,
           description,
           name,
@@ -690,13 +815,26 @@ module bridge::aptos_nft_bridge {
           icon_uri,
           project_uri,
         );
+
+        let mint_ref = &fungible_asset::generate_mint_ref(new_nft_constructor_ref);
+        let fa = fungible_asset::mint(mint_ref, amount);
+        primary_fungible_store::deposit(user_addr, fa);
       }
+
     } else {
+      
+      collection::create_unlimited_collection(
+        user,
+        collection,
+        collection,
+        option::none(),
+        string::utf8(b""),
+      );
 
       let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
 
-      let new_nft_constructor_ref = &token::create(
-        &user,
+      let new_nft_constructor_ref = &token::create_named_token(
+        user,
         collection,
         description,
         name,
@@ -713,6 +851,11 @@ module bridge::aptos_nft_bridge {
         icon_uri,
         project_uri,
       );
+
+      let mint_ref = &fungible_asset::generate_mint_ref(new_nft_constructor_ref);
+      let fa = fungible_asset::mint(mint_ref, amount);
+      primary_fungible_store::deposit(user_addr, fa);
+      
       let key = OriginalToDuplicateKey {
         source_chain,
         source_contract: bcs::to_bytes(&source_nft_contract_address),
@@ -758,6 +901,7 @@ module bridge::aptos_nft_bridge {
     validators_to_reward: &vector<vector<u8>>, 
     all_validators: &mut SimpleMap<vector<u8>, Validator>
   ) {
+
     assert!(fee > 0, E_INVALID_FEE);
 
     let total_rewards = coin::balance<AptosCoin>(@bridge);
@@ -774,72 +918,140 @@ module bridge::aptos_nft_bridge {
 
   }
 
-  #[test(admin = @bridge)]
-  // #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
-  public entry fun test_flow(admin: signer) acquires Bridge {
-    let validators: vector<vector<u8>> = vector::empty<vector<u8>>();
-    vector::push_back(&mut validators, x"993b64508bb383925de1f530d74a47b5adbfab99f90352e13304453fb4e851e0");
-    vector::push_back(&mut validators, x"bc792ac70b012512a64b5a71fa0546db6a21f7dea81f535b5de4a885d3562b84");
-    vector::push_back(&mut validators, x"90b032568336f664f102c7d7fd623d817ca60a0a19dccb2810b2b5f40c39aba2");
-    vector::push_back(&mut validators, x"e378dfcedb0de84e7586887d394954108637d838cc20aa5d10e1279ec00c3481");
-
-    // debug::print(&exists<Bridge>(admin_addr));
-    initialize(&admin, validators, b"xyz", b"APTOS");
-
-    let validator: vector<u8> = x"34f07647631ffbb14592eb21476da270028d8e7bc56e4c50e2c9ce499164f230";
-    let signatures: vector<vector<u8>> = vector<vector<u8>>[
-      x"add5d0838793aa09a29c84a24132533a5501f130d79151ed4d755853f19c7c83b321d7cb86f503d02a08929dcfa156e8191a19a17e54894a171099889d1d9e03",
-      // x"3d65911f684278ee487f204220bb021e174938baf6531bc743b61f999e22c627705350b279321e3a8ac51985b8544a4fe2368a0448d131254153d029c91ffa0d"
-    ];
-    let public_keys: vector<vector<u8>> = vector<vector<u8>>[
-      x"993b64508bb383925de1f530d74a47b5adbfab99f90352e13304453fb4e851e0",
-      // x"bc792ac70b012512a64b5a71fa0546db6a21f7dea81f535b5de4a885d3562b84",
-    ];
-    add_validator(validator, signatures, public_keys);
-    // debug::print(&admin_addr);
-
-    // lock_721(
-    //   &admin, 
-    //   string::utf8(b"Panda Collection"), 
-    //   string::utf8(b"Panda # 01"), 
-    //   b"BSC", 
-    //   1,
-    //   b"0x123",
-    // );
-
-    // claim_721(
-    //   admin,
-    //   string::utf8(b"Panda Collection"),
-    //   string::utf8(b"Panda # 01"),
-    //   string::utf8(b"First Panda Nft"),
-    //   string::utf8(b"First Panda Nft"),
-    //   10,
-    //   2,
-    //   admin_addr,
-    //   10,
-    //   vector<vector<u8>>[b"a",b"b"], 
-    //   vector<vector<u8>>[b"a",b"b"],
-    //   b"APTOS",
-    //   b"BSC",
-    //   b"0123",
-    //   0,
-    //   b"a123",
-    //   b"singular"
-    // )
-
-    // let bridge_data = borrow_global<Bridge>(admin_addr);
-    // let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
-    // let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
-
-    // let collection_address = collection::create_collection_address(&bridge_resource_addr, &string::utf8(b"Panda Collection"));
-    // let nft_collection_counter = simple_map::borrow(&bridge_data.nft_collections_counter, &collection_address);
-    // debug::print(&*nft_collection_counter);
-    // assert!((vector::length(&bridge.validators) as u64) == 2, 1);
-    // assert!(*vector::borrow(&bridge.validators, 0) == b"@0x6", 2);
-    // assert!(*vector::borrow(&bridge.validators, 1) == b"@0x7", 3);
-    // assert!(bridge.deployed_collections == vector::empty<address>(), 4);
-    // debug::print(&address_to_vector(admin_addr));
-
-    // initialize(&admin, validators);
+  fun generate_token_name(collection: String, token_id: String): String {
+    let name: String = collection;
+    string::append(&mut name, string::utf8(b" # "));
+    string::append(&mut name, token_id);
+    name
   }
+
+  public entry fun mint_to(  
+    creator: &signer,
+    collection: String,
+    collection_description: String,
+    collection_uri: String,
+    token_name: String,
+    token_description: String,
+    token_uri: String
+  )  {
+
+    collection::create_unlimited_collection(
+        creator,
+        collection_description,
+        collection,
+        option::none(),
+        collection_uri,
+    );
+
+    token::create_named_token(
+        creator,
+        collection,
+        token_description,
+        token_name,
+        option::none(),
+        token_uri,
+    );
+  }
+
+  // #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
+  // #[test(admin = @bridge, nftowner = @nftowner)]
+  // public entry fun test_flow(admin: signer, nftowner: signer) acquires Bridge, ProcessedClaims {
+  //   let validators: vector<vector<u8>> = vector::empty<vector<u8>>();
+  //   vector::push_back(&mut validators, x"993b64508bb383925de1f530d74a47b5adbfab99f90352e13304453fb4e851e0");
+  //   vector::push_back(&mut validators, x"bc792ac70b012512a64b5a71fa0546db6a21f7dea81f535b5de4a885d3562b84");
+  //   vector::push_back(&mut validators, x"90b032568336f664f102c7d7fd623d817ca60a0a19dccb2810b2b5f40c39aba2");
+  //   // vector::push_back(&mut validators, x"e378dfcedb0de84e7586887d394954108637d838cc20aa5d10e1279ec00c3481");
+
+  //   // debug::print(&exists<Bridge>(admin_addr));
+  //   initialize(&admin, validators, b"xyz", b"APTOS");
+  //   // debug::print(&coin::balance<AptosCoin>(signer::address_of(&admin)))
+  //   let validator: vector<u8> = x"34f07647631ffbb14592eb21476da270028d8e7bc56e4c50e2c9ce499164f230";
+  //   let signatures: vector<vector<u8>> = vector<vector<u8>>[
+  //     x"a8959bb1a7b08ab0ddcc38b169ed567ad98ea7ef8ee10af87d33f28059f90910b16b2850b82408d3379deb811f95050bde957eb7d63e989dae8b5314fb0f630b",
+  //     x"12895ff18cdc0a04e5b7a42bd55515597228d380d9348e41a8b270b40448c96c0dd2f17dfb9514689ed7cddce6d6901eb9c1ad14763c7ca28c85b71a51db7d01",
+  //     x"33c7db23c95252306201a5088dac03441e7fe57b7116c5328b13668589ef8828c966576061f6f55f476407ec14d59f4f7b6fa201f623d01e484eddd0c0d36309",
+  //     // x"85a5e6b76297d21c3a83f2b548b21eb16c369a92289db7c66c7bfaccc888f5cbfe60cbc93c3da7e720bf95b3aebcbe39a0e535a30745c8ddffa7c01edd17c009"
+  //   ];
+  //   let public_keys: vector<vector<u8>> = vector<vector<u8>>[
+  //     x"993b64508bb383925de1f530d74a47b5adbfab99f90352e13304453fb4e851e0",
+  //     x"bc792ac70b012512a64b5a71fa0546db6a21f7dea81f535b5de4a885d3562b84",
+  //     x"90b032568336f664f102c7d7fd623d817ca60a0a19dccb2810b2b5f40c39aba2",
+  //     // x"e378dfcedb0de84e7586887d394954108637d838cc20aa5d10e1279ec00c3481",
+  //   ];
+  //   // add_validator(validator, signatures, public_keys);
+  //   // debug::print(&admin_addr);
+  //   let admin_addr = signer::address_of(&admin);
+  //   let nft_owner_addr = signer::address_of(&nftowner);
+  //   let bridge_resource_addr = @0x957ad810dc201d1602302599fe46d27fdcf10c09db31d507705b775848ba7e30;
+
+  //   let collection = string::utf8(b"Collection C9");
+  //   let nft = string::utf8(b"Collection C9 # 1");
+
+  //   mint_to(
+  //     &nftowner,
+  //     collection,
+  //     string::utf8(b"Collection C9 Description"),
+  //     string::utf8(b"https://teacollection.com"),
+  //     nft,
+  //     string::utf8(b"Collection C9 # 1 Nft"),
+  //     string::utf8(b"https://teacollection.com/1"),
+  //   );
+
+  //   let token_addr = token::create_token_address(&nft_owner_addr, &collection, &nft);
+  //   let token_object = object::address_to_object<Token>(token_addr);
+  //   // let object_exists = object::object_exists<Token>(token_addr);
+  //   debug::print(&string::utf8(b"after mint_to"));
+  //   debug::print(&object::owner(token_object));
+  //   // debug::print(&object_exists);
+
+  //   // lock_721(
+  //   //   &nftowner,
+  //   //   collection, 
+  //   //   nft, 
+  //   //   b"APTOS", 
+  //   //   1,
+  //   //   b"0xba92cf00f301b9fa4cf5ead497d128bdb3e05e1b",
+  //   // );
+
+  //   // // let object_exists = object::object_exists<Token>(token_addr);
+  //   // debug::print(&string::utf8(b"after lock_721"));
+  //   // debug::print(&object::owner(token_object));
+
+  //   claim_721(
+  //     &nftowner,
+  //     collection,
+  //     string::utf8(b"Token Description"),
+  //     string::utf8(b"https://upload.wikimedia.org/wikipedia/en/thumb/8/89/2024_ICC_Men%27s_T20_World_Cup_logo.svg/1200px-2024_ICC_Men%27s_T20_World_Cup_logo.svg.png"),
+  //     1,
+  //     5,
+  //     nft_owner_addr,
+  //     5,
+  //     signatures, 
+  //     public_keys,
+  //     b"APTOS",
+  //     b"APTOS",
+  //     b"0xba92cf00f301b9fa4cf5ead497d128bdb3e05e1b",
+  //     string::utf8(b"1"),
+  //     b"0x9724e4d237117018e5d2135036d879b25ca36ae4469120b85ef7ebba8fa408d5",
+  //     b"singular",
+  //     string::utf8(b"asdf"),
+  //     string::utf8(b"WCC"),
+  //   );
+  //   debug::print(&string::utf8(b"after claim_721"));
+  //   debug::print(&object::owner(token_object));
+  //   // let bridge_data = borrow_global<Bridge>(admin_addr);
+  //   // let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
+  //   // let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
+
+  //   // let collection_address = collection::create_collection_address(&bridge_resource_addr, &string::utf8(b"Panda Collection"));
+  //   // let nft_collection_counter = simple_map::borrow(&bridge_data.nft_collections_counter, &collection_address);
+  //   // debug::print(&*nft_collection_counter);
+  //   // assert!((vector::length(&bridge.validators) as u64) == 2, 1);
+  //   // assert!(*vector::borrow(&bridge.validators, 0) == b"@0x6", 2);
+  //   // assert!(*vector::borrow(&bridge.validators, 1) == b"@0x7", 3);
+  //   // assert!(bridge.deployed_collections == vector::empty<address>(), 4);
+  //   // debug::print(&address_to_vector(admin_addr));
+
+  //   // initialize(&admin, validators);
+  // }
 }

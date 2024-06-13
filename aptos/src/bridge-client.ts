@@ -1,12 +1,20 @@
 import {
   Aptos,
   Ed25519Account,
+  InputViewFunctionData,
+  MoveOption,
   PendingTransactionResponse,
-  Serializer,
 } from "@aptos-labs/ts-sdk";
-import { BRIDGE_ADDRESS, BRIDGE_MODULE, BRIDGE_FUNCTIONS } from "./constants";
+import {
+  BRIDGE_ADDRESS,
+  BRIDGE_MODULE,
+  BRIDGE_FUNCTIONS,
+  MINT_MODULE,
+  MINT_FUNCTIONS,
+} from "./constants";
+import { BCS, HexString } from "aptos";
+import Big from "big.js";
 import { createHash } from "crypto";
-import * as ed from "@noble/ed25519";
 
 type TCollectionCounterObj = {
   key: string;
@@ -18,6 +26,30 @@ type TValidatorsObj = {
   value: {
     pending_reward: string;
   };
+};
+
+export type TClaimData = {
+  sender: Ed25519Account;
+  collection: string;
+  description: string;
+  symbol: string;
+  amount: number;
+  uri: string;
+  iconUri: string;
+  projectUri: string;
+  royaltyPointsNumerator: number;
+  royaltyPointsDenominator: number;
+  royaltyPayeeAddress: HexString;
+  fee: number;
+  signatures: Uint8Array[];
+  publicKeys: Uint8Array[];
+  sourceChain: Uint8Array;
+  sourceNftContractAddress: Uint8Array;
+  destinationChain: Uint8Array;
+  transactionHash: Uint8Array;
+  tokenId: string;
+  nftType: Uint8Array;
+  metadata: string;
 };
 
 type TBridgeData = {
@@ -113,6 +145,285 @@ export class BridgeClient {
     }
   }
 
+  async lock721(
+    owner: Ed25519Account,
+    collection: string,
+    name: string,
+    destination_chain: Uint8Array,
+    token_id: number,
+    source_nft_contract_address: Uint8Array
+  ) {
+    try {
+      const transaction = await this.aptosClient.transaction.build.simple({
+        sender: owner.accountAddress,
+        data: {
+          function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Lock721}`,
+          functionArguments: [
+            collection,
+            name,
+            destination_chain,
+            token_id,
+            source_nft_contract_address,
+          ],
+        },
+      });
+
+      return this.aptosClient.signAndSubmitTransaction({
+        signer: owner,
+        transaction,
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async lock1155(
+    owner: Ed25519Account,
+    collection: string,
+    name: string,
+    amount: number,
+    destination_chain: Uint8Array,
+    token_id: number,
+    source_nft_contract_address: Uint8Array
+  ) {
+    try {
+      const transaction = await this.aptosClient.transaction.build.simple({
+        sender: owner.accountAddress,
+        data: {
+          function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Lock1155}`,
+          functionArguments: [
+            collection,
+            name,
+            amount,
+            destination_chain,
+            token_id,
+            source_nft_contract_address,
+          ],
+        },
+      });
+
+      return this.aptosClient.signAndSubmitTransaction({
+        signer: owner,
+        transaction,
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async claim721({
+    sender,
+    collection,
+    description,
+    symbol,
+    amount,
+    uri,
+    iconUri,
+    projectUri,
+    royaltyPointsNumerator,
+    royaltyPointsDenominator,
+    royaltyPayeeAddress,
+    fee,
+    signatures,
+    publicKeys,
+    sourceChain,
+    sourceNftContractAddress,
+    destinationChain,
+    transactionHash,
+    tokenId,
+    nftType,
+    metadata,
+  }: TClaimData) {
+    try {
+      const transaction = await this.aptosClient.transaction.build.simple({
+        sender: sender.accountAddress,
+        data: {
+          function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Claim721}`,
+          functionArguments: [
+            collection,
+            description,
+            uri,
+            royaltyPointsNumerator,
+            royaltyPointsDenominator,
+            royaltyPayeeAddress.toString(),
+            fee,
+            signatures,
+            publicKeys,
+            destinationChain,
+            sourceChain,
+            sourceNftContractAddress,
+            tokenId,
+            transactionHash,
+            nftType,
+            metadata,
+            symbol,
+            // amount,
+            // iconUri,
+            // projectUri,
+          ],
+        },
+      });
+
+      return this.aptosClient.signAndSubmitTransaction({
+        signer: sender,
+        transaction,
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async claim1155({
+    sender,
+    collection,
+    description,
+    symbol,
+    amount,
+    uri,
+    iconUri,
+    projectUri,
+    royaltyPointsNumerator,
+    royaltyPointsDenominator,
+    royaltyPayeeAddress,
+    fee,
+    signatures,
+    publicKeys,
+    sourceChain,
+    sourceNftContractAddress,
+    destinationChain,
+    transactionHash,
+    tokenId,
+    nftType,
+    metadata,
+  }: TClaimData) {
+    try {
+      const transaction = await this.aptosClient.transaction.build.simple({
+        sender: sender.accountAddress,
+        data: {
+          function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Claim1155}`,
+          functionArguments: [
+            collection,
+            description,
+            uri,
+            royaltyPointsNumerator,
+            royaltyPointsDenominator,
+            royaltyPayeeAddress.toString(),
+            fee,
+            signatures,
+            publicKeys,
+            destinationChain,
+            sourceChain,
+            sourceNftContractAddress,
+            tokenId,
+            transactionHash,
+            nftType,
+            metadata,
+            symbol,
+            amount,
+            iconUri,
+            projectUri,
+          ],
+        },
+      });
+
+      return this.aptosClient.signAndSubmitTransaction({
+        signer: sender,
+        transaction,
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async mintNft721(
+    owner: Ed25519Account,
+    collection_name: string,
+    collection_description: string,
+    collection_uri: string,
+    nft_name: string,
+    nft_description: string,
+    nft_uri: string
+  ) {
+    try {
+      const transaction = await this.aptosClient.transaction.build.simple({
+        sender: owner.accountAddress,
+        data: {
+          function: `${BRIDGE_ADDRESS}::${MINT_MODULE}::${MINT_FUNCTIONS.MINT_TO}`,
+          functionArguments: [
+            collection_name,
+            collection_description,
+            collection_uri,
+            nft_name,
+            nft_description,
+            nft_uri,
+          ],
+        },
+      });
+
+      return this.aptosClient.signAndSubmitTransaction({
+        signer: owner,
+        transaction,
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async mintNft1155(
+    owner: Ed25519Account,
+    collection_name: string,
+    collection_description: string,
+    collection_uri: string,
+    nft_name: string,
+    nft_description: string,
+    nft_uri: string,
+    token_symbol: string,
+    amount: number,
+    icon_uri: string,
+    project_uri: string
+  ) {
+    try {
+      const transaction = await this.aptosClient.transaction.build.simple({
+        sender: owner.accountAddress,
+        data: {
+          function: `${BRIDGE_ADDRESS}::${MINT_MODULE}::${MINT_FUNCTIONS.MINT_1155_TO}`,
+          functionArguments: [
+            collection_name,
+            collection_description,
+            collection_uri,
+            nft_name,
+            nft_description,
+            nft_uri,
+            token_symbol,
+            amount,
+            icon_uri,
+            project_uri,
+          ],
+        },
+      });
+
+      return this.aptosClient.signAndSubmitTransaction({
+        signer: owner,
+        transaction,
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async userOwnsNft(
+    owner: HexString,
+    collection: string,
+    name: string
+  ): Promise<[boolean]> {
+    const payload: InputViewFunctionData = {
+      function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.OwnsNFT}`,
+      // type_arguments: ["0x1::aptos_coin::AptosCoin"],
+      functionArguments: [owner.toString(), collection, name],
+    };
+    return this.aptosClient.view({ payload });
+  }
+
   async getBridgeData(): Promise<TBridgeData | undefined> {
     try {
       const resources = await this.aptosClient.getAccountResources({
@@ -142,5 +453,31 @@ export class BridgeClient {
 
   convertToHexString(str: Uint8Array | string): string {
     return "0x" + Buffer.from(str).toString("hex");
+  }
+
+  generateClaimDataHash(claimData: TClaimData, user: Ed25519Account): Buffer {
+    const serializer = new BCS.Serializer();
+    serializer.serializeStr(claimData.tokenId);
+    serializer.serializeBytes(claimData.sourceChain);
+    serializer.serializeBytes(claimData.destinationChain);
+    serializer.serializeFixedBytes(
+      new HexString(user.accountAddress.toString()).toUint8Array()
+    );
+    serializer.serializeBytes(claimData.sourceNftContractAddress);
+    serializer.serializeStr(claimData.collection);
+    serializer.serializeU64(claimData.royaltyPointsNumerator);
+    serializer.serializeU64(claimData.royaltyPointsDenominator);
+    serializer.serializeFixedBytes(
+      new HexString(user.accountAddress.toString()).toUint8Array()
+    );
+    serializer.serializeStr(claimData.metadata);
+    serializer.serializeBytes(claimData.transactionHash);
+    serializer.serializeU256(claimData.amount);
+    serializer.serializeBytes(claimData.nftType);
+    serializer.serializeU64(claimData.fee);
+    serializer.serializeStr(claimData.description);
+    serializer.serializeStr(claimData.uri);
+    serializer.serializeStr(claimData.symbol);
+    return createHash("SHA256").update(serializer.getBytes()).digest();
   }
 }
