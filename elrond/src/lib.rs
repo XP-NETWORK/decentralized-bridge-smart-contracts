@@ -94,34 +94,30 @@ pub trait BridgeContract {
     }
 
     #[inline]
-    fn require_fees(&self) -> SCResult<()> {
+    fn require_fees(&self) {
         require!(
             self.call_value().egld_value().gt(&0),
             "Tx Fees is required!"
         );
-        Ok(())
     }
 
     #[inline]
-    fn only_validator(&self) -> SCResult<()> {
+    fn only_validator(&self) {
         require!(false, "Failed to verify signature!");
-        Ok(())
     }
 
     #[inline]
-    fn matches_current_chain(&self, destination_chain: &ManagedBuffer) -> SCResult<()> {
+    fn matches_current_chain(&self, destination_chain: &ManagedBuffer) {
         require!(
             destination_chain.eq(SELF_CHAIN),
             "Invalid destination chain"
         );
-        Ok(())
     }
 
     #[inline]
-    fn has_correct_fee(&self, fee: BigUint) -> SCResult<()> {
+    fn has_correct_fee(&self, fee: BigUint) {
         let sent_fee = self.call_value().egld_value().clone_value();
         require!(fee.le(&sent_fee), "Fee and sent amount do not match");
-        Ok(())
     }
 
     fn verify_ed25519(&self, key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> bool {
@@ -150,7 +146,7 @@ pub trait BridgeContract {
         &self,
         new_validator_public_key: ManagedAddress,
         signatures: ManagedVec<SignatureInfo<Self::Api>>,
-    ) -> SCResult<()> {
+    ) {
         // require!(args.new_validator_address., "Address cannot be zero address!");
         require!(signatures.len() > 0, "Must have signatures!");
 
@@ -189,7 +185,6 @@ pub trait BridgeContract {
             *val += 1u64;
             *val
         });
-        Ok(())
     }
 
     #[endpoint(claimValidatorRewards)]
@@ -197,7 +192,7 @@ pub trait BridgeContract {
         &self,
         validator: ManagedAddress,
         signatures: ManagedVec<SignatureInfo<Self::Api>>,
-    ) -> SCResult<()> {
+    ) {
         // require!(args.new_validator_address., "Address cannot be zero address!");
         require!(signatures.len() > 0, "Must have signatures!");
 
@@ -242,14 +237,13 @@ pub trait BridgeContract {
                 pending_reward: BigUint::from(0u64),
             },
         );
-        Ok(())
     }
 
     #[payable("*")]
     #[endpoint(lock721)]
     fn lock721(
         &self,
-        token_id: TokenIdentifier,
+        _token_id: TokenIdentifier,
         destination_chain: ManagedBuffer,
         destination_user_address: ManagedBuffer,
         source_nft_contract_address: TokenIdentifier,
@@ -279,11 +273,13 @@ pub trait BridgeContract {
                 chain: self_chain_buffer.clone(),
                 contract_address: source_nft_contract_address.as_managed_buffer().clone(),
             })
-            .then(|| self.tokens().get_id(&TokenInfo {
-                token_id: nonce,
-                chain: self_chain_buffer.clone(),
-                contract_address: source_nft_contract_address.as_managed_buffer().clone(),
-            }));
+            .then(|| {
+                self.tokens().get_id(&TokenInfo {
+                    token_id: nonce,
+                    chain: self_chain_buffer.clone(),
+                    contract_address: source_nft_contract_address.as_managed_buffer().clone(),
+                })
+            });
 
         let mut mut_token_id: u64 = 0;
 
@@ -340,7 +336,7 @@ pub trait BridgeContract {
     #[endpoint(lock1155)]
     fn lock1155(
         &self,
-        token_id: TokenIdentifier,
+        _token_id: TokenIdentifier,
         destination_chain: ManagedBuffer,
         destination_user_address: ManagedBuffer,
         source_nft_contract_address: TokenIdentifier,
@@ -371,11 +367,13 @@ pub trait BridgeContract {
                 chain: self_chain_buffer.clone(),
                 contract_address: source_nft_contract_address.as_managed_buffer().clone(),
             })
-            .then(|| self.tokens().get_id(&TokenInfo {
-                token_id: nonce,
-                chain: self_chain_buffer.clone(),
-                contract_address: source_nft_contract_address.as_managed_buffer().clone(),
-            }));
+            .then(|| {
+                self.tokens().get_id(&TokenInfo {
+                    token_id: nonce,
+                    chain: self_chain_buffer.clone(),
+                    contract_address: source_nft_contract_address.as_managed_buffer().clone(),
+                })
+            });
 
         let mut mut_token_id: u64 = 0;
 
@@ -435,7 +433,7 @@ pub trait BridgeContract {
         data: ClaimData<Self::Api>,
         signatures: ManagedVec<SignatureInfo<Self::Api>>,
         uris: MultiValue2<ManagedBuffer, ManagedBuffer>,
-    ) -> SCResult<()> {
+    ) {
         let _ = self.has_correct_fee(data.fee.clone());
         let _ = self.matches_current_chain(&data.destination_chain);
 
@@ -537,8 +535,6 @@ pub trait BridgeContract {
         }
 
         self.claimed(data.source_chain, data.transaction_hash);
-
-        Ok(())
     }
 
     #[payable("EGLD")]
@@ -548,7 +544,7 @@ pub trait BridgeContract {
         data: ClaimData<Self::Api>,
         signatures: ManagedVec<SignatureInfo<Self::Api>>,
         uris: MultiValue2<ManagedBuffer, ManagedBuffer>,
-    ) -> SCResult<()> {
+    ) {
         let _ = self.has_correct_fee(data.fee.clone());
         let _ = self.matches_current_chain(&data.destination_chain);
 
@@ -725,16 +721,9 @@ pub trait BridgeContract {
         }
 
         self.claimed(data.source_chain, data.transaction_hash);
-
-        Ok(())
     }
 
-    fn unlock721(
-        &self,
-        to: ManagedAddress,
-        nonce: u64,
-        contract_address: TokenIdentifier,
-    ) -> SCResult<()> {
+    fn unlock721(&self, to: ManagedAddress, nonce: u64, contract_address: TokenIdentifier) {
         self.unlock721_event(to.clone(), nonce, contract_address.clone());
         self.send()
             .transfer_esdt_via_async_call(to, contract_address, nonce, BigUint::from(1u64));
@@ -746,7 +735,7 @@ pub trait BridgeContract {
         nonce: u64,
         contract_address: TokenIdentifier,
         amount: BigUint,
-    ) -> SCResult<()> {
+    ) {
         self.unlock1155_event(to.clone(), nonce, contract_address.clone(), amount.clone());
         self.send()
             .transfer_esdt_via_async_call(to, contract_address, nonce, amount);
@@ -855,12 +844,12 @@ pub trait BridgeContract {
                         can_add_special_roles: true,
                     },
                 )
-                .async_call()
-                .with_callback(
+                .callback(
                     self.callbacks()
                         .esdt_set_special_roles(identifier, owner, data, mvuri),
                 )
-                .call_and_exit();
+     .async_call_and_exit();
+
         } else if data.nft_type.eq(TYPE_ERC1155) {
             self.send()
                 .esdt_system_sc_proxy()
@@ -878,12 +867,11 @@ pub trait BridgeContract {
                         can_add_special_roles: true,
                     },
                 )
-                .async_call()
-                .with_callback(
+                .callback(
                     self.callbacks()
                         .esdt_set_special_roles(identifier, owner, data, mvuri),
                 )
-                .call_and_exit();
+                .async_call_and_exit();
         }
     }
 
@@ -908,12 +896,11 @@ pub trait BridgeContract {
                             .iter()
                             .map(|e| e.clone()),
                     )
-                    .async_call()
-                    .with_callback(
+                    .callback(
                         self.callbacks()
                             .esdt_transfer_callback(owner, tid, data, mvuri),
                     )
-                    .call_and_exit()
+                    .async_call_and_exit()
             }
             ManagedAsyncCallResult::Err(err) => {
                 panic!(
@@ -938,9 +925,8 @@ pub trait BridgeContract {
                 self.send()
                     .esdt_system_sc_proxy()
                     .transfer_ownership(&tid, &owner)
-                    .async_call()
-                    .with_callback(self.callbacks().after_transfer_callback(tid, data, mvuri))
-                    .call_and_exit();
+                    .callback(self.callbacks().after_transfer_callback(tid, data, mvuri))
+                    .async_call_and_exit();
             }
             ManagedAsyncCallResult::Err(err) => {
                 panic!(

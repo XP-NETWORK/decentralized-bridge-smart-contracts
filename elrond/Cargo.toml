@@ -12,12 +12,12 @@ path = "src/lib.rs"
 ed25519-dalek = {version = "2.0.0", default-features = false}
 
 [dev-dependencies]
-num-bigint = "0.4.2"
-num-traits = "0.2"
-hex = "0.4"
+num-bigint = "0.4.5"
+num-traits = "0.2.19"
+hex = "0.4.3"
 
 [dependencies.multiversx-sc]
-version = "0.44.0"
+version = "0.50.4"
 
 [dev-dependencies.multiversx-sc-scenario]
-version = "0.44.0"
+version = "0.50.4"
