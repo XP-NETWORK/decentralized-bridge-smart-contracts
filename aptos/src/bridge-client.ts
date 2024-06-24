@@ -335,6 +335,36 @@ export class BridgeClient {
     }
   }
 
+  async claimValidatorRewards(
+    adminAccount: Ed25519Account,
+    to: HexString,
+    validator: Uint8Array,
+    signatures: Uint8Array[],
+    public_keys: Uint8Array[]
+  ) {
+    try {
+      const transaction = await this.aptosClient.transaction.build.simple({
+        sender: adminAccount.accountAddress,
+        data: {
+          function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.ClaimValidatorRewards}`,
+          functionArguments: [
+            to.toString(),
+            validator,
+            signatures,
+            public_keys,
+          ],
+        },
+      });
+
+      return this.aptosClient.signAndSubmitTransaction({
+        signer: adminAccount,
+        transaction,
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async mintNft721(
     owner: Ed25519Account,
     collection_name: string,

@@ -17,7 +17,7 @@ module bridge::aptos_nft_bridge {
   use aptos_framework::account::{Self, SignerCapability};
   use aptos_token_objects::token::{Self, Token};
   use aptos_token_objects::royalty::{Self};
-  use aptos_token_objects::collection;
+  use aptos_token_objects::collection::{Self, Collection};
   use std::debug;
 
   const E_ALREADY_INITIALIZED: u64 = 0;
@@ -35,6 +35,8 @@ module bridge::aptos_nft_bridge {
   const E_TOKEN_AMOUNT_IS_ZERO: u64 = 12;
   const E_CLAIM_ALREADY_PROCESSED: u64 = 13;
   const E_INVALID_DESTINATION_CHAIN: u64 = 14;
+  const E_VALIDATOR_DOESNOT_EXIST: u64 = 15;
+  const E_VALIDATOR_PENDING_REWARD_IS_ZERO: u64 = 16;
 
   const TYPE_ERC721: vector<u8> = b"singular";
   const TYPE_ERC1155: vector<u8> = b"multiple";
@@ -299,14 +301,19 @@ module bridge::aptos_nft_bridge {
 
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
 
-    assert_meets_validator_thershold(signatures, &public_keys, validator, &bridge_data.validators);
+    assert!(simple_map::contains_key(&mut bridge_data.validators, &validator), E_VALIDATOR_DOESNOT_EXIST);
 
+    assert_meets_validator_thershold(signatures, &public_keys, validator, &mut bridge_data.validators);
 
     let validator_reward = simple_map::borrow_mut(&mut bridge_data.validators, &validator);
+    
+    assert!(validator_reward.pending_reward > 0, E_VALIDATOR_PENDING_REWARD_IS_ZERO);
+
+    coin::transfer<AptosCoin>(&admin, to, validator_reward.pending_reward);
+
     *validator_reward = Validator { pending_reward: 0 };
 
     event::emit(RewardValidatorEvent { validator });
-    coin::transfer<AptosCoin>(&admin, to, validator_reward.pending_reward);
   }
 
   public entry fun lock_721(
@@ -507,9 +514,9 @@ module bridge::aptos_nft_bridge {
 
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
 
-    let bridge_data = borrow_global_mut<Bridge>(@bridge);
-
     assert!(hash::sha2_256(nft_type) == hash::sha2_256(TYPE_ERC721), E_INVALID_NFT_TYPE);
+
+    let bridge_data = borrow_global_mut<Bridge>(@bridge);
     assert!(hash::sha2_256(bridge_data.self_chain) == hash::sha2_256(destination_chain), E_INVALID_DESTINATION_CHAIN);
 
     let user_addr = signer::address_of(user);
@@ -597,13 +604,17 @@ module bridge::aptos_nft_bridge {
       
     } else {
 
-      collection::create_unlimited_collection(
-        &bridge_signer_from_cap,
-        collection,
-        collection,
-        option::none(),
-        string::utf8(b""),
-      );
+      let collection_exists = object::object_exists<Collection>(collection_address);
+
+      if(!collection_exists) {
+        collection::create_unlimited_collection(
+          &bridge_signer_from_cap,
+          collection,
+          collection,
+          option::none(),
+          string::utf8(b""),
+        );
+      };
 
       let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
 
@@ -687,6 +698,7 @@ module bridge::aptos_nft_bridge {
   ) acquires Bridge, ProcessedClaims {
 
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
+    
     assert!(hash::sha2_256(nft_type) == hash::sha2_256(TYPE_ERC1155), E_INVALID_NFT_TYPE);
 
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
@@ -731,6 +743,7 @@ module bridge::aptos_nft_bridge {
     reward_validators(fee, &public_keys, &mut bridge_data.validators);
     
     let name = generate_token_name(collection, token_id);
+
     let is_locked: bool = false;
     let token_addr: address = @0x0;
     let user_token_addr = token::create_token_address(&user_addr, &collection, &name);
@@ -822,19 +835,22 @@ module bridge::aptos_nft_bridge {
       }
 
     } else {
+      let collection_exists = object::object_exists<Collection>(collection_address);
       
-      collection::create_unlimited_collection(
-        user,
-        collection,
-        collection,
-        option::none(),
-        string::utf8(b""),
-      );
+      if(!collection_exists) {
+        collection::create_unlimited_collection(
+          &bridge_signer_from_cap,
+          collection,
+          collection,
+          option::none(),
+          string::utf8(b""),
+        );
+      };
 
       let royalty = royalty::create(royalty_points_numerator, royalty_points_denominator, royalty_payee_address);
 
       let new_nft_constructor_ref = &token::create_named_token(
-        user,
+        &bridge_signer_from_cap,
         collection,
         description,
         name,
@@ -925,133 +941,4 @@ module bridge::aptos_nft_bridge {
     name
   }
 
-  public entry fun mint_to(  
-    creator: &signer,
-    collection: String,
-    collection_description: String,
-    collection_uri: String,
-    token_name: String,
-    token_description: String,
-    token_uri: String
-  )  {
-
-    collection::create_unlimited_collection(
-        creator,
-        collection_description,
-        collection,
-        option::none(),
-        collection_uri,
-    );
-
-    token::create_named_token(
-        creator,
-        collection,
-        token_description,
-        token_name,
-        option::none(),
-        token_uri,
-    );
-  }
-
-  // #[expected_failure(abort_code = E_ALREADY_INITIALIZED)]
-  // #[test(admin = @bridge, nftowner = @nftowner)]
-  // public entry fun test_flow(admin: signer, nftowner: signer) acquires Bridge, ProcessedClaims {
-  //   let validators: vector<vector<u8>> = vector::empty<vector<u8>>();
-  //   vector::push_back(&mut validators, x"993b64508bb383925de1f530d74a47b5adbfab99f90352e13304453fb4e851e0");
-  //   vector::push_back(&mut validators, x"bc792ac70b012512a64b5a71fa0546db6a21f7dea81f535b5de4a885d3562b84");
-  //   vector::push_back(&mut validators, x"90b032568336f664f102c7d7fd623d817ca60a0a19dccb2810b2b5f40c39aba2");
-  //   // vector::push_back(&mut validators, x"e378dfcedb0de84e7586887d394954108637d838cc20aa5d10e1279ec00c3481");
-
-  //   // debug::print(&exists<Bridge>(admin_addr));
-  //   initialize(&admin, validators, b"xyz", b"APTOS");
-  //   // debug::print(&coin::balance<AptosCoin>(signer::address_of(&admin)))
-  //   let validator: vector<u8> = x"34f07647631ffbb14592eb21476da270028d8e7bc56e4c50e2c9ce499164f230";
-  //   let signatures: vector<vector<u8>> = vector<vector<u8>>[
-  //     x"a8959bb1a7b08ab0ddcc38b169ed567ad98ea7ef8ee10af87d33f28059f90910b16b2850b82408d3379deb811f95050bde957eb7d63e989dae8b5314fb0f630b",
-  //     x"12895ff18cdc0a04e5b7a42bd55515597228d380d9348e41a8b270b40448c96c0dd2f17dfb9514689ed7cddce6d6901eb9c1ad14763c7ca28c85b71a51db7d01",
-  //     x"33c7db23c95252306201a5088dac03441e7fe57b7116c5328b13668589ef8828c966576061f6f55f476407ec14d59f4f7b6fa201f623d01e484eddd0c0d36309",
-  //     // x"85a5e6b76297d21c3a83f2b548b21eb16c369a92289db7c66c7bfaccc888f5cbfe60cbc93c3da7e720bf95b3aebcbe39a0e535a30745c8ddffa7c01edd17c009"
-  //   ];
-  //   let public_keys: vector<vector<u8>> = vector<vector<u8>>[
-  //     x"993b64508bb383925de1f530d74a47b5adbfab99f90352e13304453fb4e851e0",
-  //     x"bc792ac70b012512a64b5a71fa0546db6a21f7dea81f535b5de4a885d3562b84",
-  //     x"90b032568336f664f102c7d7fd623d817ca60a0a19dccb2810b2b5f40c39aba2",
-  //     // x"e378dfcedb0de84e7586887d394954108637d838cc20aa5d10e1279ec00c3481",
-  //   ];
-  //   // add_validator(validator, signatures, public_keys);
-  //   // debug::print(&admin_addr);
-  //   let admin_addr = signer::address_of(&admin);
-  //   let nft_owner_addr = signer::address_of(&nftowner);
-  //   let bridge_resource_addr = @0x957ad810dc201d1602302599fe46d27fdcf10c09db31d507705b775848ba7e30;
-
-  //   let collection = string::utf8(b"Collection C9");
-  //   let nft = string::utf8(b"Collection C9 # 1");
-
-  //   mint_to(
-  //     &nftowner,
-  //     collection,
-  //     string::utf8(b"Collection C9 Description"),
-  //     string::utf8(b"https://teacollection.com"),
-  //     nft,
-  //     string::utf8(b"Collection C9 # 1 Nft"),
-  //     string::utf8(b"https://teacollection.com/1"),
-  //   );
-
-  //   let token_addr = token::create_token_address(&nft_owner_addr, &collection, &nft);
-  //   let token_object = object::address_to_object<Token>(token_addr);
-  //   // let object_exists = object::object_exists<Token>(token_addr);
-  //   debug::print(&string::utf8(b"after mint_to"));
-  //   debug::print(&object::owner(token_object));
-  //   // debug::print(&object_exists);
-
-  //   // lock_721(
-  //   //   &nftowner,
-  //   //   collection, 
-  //   //   nft, 
-  //   //   b"APTOS", 
-  //   //   1,
-  //   //   b"0xba92cf00f301b9fa4cf5ead497d128bdb3e05e1b",
-  //   // );
-
-  //   // // let object_exists = object::object_exists<Token>(token_addr);
-  //   // debug::print(&string::utf8(b"after lock_721"));
-  //   // debug::print(&object::owner(token_object));
-
-  //   claim_721(
-  //     &nftowner,
-  //     collection,
-  //     string::utf8(b"Token Description"),
-  //     string::utf8(b"https://upload.wikimedia.org/wikipedia/en/thumb/8/89/2024_ICC_Men%27s_T20_World_Cup_logo.svg/1200px-2024_ICC_Men%27s_T20_World_Cup_logo.svg.png"),
-  //     1,
-  //     5,
-  //     nft_owner_addr,
-  //     5,
-  //     signatures, 
-  //     public_keys,
-  //     b"APTOS",
-  //     b"APTOS",
-  //     b"0xba92cf00f301b9fa4cf5ead497d128bdb3e05e1b",
-  //     string::utf8(b"1"),
-  //     b"0x9724e4d237117018e5d2135036d879b25ca36ae4469120b85ef7ebba8fa408d5",
-  //     b"singular",
-  //     string::utf8(b"asdf"),
-  //     string::utf8(b"WCC"),
-  //   );
-  //   debug::print(&string::utf8(b"after claim_721"));
-  //   debug::print(&object::owner(token_object));
-  //   // let bridge_data = borrow_global<Bridge>(admin_addr);
-  //   // let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
-  //   // let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
-
-  //   // let collection_address = collection::create_collection_address(&bridge_resource_addr, &string::utf8(b"Panda Collection"));
-  //   // let nft_collection_counter = simple_map::borrow(&bridge_data.nft_collections_counter, &collection_address);
-  //   // debug::print(&*nft_collection_counter);
-  //   // assert!((vector::length(&bridge.validators) as u64) == 2, 1);
-  //   // assert!(*vector::borrow(&bridge.validators, 0) == b"@0x6", 2);
-  //   // assert!(*vector::borrow(&bridge.validators, 1) == b"@0x7", 3);
-  //   // assert!(bridge.deployed_collections == vector::empty<address>(), 4);
-  //   // debug::print(&address_to_vector(admin_addr));
-
-  //   // initialize(&admin, validators);
-  // }
 }

@@ -2,10 +2,11 @@ module bridge::mint {
   use aptos_token_objects::token::{Self};
   use std::string::{String};
   use std::option;
-  use aptos_token_objects::collection;
+  use aptos_token_objects::collection::{Self, Collection};
   use aptos_framework::primary_fungible_store;
   use aptos_framework::fungible_asset::{Self};
   use std::signer;
+  use aptos_framework::object;
 
   public entry fun mint_to(  
     creator: &signer,
@@ -16,13 +17,19 @@ module bridge::mint {
     token_description: String,
     token_uri: String
   ) {
-    collection::create_unlimited_collection(
-        creator,
-        collection_description,
-        collection,
-        option::none(),
-        collection_uri,
-    );
+    let creator_addr = signer::address_of(creator);
+
+    let collection_address = collection::create_collection_address(&creator_addr, &collection);
+    let collection_exists = object::object_exists<Collection>(collection_address);
+    if(!collection_exists) {
+      collection::create_unlimited_collection(
+          creator,
+          collection_description,
+          collection,
+          option::none(),
+          collection_uri,
+      );
+    };
 
     token::create_named_token(
         creator,
@@ -47,13 +54,19 @@ module bridge::mint {
     icon_uri: String,
     project_uri: String,
   ) {
-    collection::create_unlimited_collection(
-      creator,
-      collection_description,
-      collection,
-      option::none(),
-      collection_uri,
-    );
+    let creator_addr = signer::address_of(creator);
+
+    let collection_address = collection::create_collection_address(&creator_addr, &collection);
+    let collection_exists = object::object_exists<Collection>(collection_address);
+    if(!collection_exists) {
+      collection::create_unlimited_collection(
+        creator,
+        collection_description,
+        collection,
+        option::none(),
+        collection_uri,
+      );
+    };
 
     let new_nft_constructor_ref = &token::create_named_token(
       creator,
@@ -74,7 +87,6 @@ module bridge::mint {
       project_uri,
     );
 
-    let creator_addr = signer::address_of(creator);
 
     let mint_ref = &fungible_asset::generate_mint_ref(new_nft_constructor_ref);
     let fa = fungible_asset::mint(mint_ref, (amount as u64));
