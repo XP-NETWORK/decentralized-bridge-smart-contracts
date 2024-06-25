@@ -9,7 +9,12 @@ import {
 import assert from "assert";
 import { BridgeClient, TClaimData } from "../src/bridge-client";
 import dotenv from "dotenv";
-import { CHAIN_ID, CONTRACT_ERROR_CODES } from "../src/constants";
+import {
+  CHAIN_ID,
+  CLAIM_FEE_5_APT,
+  CLAIM_FEE_POINT_1_APT,
+  CONTRACT_ERROR_CODES,
+} from "../src/constants";
 import * as ed from "@noble/ed25519";
 import { BCS, HexString } from "aptos";
 import { createHash } from "crypto";
@@ -19,7 +24,10 @@ const aptosConfig = new AptosConfig({
   network: Network.DEVNET,
 });
 const aptos = new Aptos(aptosConfig);
+
 const aptosClient = new BridgeClient(aptos);
+
+type TValidatorBalances = { [key: string]: string };
 
 describe("Bridge", async () => {
   // TODO: Test with 100 signatures/validators
@@ -43,7 +51,6 @@ describe("Bridge", async () => {
   let validator4PrK: Buffer;
   let validator5PrK: Buffer;
 
-  // before(async () => {
   adminAccount = Account.fromPrivateKey({
     privateKey: new Ed25519PrivateKey(process.env.ED25519_PK!),
   });
@@ -70,7 +77,6 @@ describe("Bridge", async () => {
   nftOwnerPrK = Buffer.from(process.env.NFT_OWNER_PK!, "hex");
   seed = Buffer.from(aptosClient.generateRandomSeed(8));
   selfChain = Buffer.from(CHAIN_ID);
-  // });
 
   describe.skip("Initialize", async () => {
     it("Should fail if initialized by account which is not admin", async () => {
@@ -438,7 +444,8 @@ describe("Bridge", async () => {
       const collectionName = "Bridge";
       const destinationChain = Buffer.from("APTOS");
       const tokenSymbol = "ABC";
-      const tokenName = "Bridge # 2";
+      const tokenName = "Bridge # 45";
+      const tokenName1155 = "Bridge # 47";
       const tokenNameInvalid = "ABC _ 01";
       const collectionDescription = "ABC Fungible Collection Description";
       const collectionUri =
@@ -451,41 +458,27 @@ describe("Bridge", async () => {
       );
       let amount = 2;
 
-      before(async () => {
-        try {
-          let commitedTransaction = await aptosClient.mintNft1155(
-            nftOwner,
-            collectionName,
-            collectionDescription,
-            collectionUri,
-            tokenName,
-            tokenDescription,
-            tokenUri,
-            tokenSymbol,
-            amount,
-            collectionUri,
-            "https://ufc.com"
-          );
-          // let commitedTransaction = await aptosClient.mintNft721(
-          //   nftOwner,
-          //   collectionName,
-          //   collectionDescription,
-          //   collectionUri,
-          //   tokenName,
-          //   tokenDescription,
-          //   tokenUri
-          // );
-          await aptos.waitForTransaction({
-            transactionHash: commitedTransaction.hash,
-            options: { checkSuccess: true },
-          });
-          // console.log({ commitedTransaction });
-        } catch (error) {
-          console.log({ error });
-        }
-      });
-
       describe.skip("Lock 721", async () => {
+        before(async () => {
+          try {
+            let commitedTransaction721 = await aptosClient.mintNft721(
+              nftOwner,
+              collectionName,
+              collectionDescription,
+              collectionUri,
+              tokenName,
+              tokenDescription,
+              tokenUri
+            );
+            await aptos.waitForTransaction({
+              transactionHash: commitedTransaction721.hash,
+              options: { checkSuccess: true },
+            });
+          } catch (error) {
+            console.log({ error });
+          }
+        });
+
         it("Should fail if caller is not the owner", async () => {
           try {
             let commitedTransaction = await aptosClient.lock721(
@@ -564,12 +557,36 @@ describe("Bridge", async () => {
       });
 
       describe("Lock 1155", async () => {
+        before(async () => {
+          try {
+            let commitedTransaction1155 = await aptosClient.mintNft1155(
+              nftOwner,
+              collectionName,
+              collectionDescription,
+              collectionUri,
+              tokenName1155,
+              tokenDescription,
+              tokenUri,
+              tokenSymbol,
+              amount,
+              collectionUri,
+              "https://ufc.com"
+            );
+            await aptos.waitForTransaction({
+              transactionHash: commitedTransaction1155.hash,
+              options: { checkSuccess: true },
+            });
+          } catch (error) {
+            console.log({ error });
+          }
+        });
+
         it("Should fail if caller is not the owner", async () => {
           try {
             let commitedTransaction = await aptosClient.lock1155(
               testAccount,
               collectionName,
-              tokenName,
+              tokenName1155,
               amount,
               destinationChain,
               1,
@@ -619,7 +636,7 @@ describe("Bridge", async () => {
             let commitedTransaction = await aptosClient.lock1155(
               nftOwner,
               collectionName,
-              tokenName,
+              tokenName1155,
               0,
               destinationChain,
               1,
@@ -644,7 +661,7 @@ describe("Bridge", async () => {
             let commitedTransaction = await aptosClient.lock1155(
               nftOwner,
               collectionName,
-              tokenName,
+              tokenName1155,
               amount,
               destinationChain,
               1,
@@ -654,7 +671,6 @@ describe("Bridge", async () => {
               transactionHash: commitedTransaction.hash,
               options: { checkSuccess: true },
             });
-            console.log({ commitedTransaction });
             assert.ok(true);
           } catch (error: any) {
             console.log({ error });
@@ -665,12 +681,10 @@ describe("Bridge", async () => {
     });
 
     describe("Claim", async () => {
-      before(async () => {});
-
       describe("Claim 721", async () => {
         let claimData: TClaimData = {
           collection: "Bridge",
-          tokenId: "8",
+          tokenId: "56",
           description: "Token Description",
           uri: "https://upload.wikimedia.org/wikipedia/en/thumb/8/89/2024_ICC_Men%27s_T20_World_Cup_logo.svg/1200px-2024_ICC_Men%27s_T20_World_Cup_logo.svg.png",
           royaltyPointsNumerator: 1,
@@ -678,7 +692,7 @@ describe("Bridge", async () => {
           royaltyPayeeAddress: new HexString(
             nftOwner.accountAddress.toString()
           ),
-          fee: 5 * 10 ** 8, // in octas. 1 APT = 10 ^ 8 octas
+          fee: CLAIM_FEE_5_APT, // in octas. 1 APT = 10 ^ 8 octas
           destinationChain: Buffer.from("BSC"),
           sourceChain: Buffer.from("APTOS"),
           sourceNftContractAddress: Buffer.from(
@@ -786,7 +800,6 @@ describe("Bridge", async () => {
 
         it("Should fail if user balance is less than fees", async () => {
           claimData.publicKeys.push(validator3PbK);
-          claimData.publicKeys.push(validator4PbK);
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
@@ -797,7 +810,6 @@ describe("Bridge", async () => {
             ed.sign(msgHash, validator1PrK),
             ed.sign(msgHash, validator2PrK),
             ed.sign(msgHash, validator3PrK),
-            ed.sign(msgHash, validator4PrK),
           ]);
 
           try {
@@ -817,7 +829,7 @@ describe("Bridge", async () => {
         });
 
         it("Should be able to claim and mint new nft successfully ", async () => {
-          claimData.fee = 0.4 * 10 ** 8; // 0.4 APT
+          claimData.fee = CLAIM_FEE_POINT_1_APT;
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
             nftOwner
@@ -827,16 +839,61 @@ describe("Bridge", async () => {
             ed.sign(msgHash, validator1PrK),
             ed.sign(msgHash, validator2PrK),
             ed.sign(msgHash, validator3PrK),
-            ed.sign(msgHash, validator4PrK),
           ]);
 
           try {
+            const nftOwnerBalanceBeforeTx = await aptos.getAccountAPTAmount({
+              accountAddress: nftOwner.accountAddress,
+            });
+
+            let validatorBalances: TValidatorBalances = {};
+            const bridgeDataBeforeTx = await aptosClient.getBridgeData();
+
+            if (bridgeDataBeforeTx) {
+              let contractValidators = bridgeDataBeforeTx.validators.data;
+              contractValidators.forEach((validator, index) => {
+                validatorBalances[validator.key] =
+                  validator.value.pending_reward;
+              });
+            } else {
+              assert.ok(false);
+            }
+
             let commitedTransaction = await aptosClient.claim721(claimData);
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
               options: { checkSuccess: true },
             });
-            assert.ok(true);
+
+            const nftOwnerBalanceAfterTx = await aptos.getAccountAPTAmount({
+              accountAddress: nftOwner.accountAddress,
+            });
+
+            assert.ok(
+              nftOwnerBalanceAfterTx <= nftOwnerBalanceBeforeTx - claimData.fee
+            );
+
+            const bridgeDataAfterTx = await aptosClient.getBridgeData();
+            const rewardPerValidator =
+              claimData.fee / claimData.publicKeys.length;
+
+            if (bridgeDataAfterTx) {
+              let contractValidators = bridgeDataAfterTx.validators.data;
+              contractValidators.forEach((validator, index) => {
+                if (!validatorBalances[validator.key]) {
+                  assert.ok(true);
+                } else {
+                  assert.ok(
+                    (validatorBalances[validator.key] = (
+                      Number(validator.value.pending_reward) +
+                      rewardPerValidator
+                    ).toString())
+                  );
+                }
+              });
+            } else {
+              assert.ok(false);
+            }
           } catch (error: any) {
             console.log({ error });
             assert.ok(false);
@@ -844,7 +901,8 @@ describe("Bridge", async () => {
         });
 
         it.skip("Should be able to claim and unlock nft successfully ", async () => {
-          claimData.fee = 0.4 * 10 ** 8; // 0.4 APT
+          claimData.fee = CLAIM_FEE_POINT_1_APT;
+          claimData.tokenId = "45";
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
             nftOwner
@@ -857,11 +915,59 @@ describe("Bridge", async () => {
           ]);
 
           try {
+            const nftOwnerBalanceBeforeTx = await aptos.getAccountAPTAmount({
+              accountAddress: nftOwner.accountAddress,
+            });
+
+            let validatorBalances: TValidatorBalances = {};
+            const bridgeDataBeforeTx = await aptosClient.getBridgeData();
+
+            if (bridgeDataBeforeTx) {
+              let contractValidators = bridgeDataBeforeTx.validators.data;
+              contractValidators.forEach((validator, index) => {
+                validatorBalances[validator.key] =
+                  validator.value.pending_reward;
+              });
+            } else {
+              assert.ok(false);
+            }
+
             let commitedTransaction = await aptosClient.claim721(claimData);
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
               options: { checkSuccess: true },
             });
+
+            const nftOwnerBalanceAfterTx = await aptos.getAccountAPTAmount({
+              accountAddress: nftOwner.accountAddress,
+            });
+
+            assert.ok(
+              nftOwnerBalanceAfterTx <= nftOwnerBalanceBeforeTx - claimData.fee
+            );
+
+            const bridgeDataAfterTx = await aptosClient.getBridgeData();
+            const rewardPerValidator =
+              claimData.fee / claimData.publicKeys.length;
+
+            if (bridgeDataAfterTx) {
+              let contractValidators = bridgeDataAfterTx.validators.data;
+              contractValidators.forEach((validator, index) => {
+                if (!validatorBalances[validator.key]) {
+                  assert.ok(true);
+                } else {
+                  assert.ok(
+                    (validatorBalances[validator.key] = (
+                      Number(validator.value.pending_reward) +
+                      rewardPerValidator
+                    ).toString())
+                  );
+                }
+              });
+            } else {
+              assert.ok(false);
+            }
+
             const response = await aptosClient.userOwnsNft(
               new HexString(nftOwner.accountAddress.toString()),
               claimData.collection,
@@ -879,7 +985,7 @@ describe("Bridge", async () => {
       describe.skip("Claim 1155", async () => {
         let claimData: TClaimData = {
           collection: "Bridge",
-          tokenId: "2",
+          tokenId: "47S",
           description: "Token Description",
           uri: "https://images.unsplash.com/photo-1643408875993-d7566153dd89?q=80&w=1780&auto=format&fit=crop",
           royaltyPointsNumerator: 1,
@@ -887,7 +993,7 @@ describe("Bridge", async () => {
           royaltyPayeeAddress: new HexString(
             nftOwner.accountAddress.toString()
           ),
-          fee: 5 * 10 ** 8, // in octas. 1 APT = 10 ^ 8 octas
+          fee: CLAIM_FEE_5_APT, // in octas. 1 APT = 10 ^ 8 octas
           destinationChain: Buffer.from("BSC"),
           sourceChain: Buffer.from("APTOS"),
           sourceNftContractAddress: Buffer.from(
@@ -1023,8 +1129,8 @@ describe("Bridge", async () => {
           }
         });
 
-        it("Should be able to claim and mint new nft successfully ", async () => {
-          claimData.fee = 5;
+        it.skip("Should be able to claim and mint new nft successfully ", async () => {
+          claimData.fee = CLAIM_FEE_POINT_1_APT;
           claimData.nftType = Buffer.from("multiple");
 
           const msgHash = aptosClient.generateClaimDataHash(
@@ -1039,12 +1145,58 @@ describe("Bridge", async () => {
           ]);
 
           try {
+            const nftOwnerBalanceBeforeTx = await aptos.getAccountAPTAmount({
+              accountAddress: nftOwner.accountAddress,
+            });
+
+            let validatorBalances: TValidatorBalances = {};
+            const bridgeDataBeforeTx = await aptosClient.getBridgeData();
+
+            if (bridgeDataBeforeTx) {
+              let contractValidators = bridgeDataBeforeTx.validators.data;
+              contractValidators.forEach((validator, index) => {
+                validatorBalances[validator.key] =
+                  validator.value.pending_reward;
+              });
+            } else {
+              assert.ok(false);
+            }
+
             let commitedTransaction = await aptosClient.claim1155(claimData);
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
               options: { checkSuccess: true },
             });
-            assert.ok(true);
+
+            const nftOwnerBalanceAfterTx = await aptos.getAccountAPTAmount({
+              accountAddress: nftOwner.accountAddress,
+            });
+
+            assert.ok(
+              nftOwnerBalanceAfterTx <= nftOwnerBalanceBeforeTx - claimData.fee
+            );
+
+            const bridgeDataAfterTx = await aptosClient.getBridgeData();
+            const rewardPerValidator =
+              claimData.fee / claimData.publicKeys.length;
+
+            if (bridgeDataAfterTx) {
+              let contractValidators = bridgeDataAfterTx.validators.data;
+              contractValidators.forEach((validator, index) => {
+                if (!validatorBalances[validator.key]) {
+                  assert.ok(true);
+                } else {
+                  assert.ok(
+                    (validatorBalances[validator.key] = (
+                      Number(validator.value.pending_reward) +
+                      rewardPerValidator
+                    ).toString())
+                  );
+                }
+              });
+            } else {
+              assert.ok(false);
+            }
           } catch (error: any) {
             console.log({ error });
             assert.ok(false);
@@ -1052,8 +1204,9 @@ describe("Bridge", async () => {
         });
 
         it("Should be able to claim and unlock nft successfully ", async () => {
-          claimData.fee = 5;
+          claimData.fee = CLAIM_FEE_POINT_1_APT;
           claimData.nftType = Buffer.from("multiple");
+          claimData.tokenId = "47";
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
@@ -1067,18 +1220,64 @@ describe("Bridge", async () => {
           ]);
 
           try {
+            const nftOwnerBalanceBeforeTx = await aptos.getAccountAPTAmount({
+              accountAddress: nftOwner.accountAddress,
+            });
+
+            let validatorBalances: TValidatorBalances = {};
+            const bridgeDataBeforeTx = await aptosClient.getBridgeData();
+
+            if (bridgeDataBeforeTx) {
+              let contractValidators = bridgeDataBeforeTx.validators.data;
+              contractValidators.forEach((validator, index) => {
+                validatorBalances[validator.key] =
+                  validator.value.pending_reward;
+              });
+            } else {
+              assert.ok(false);
+            }
+
             let commitedTransaction = await aptosClient.claim1155(claimData);
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
               options: { checkSuccess: true },
             });
+
+            const nftOwnerBalanceAfterTx = await aptos.getAccountAPTAmount({
+              accountAddress: nftOwner.accountAddress,
+            });
+
+            assert.ok(
+              nftOwnerBalanceAfterTx <= nftOwnerBalanceBeforeTx - claimData.fee
+            );
+
             // const response = await aptosClient.userOwnsNft(
             //   new HexString(nftOwner.accountAddress.toString()),
             //   claimData.collection,
             //   `${claimData.collection} # ${claimData.tokenId}`
             // );
             // assert.ok(response[0]);
-            assert.ok(true);
+            const bridgeDataAfterTx = await aptosClient.getBridgeData();
+            const rewardPerValidator =
+              claimData.fee / claimData.publicKeys.length;
+
+            if (bridgeDataAfterTx) {
+              let contractValidators = bridgeDataAfterTx.validators.data;
+              contractValidators.forEach((validator, index) => {
+                if (!validatorBalances[validator.key]) {
+                  assert.ok(true);
+                } else {
+                  assert.ok(
+                    (validatorBalances[validator.key] = (
+                      Number(validator.value.pending_reward) +
+                      rewardPerValidator
+                    ).toString())
+                  );
+                }
+              });
+            } else {
+              assert.ok(false);
+            }
           } catch (error: any) {
             console.log({ error: error });
             // console.log({ error: error.transaction.payload.arguments });
@@ -1120,7 +1319,6 @@ describe("Bridge", async () => {
           });
           assert.ok(false);
         } catch (error: any) {
-          console.log({ error });
           assert.ok(
             error["transaction"]["vm_status"].includes(
               CONTRACT_ERROR_CODES.E_NOT_BRIDGE_ADMIN
@@ -1203,7 +1401,7 @@ describe("Bridge", async () => {
       it.skip("should fail if validator pending reward is zero", async () => {
         try {
           const serializer = new BCS.Serializer();
-          serializer.serializeFixedBytes(validator1PbK); // hashing wrong data. validator1 instead of newValidator
+          serializer.serializeFixedBytes(validator5PbK);
           const msgHash = createHash("SHA256")
             .update(serializer.getBytes())
             .digest();
@@ -1215,8 +1413,8 @@ describe("Bridge", async () => {
 
           let commitedTransaction = await aptosClient.claimValidatorRewards(
             adminAccount,
-            new HexString(nftOwner.accountAddress.toString()),
-            validator1PbK,
+            new HexString(validator1.accountAddress.toString()),
+            validator5PbK,
             [
               validator1Signature,
               validator2Signature,
@@ -1241,8 +1439,11 @@ describe("Bridge", async () => {
 
       it("should successfully transfer validator pending reward", async () => {
         try {
+          const validatorToReward = validator1;
+          const validatorToRewardPbK =
+            validatorToReward.publicKey.toUint8Array();
           const serializer = new BCS.Serializer();
-          serializer.serializeFixedBytes(validator1PbK); // hashing wrong data. validator1 instead of newValidator
+          serializer.serializeFixedBytes(validatorToRewardPbK); // hashing wrong data. validator1 instead of newValidator
           const msgHash = createHash("SHA256")
             .update(serializer.getBytes())
             .digest();
@@ -1252,23 +1453,25 @@ describe("Bridge", async () => {
           const validator3Signature = await ed.sign(msgHash, validator3PrK);
           const validator4Signature = await ed.sign(msgHash, validator4PrK);
 
-          console.log("Before");
-          const response1 = await aptosClient.getBridgeData();
-          if (response1) {
-            let contractValidators = response1.validators.data;
-            // console.log({ contractValidators });
+          const validatorBalanceBeforeTx = await aptos.getAccountAPTAmount({
+            accountAddress: validatorToReward.accountAddress,
+          });
+
+          let validatorBalances: TValidatorBalances = {};
+
+          const responseBefore = await aptosClient.getBridgeData();
+
+          if (responseBefore) {
+            let contractValidators = responseBefore.validators.data;
             contractValidators.forEach((validator, index) => {
-              console.log({
-                rew: validator.value.pending_reward,
-                key: validator.key,
-              });
+              validatorBalances[validator.key] = validator.value.pending_reward;
             });
           }
 
           let commitedTransaction = await aptosClient.claimValidatorRewards(
             adminAccount,
             new HexString(validator1.accountAddress.toString()),
-            validator1PbK,
+            validatorToRewardPbK,
             [
               validator1Signature,
               validator2Signature,
@@ -1281,19 +1484,31 @@ describe("Bridge", async () => {
             transactionHash: commitedTransaction.hash,
             options: { checkSuccess: true },
           });
-          console.log("After");
+
+          const validatorBalanceAfterTx = await aptos.getAccountAPTAmount({
+            accountAddress: validatorToReward.accountAddress,
+          });
+
+          assert.ok(
+            validatorBalanceAfterTx ===
+              validatorBalanceBeforeTx + Math.trunc(CLAIM_FEE_POINT_1_APT / 3)
+          );
+
           const response = await aptosClient.getBridgeData();
+
           if (response) {
             let contractValidators = response.validators.data;
-            // console.log({ contractValidators });
             contractValidators.forEach((validator, index) => {
-              console.log({
-                rew: validator.value.pending_reward,
-                key: validator.key,
-              });
+              if (validator.key === validatorToRewardPbK.toString()) {
+                assert.ok(validator.value.pending_reward === "0");
+              } else {
+                assert.ok(
+                  (validatorBalances[validator.key] =
+                    validator.value.pending_reward)
+                );
+              }
             });
           }
-          assert.ok(true);
         } catch (error: any) {
           console.log({ error });
           assert.ok(false);
@@ -1301,14 +1516,4 @@ describe("Bridge", async () => {
       });
     });
   });
-
-  /*
-   * Possible Test Cases:
-   * lock on BSC claim on APTOS
-   * lock on BSC claim(mint) on APTOS then unlock on BSC
-   * lock on BSC claim(mint) on APTOS, lock on APTOS claim(mint) on ABC, lock on ABC unlock on BSC
-   * lock on APTOS claim(mint) on BSC
-   * lock on APTOS claim(mint) on BSC then unlock on APTOS
-   * lock on APTOS claim(mint) on BSC, lock on BSC claim(mint) on ABC, lock on ABC unlock on APTOS
-   */
 });

@@ -27,8 +27,8 @@ This will output a account address and funds it with some Octas
 
 ### Test
 
-`aptos move test`
+`npm test`
 
 ### Publish
 
-`aptos move publish`
+`aptos move publish --dev` or `aptos move publish` for production
