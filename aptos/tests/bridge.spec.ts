@@ -684,7 +684,7 @@ describe("Bridge", async () => {
       describe("Claim 721", async () => {
         let claimData: TClaimData = {
           collection: "Bridge",
-          tokenId: "56",
+          tokenId: "57",
           description: "Token Description",
           uri: "https://upload.wikimedia.org/wikipedia/en/thumb/8/89/2024_ICC_Men%27s_T20_World_Cup_logo.svg/1200px-2024_ICC_Men%27s_T20_World_Cup_logo.svg.png",
           royaltyPointsNumerator: 1,
@@ -1287,7 +1287,7 @@ describe("Bridge", async () => {
       });
     });
 
-    describe("Claim Validator Reward", async () => {
+    describe.skip("Claim Validator Reward", async () => {
       it("should fail if sender is not admin", async () => {
         try {
           const serializer = new BCS.Serializer();

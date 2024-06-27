@@ -9,7 +9,7 @@ bridge="_" # set this to the admin account when deploying to mainnet
 # nftowner="_"
 
 [dev-addresses]
-bridge="4c5fb6a788f0e7b94ad9fc0d7448d9ed166b69bb8e50413a636ce0ff7261f6bb"
+bridge="c330facb9a44565be9a6728a9747305e446313b7a8beb7bdd30c5e97f9cda477"
 # test="b7350603ccc49b0c34860e1daa28ebf67dc5ec269cbdf4b933167fc7bfc6ac6b"
 # nftowner="db57ee8e9cded6a0ff1b002fecc6c0cccda9712da230b8ebebedf061a2c3899f"
 

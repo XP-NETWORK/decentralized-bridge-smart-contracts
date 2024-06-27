@@ -7,7 +7,7 @@ module bridge::aptos_nft_bridge {
   use std::option::{Self};
   use aptos_std::ed25519;
   use aptos_std::simple_map::{Self, SimpleMap};
-  use aptos_framework::object::{Self, Object};
+  use aptos_framework::object;
   use aptos_framework::primary_fungible_store;
   use aptos_framework::fungible_asset::{Self, Metadata};
   use aptos_framework::coin;
@@ -18,7 +18,6 @@ module bridge::aptos_nft_bridge {
   use aptos_token_objects::token::{Self, Token};
   use aptos_token_objects::royalty::{Self};
   use aptos_token_objects::collection::{Self, Collection};
-  use std::debug;
 
   const E_ALREADY_INITIALIZED: u64 = 0;
   const E_NOT_BRIDGE_ADMIN: u64 = 1;
@@ -111,8 +110,6 @@ module bridge::aptos_nft_bridge {
     token_amount: u256,
     nft_type: vector<u8>,
     fee: u64,
-    description: String,
-    uri: String,
     symbol: String
   }
 
@@ -536,8 +533,6 @@ module bridge::aptos_nft_bridge {
       token_amount: 0,
       nft_type,
       fee,
-      description,
-      uri,
       symbol
     };
 
@@ -721,8 +716,6 @@ module bridge::aptos_nft_bridge {
       token_amount: (amount as u256),
       nft_type,
       fee,
-      description,
-      uri,
       symbol
     };
 

@@ -505,8 +505,6 @@ export class BridgeClient {
     serializer.serializeU256(claimData.amount);
     serializer.serializeBytes(claimData.nftType);
     serializer.serializeU64(claimData.fee);
-    serializer.serializeStr(claimData.description);
-    serializer.serializeStr(claimData.uri);
     serializer.serializeStr(claimData.symbol);
     return createHash("SHA256").update(serializer.getBytes()).digest();
   }
