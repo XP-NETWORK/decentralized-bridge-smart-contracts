@@ -353,8 +353,8 @@ module bridge::aptos_nft_bridge {
       let collection_counter_intilaized = simple_map::contains_key(&bridge_data.nft_collections_counter, &collection_address);
       if (collection_counter_intilaized) {
         let nft_collection_counter = simple_map::borrow_mut(&mut bridge_data.nft_collections_counter, &collection_address);
-        *nft_collection_counter = *nft_collection_counter + 1;
         nft_token_id = &(*nft_collection_counter + 1);
+        *nft_collection_counter = *nft_collection_counter + 1;
       } else {
         simple_map::add(&mut bridge_data.nft_collections_counter, collection_address, 0);
         nft_token_id = &0;
@@ -420,7 +420,7 @@ module bridge::aptos_nft_bridge {
     let token_object = object::address_to_object<Token>(token_addr);
     let metadata = object::convert<Token, Metadata>(token_object);
 
-    let collection_address = collection::create_collection_address(&bridge_resource_addr, &collection);
+    let collection_address = collection::create_collection_address(&owner_address, &collection);
     
     let nft_already_exists = table::contains(&mut bridge_data.nft_collection_tokens, CollectionNftObject { collection: collection_address, nft_address: token_addr});
     
@@ -435,8 +435,8 @@ module bridge::aptos_nft_bridge {
       let collection_counter_intilaized = simple_map::contains_key(&bridge_data.nft_collections_counter, &collection_address);
       if (collection_counter_intilaized) {
         let nft_collection_counter = simple_map::borrow_mut(&mut bridge_data.nft_collections_counter, &collection_address);
-        *nft_collection_counter = *nft_collection_counter + 1;
         nft_token_id = &(*nft_collection_counter + 1);
+        *nft_collection_counter = *nft_collection_counter + 1;
       } else {
         simple_map::add(&mut bridge_data.nft_collections_counter, collection_address, 0);
         nft_token_id = &0;

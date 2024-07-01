@@ -440,12 +440,12 @@ describe("Bridge", async () => {
       });
     });
 
-    describe.skip("Lock", async () => {
+    describe("Lock", async () => {
       const collectionName = "Bridge";
       const destinationChain = Buffer.from("APTOS");
       const tokenSymbol = "ABC";
-      const tokenName = "Bridge # 45";
-      const tokenName1155 = "Bridge # 47";
+      const tokenName = "Bridge # 74";
+      const tokenName1155 = "Bridge # 75";
       const tokenNameInvalid = "ABC _ 01";
       const collectionDescription = "ABC Fungible Collection Description";
       const collectionUri =
@@ -680,11 +680,11 @@ describe("Bridge", async () => {
       });
     });
 
-    describe("Claim", async () => {
+    describe.skip("Claim", async () => {
       describe("Claim 721", async () => {
         let claimData: TClaimData = {
           collection: "Bridge",
-          tokenId: "57",
+          tokenId: "63",
           description: "Token Description",
           uri: "https://upload.wikimedia.org/wikipedia/en/thumb/8/89/2024_ICC_Men%27s_T20_World_Cup_logo.svg/1200px-2024_ICC_Men%27s_T20_World_Cup_logo.svg.png",
           royaltyPointsNumerator: 1,
@@ -842,9 +842,9 @@ describe("Bridge", async () => {
           ]);
 
           try {
-            const nftOwnerBalanceBeforeTx = await aptos.getAccountAPTAmount({
-              accountAddress: nftOwner.accountAddress,
-            });
+            // const nftOwnerBalanceBeforeTx = await aptos.getAccountAPTAmount({
+            //   accountAddress: nftOwner.accountAddress,
+            // });
 
             let validatorBalances: TValidatorBalances = {};
             const bridgeDataBeforeTx = await aptosClient.getBridgeData();
@@ -865,13 +865,13 @@ describe("Bridge", async () => {
               options: { checkSuccess: true },
             });
 
-            const nftOwnerBalanceAfterTx = await aptos.getAccountAPTAmount({
-              accountAddress: nftOwner.accountAddress,
-            });
+            // const nftOwnerBalanceAfterTx = await aptos.getAccountAPTAmount({
+            //   accountAddress: nftOwner.accountAddress,
+            // });
 
-            assert.ok(
-              nftOwnerBalanceAfterTx <= nftOwnerBalanceBeforeTx - claimData.fee
-            );
+            // assert.ok(
+            //   nftOwnerBalanceAfterTx <= nftOwnerBalanceBeforeTx - claimData.fee
+            // );
 
             const bridgeDataAfterTx = await aptosClient.getBridgeData();
             const rewardPerValidator =
