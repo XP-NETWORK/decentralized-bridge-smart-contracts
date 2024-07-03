@@ -151,7 +151,8 @@ export class BridgeClient {
     name: string,
     destination_chain: Uint8Array,
     token_id: number,
-    source_nft_contract_address: Uint8Array
+    source_nft_contract_address: Uint8Array,
+    destinationUserAddress: string
   ) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -164,6 +165,7 @@ export class BridgeClient {
             destination_chain,
             token_id,
             source_nft_contract_address,
+            destinationUserAddress
           ],
         },
       });
@@ -184,7 +186,8 @@ export class BridgeClient {
     amount: number,
     destination_chain: Uint8Array,
     token_id: number,
-    source_nft_contract_address: Uint8Array
+    source_nft_contract_address: Uint8Array,
+    destination_user_address: string
   ) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -198,6 +201,7 @@ export class BridgeClient {
             destination_chain,
             token_id,
             source_nft_contract_address,
+            destination_user_address
           ],
         },
       });

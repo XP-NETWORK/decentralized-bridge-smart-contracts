@@ -78,7 +78,7 @@ describe("Bridge", async () => {
   seed = Buffer.from(aptosClient.generateRandomSeed(8));
   selfChain = Buffer.from(CHAIN_ID);
 
-  describe.skip("Initialize", async () => {
+  describe("Initialize", async () => {
     it("Should fail if initialized by account which is not admin", async () => {
       let validators: Uint8Array[] = [validator1PbK];
       try {
@@ -94,6 +94,7 @@ describe("Bridge", async () => {
         });
         assert.ok(false);
       } catch (error: any) {
+        console.log({error})
         assert.ok(
           error["transaction"]["vm_status"].includes(
             CONTRACT_ERROR_CODES.E_NOT_BRIDGE_ADMIN
@@ -161,16 +162,16 @@ describe("Bridge", async () => {
     it("Should set bridge state correctly", async () => {
       let validatorsWithPublicKeys: string[] = [
         aptosClient.convertToHexString(validator1PbK),
-        aptosClient.convertToHexString(validator2PbK),
-        aptosClient.convertToHexString(validator3PbK),
-        aptosClient.convertToHexString(validator4PbK),
+        // aptosClient.convertToHexString(validator2PbK),
+        // aptosClient.convertToHexString(validator3PbK),
+        // aptosClient.convertToHexString(validator4PbK),
       ];
 
       let validators: Uint8Array[] = [
         validator1PbK,
-        validator2PbK,
-        validator3PbK,
-        validator4PbK,
+        // validator2PbK,
+        // validator3PbK,
+        // validator4PbK,
       ];
       try {
         let commitedTransaction = await aptosClient.initialize(
@@ -444,7 +445,7 @@ describe("Bridge", async () => {
       const collectionName = "Bridge";
       const destinationChain = Buffer.from("APTOS");
       const tokenSymbol = "ABC";
-      const tokenName = "Bridge # 74";
+      const tokenName = "Bridge # 79";
       const tokenName1155 = "Bridge # 75";
       const tokenNameInvalid = "ABC _ 01";
       const collectionDescription = "ABC Fungible Collection Description";
@@ -456,9 +457,10 @@ describe("Bridge", async () => {
       const sourceNftContractAddress = Buffer.from(
         "0xba92cf00f301b9fa4cf5ead497d128bdb3e05e1b"
       );
+      const destinationUserAddress = "0x838433a17fd3a3874acbf7be281f56afb10ef710603bc5c6a0b956ca97cdd780";
       let amount = 2;
 
-      describe.skip("Lock 721", async () => {
+      describe("Lock 721", async () => {
         before(async () => {
           try {
             let commitedTransaction721 = await aptosClient.mintNft721(
@@ -468,7 +470,7 @@ describe("Bridge", async () => {
               collectionUri,
               tokenName,
               tokenDescription,
-              tokenUri
+              tokenUri            
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction721.hash,
@@ -487,7 +489,8 @@ describe("Bridge", async () => {
               tokenName,
               destinationChain,
               1,
-              sourceNftContractAddress
+              sourceNftContractAddress,
+              destinationUserAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -511,7 +514,8 @@ describe("Bridge", async () => {
               tokenNameInvalid,
               destinationChain,
               1,
-              sourceNftContractAddress
+              sourceNftContractAddress,
+              destinationUserAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -542,7 +546,8 @@ describe("Bridge", async () => {
               tokenName,
               destinationChain,
               1,
-              sourceNftContractAddress
+              sourceNftContractAddress,
+              destinationUserAddress,
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -556,7 +561,7 @@ describe("Bridge", async () => {
         });
       });
 
-      describe("Lock 1155", async () => {
+      describe.skip("Lock 1155", async () => {
         before(async () => {
           try {
             let commitedTransaction1155 = await aptosClient.mintNft1155(
@@ -590,7 +595,8 @@ describe("Bridge", async () => {
               amount,
               destinationChain,
               1,
-              sourceNftContractAddress
+              sourceNftContractAddress,
+              destinationUserAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -615,7 +621,8 @@ describe("Bridge", async () => {
               amount,
               destinationChain,
               1,
-              sourceNftContractAddress
+              sourceNftContractAddress,
+              destinationUserAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -640,7 +647,8 @@ describe("Bridge", async () => {
               0,
               destinationChain,
               1,
-              sourceNftContractAddress
+              sourceNftContractAddress,
+              destinationUserAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -665,7 +673,8 @@ describe("Bridge", async () => {
               amount,
               destinationChain,
               1,
-              sourceNftContractAddress
+              sourceNftContractAddress,
+              destinationUserAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,

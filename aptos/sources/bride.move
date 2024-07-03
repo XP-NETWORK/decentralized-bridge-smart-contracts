@@ -126,7 +126,7 @@ module bridge::aptos_nft_bridge {
   #[event]
   struct LockedEvent has drop, store {
     token_id: u256,
-    user_address: address,
+    destination_user_address: String,
     token_amount: u64,
     nft_type: vector<u8>,
     destination_chain: vector<u8>,
@@ -320,6 +320,7 @@ module bridge::aptos_nft_bridge {
     destination_chain: vector<u8>, 
     _token_id: u256,
     source_nft_contract_address: vector<u8>,
+    destination_user_address: String
   ) acquires Bridge {
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
 
@@ -374,7 +375,7 @@ module bridge::aptos_nft_bridge {
       // if original: send self chain as APTOS.
       event::emit(LockedEvent {
         token_id: *nft_token_id, 
-        user_address: owner_address, 
+        destination_user_address, 
         token_amount: 1, 
         nft_type: TYPE_ERC721, 
         destination_chain,
@@ -386,7 +387,7 @@ module bridge::aptos_nft_bridge {
       // if not original(minted on some other chain): send self chain as the source_chain.
       event::emit(LockedEvent { 
         token_id: *nft_token_id, 
-        user_address: owner_address, 
+        destination_user_address, 
         token_amount: 1, 
         nft_type: TYPE_ERC721, 
         destination_chain,
@@ -406,6 +407,7 @@ module bridge::aptos_nft_bridge {
     destination_chain: vector<u8>, 
     _token_id: u256,
     source_nft_contract_address: vector<u8>,
+    destination_user_address: String
   ) acquires Bridge {
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
     assert!(amount > 0, E_TOKEN_AMOUNT_IS_ZERO);
@@ -456,7 +458,7 @@ module bridge::aptos_nft_bridge {
 
       event::emit(LockedEvent { 
         token_id: *nft_token_id, 
-        user_address: owner_address, 
+        destination_user_address, 
         token_amount: amount, 
         nft_type: TYPE_ERC1155, 
         destination_chain,
@@ -470,7 +472,7 @@ module bridge::aptos_nft_bridge {
 
       event::emit(LockedEvent { 
         token_id: *nft_token_id, 
-        user_address: owner_address, 
+        destination_user_address, 
         token_amount: amount, 
         nft_type: TYPE_ERC1155, 
         destination_chain,
