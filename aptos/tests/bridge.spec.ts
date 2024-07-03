@@ -10,6 +10,7 @@ import assert from "assert";
 import { BridgeClient, TClaimData } from "../src/bridge-client";
 import dotenv from "dotenv";
 import {
+  BRIDGE_ADDRESS,
   CHAIN_ID,
   CLAIM_FEE_5_APT,
   CLAIM_FEE_POINT_1_APT,
@@ -94,7 +95,6 @@ describe("Bridge", async () => {
         });
         assert.ok(false);
       } catch (error: any) {
-        console.log({error})
         assert.ok(
           error["transaction"]["vm_status"].includes(
             CONTRACT_ERROR_CODES.E_NOT_BRIDGE_ADMIN
@@ -445,7 +445,7 @@ describe("Bridge", async () => {
       const collectionName = "Bridge";
       const destinationChain = Buffer.from("APTOS");
       const tokenSymbol = "ABC";
-      const tokenName = "Bridge # 79";
+      const tokenName = "Bridge # 81";
       const tokenName1155 = "Bridge # 75";
       const tokenNameInvalid = "ABC _ 01";
       const collectionDescription = "ABC Fungible Collection Description";
@@ -455,9 +455,9 @@ describe("Bridge", async () => {
       const tokenUri =
         "https://images.unsplash.com/photo-1643408875993-d7566153dd89?q=80&w=1780&auto=format&fit=crop";
       const sourceNftContractAddress = Buffer.from(
-        "0xba92cf00f301b9fa4cf5ead497d128bdb3e05e1b"
+        `0x${BRIDGE_ADDRESS}`
       );
-      const destinationUserAddress = "0x838433a17fd3a3874acbf7be281f56afb10ef710603bc5c6a0b956ca97cdd780";
+      const destinationUserAddress = validator1.accountAddress.toString();
       let amount = 2;
 
       describe("Lock 721", async () => {

@@ -131,7 +131,8 @@ module bridge::aptos_nft_bridge {
     nft_type: vector<u8>,
     destination_chain: vector<u8>,
     self_chain: vector<u8>,
-    source_nft_contract_address: vector<u8>
+    source_nft_contract_address: vector<u8>,
+    token_address: address,
   }
 
   #[event]
@@ -380,7 +381,8 @@ module bridge::aptos_nft_bridge {
         nft_type: TYPE_ERC721, 
         destination_chain,
         self_chain: bridge_data.self_chain,
-        source_nft_contract_address
+        source_nft_contract_address,
+        token_address: token_addr
       });
     } else {
       let original_collection_address = table::borrow(&mut bridge_data.duplicate_to_original_mapping, key_duplicate);
@@ -392,7 +394,8 @@ module bridge::aptos_nft_bridge {
         nft_type: TYPE_ERC721, 
         destination_chain,
         self_chain: original_collection_address.source_chain,
-        source_nft_contract_address: original_collection_address.source_contract
+        source_nft_contract_address: original_collection_address.source_contract,
+        token_address: token_addr
       });
     };
 
@@ -463,7 +466,8 @@ module bridge::aptos_nft_bridge {
         nft_type: TYPE_ERC1155, 
         destination_chain,
         self_chain: bridge_data.self_chain,
-        source_nft_contract_address
+        source_nft_contract_address,
+        token_address: token_addr
       });
     
     } else {
@@ -477,7 +481,8 @@ module bridge::aptos_nft_bridge {
         nft_type: TYPE_ERC1155, 
         destination_chain,
         self_chain: original_collection_address.source_chain,
-        source_nft_contract_address: original_collection_address.source_contract
+        source_nft_contract_address: original_collection_address.source_contract,
+        token_address: token_addr
       });
 
     };
