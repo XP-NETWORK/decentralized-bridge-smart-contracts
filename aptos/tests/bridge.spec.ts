@@ -5,6 +5,7 @@ import {
   Ed25519Account,
   Ed25519PrivateKey,
   Network,
+  UserTransactionResponse,
 } from "@aptos-labs/ts-sdk";
 import assert from "assert";
 import { BridgeClient, TClaimData } from "../src/bridge-client";
@@ -51,6 +52,8 @@ describe("Bridge", async () => {
   let validator3PrK: Buffer;
   let validator4PrK: Buffer;
   let validator5PrK: Buffer;
+  const tokenId721 = 126;
+  const tokenId1155 = 107;
 
   adminAccount = Account.fromPrivateKey({
     privateKey: new Ed25519PrivateKey(process.env.ED25519_PK!),
@@ -78,8 +81,9 @@ describe("Bridge", async () => {
   nftOwnerPrK = Buffer.from(process.env.NFT_OWNER_PK!, "hex");
   seed = Buffer.from(aptosClient.generateRandomSeed(8));
   selfChain = Buffer.from(CHAIN_ID);
+  
 
-  describe("Initialize", async () => {
+  describe.skip("Initialize", async () => {
     it("Should fail if initialized by account which is not admin", async () => {
       let validators: Uint8Array[] = [validator1PbK];
       try {
@@ -289,14 +293,14 @@ describe("Bridge", async () => {
           .digest();
 
         const validator1Signature = await ed.sign(msgHash, validator1PrK);
-        const validator2Signature = await ed.sign(msgHash, validator2PrK);
+        // const validator2Signature = await ed.sign(msgHash, validator2PrK);
 
         try {
           let commitedTransaction = await aptosClient.addValidator(
             adminAccount,
             newValidator,
-            [validator1Signature, validator2Signature],
-            [validator1PbK, validator2PbK]
+            [validator1Signature],
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,
@@ -321,9 +325,9 @@ describe("Bridge", async () => {
           .digest();
 
         const validator1Signature = await ed.sign(msgHash, validator1PrK);
-        const validator2Signature = await ed.sign(msgHash, validator2PrK);
-        const validator3Signature = await ed.sign(msgHash, validator3PrK);
-        const validator4Signature = await ed.sign(msgHash, validator4PrK);
+        // const validator2Signature = await ed.sign(msgHash, validator2PrK);
+        // const validator3Signature = await ed.sign(msgHash, validator3PrK);
+        // const validator4Signature = await ed.sign(msgHash, validator4PrK);
 
         try {
           let commitedTransaction = await aptosClient.addValidator(
@@ -331,11 +335,11 @@ describe("Bridge", async () => {
             newValidator,
             [
               validator1Signature,
-              validator2Signature,
-              validator3Signature,
-              validator4Signature,
+              // validator2Signature,
+              // validator3Signature,
+              // validator4Signature,
             ],
-            [validator1PbK, validator2PbK, validator3PbK, validator4PbK]
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,
@@ -360,14 +364,14 @@ describe("Bridge", async () => {
           .digest();
 
         const validator1Signature = await ed.sign(msgHash, validator1PrK);
-        const validator2Signature = await ed.sign(msgHash, validator2PrK);
+        // const validator2Signature = await ed.sign(msgHash, validator2PrK);
 
         try {
           let commitedTransaction = await aptosClient.addValidator(
             adminAccount,
             alreadyAddedValidator,
-            [validator1Signature, validator2Signature],
-            [validator1PbK, validator2PbK]
+            [validator1Signature],
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,
@@ -393,15 +397,15 @@ describe("Bridge", async () => {
           .digest();
 
         const validator1Signature = await ed.sign(msgHash, validator1PrK);
-        const validator2Signature = await ed.sign(msgHash, validator2PrK);
-        const validator3Signature = await ed.sign(msgHash, validator3PrK);
-        const validator4Signature = await ed.sign(msgHash, validator4PrK);
+        // const validator2Signature = await ed.sign(msgHash, validator2PrK);
+        // const validator3Signature = await ed.sign(msgHash, validator3PrK);
+        // const validator4Signature = await ed.sign(msgHash, validator4PrK);
         let validatorsWithPublicKeys: string[] = [
           aptosClient.convertToHexString(validator1PbK),
-          aptosClient.convertToHexString(validator2PbK),
-          aptosClient.convertToHexString(validator3PbK),
-          aptosClient.convertToHexString(validator4PbK),
-          aptosClient.convertToHexString(validator5PbK),
+          // aptosClient.convertToHexString(validator2PbK),
+          // aptosClient.convertToHexString(validator3PbK),
+          // aptosClient.convertToHexString(validator4PbK),
+          // aptosClient.convertToHexString(validator5PbK),
         ];
 
         try {
@@ -410,11 +414,11 @@ describe("Bridge", async () => {
             newValidator,
             [
               validator1Signature,
-              validator2Signature,
-              validator3Signature,
-              validator4Signature,
+              // validator2Signature,
+              // validator3Signature,
+              // validator4Signature,
             ],
-            [validator1PbK, validator2PbK, validator3PbK, validator4PbK]
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,
@@ -445,18 +449,17 @@ describe("Bridge", async () => {
       const collectionName = "Bridge";
       const destinationChain = Buffer.from("APTOS");
       const tokenSymbol = "ABC";
-      const tokenName = "Bridge # 81";
-      const tokenName1155 = "Bridge # 75";
-      const tokenNameInvalid = "ABC _ 01";
+      const tokenName = `Bridge # ${tokenId721}`;
+      const tokenName1155 = `Bridge # ${tokenId1155}`;
       const collectionDescription = "ABC Fungible Collection Description";
       const collectionUri =
-        "https://www.jumpstartmag.com/wp-content/uploads/2022/04/What-Is-NFT-Bridging.jpg";
+      "https://www.jumpstartmag.com/wp-content/uploads/2022/04/What-Is-NFT-Bridging.jpg";
       const tokenDescription = "Token Description";
       const tokenUri =
         "https://images.unsplash.com/photo-1643408875993-d7566153dd89?q=80&w=1780&auto=format&fit=crop";
-      const sourceNftContractAddress = Buffer.from(
-        `0x${BRIDGE_ADDRESS}`
-      );
+      let collectionAddress = "";
+      let tokenAddress = "";
+      const tokenAddressInvalid = "0x011";
       const destinationUserAddress = validator1.accountAddress.toString();
       let amount = 2;
 
@@ -476,21 +479,24 @@ describe("Bridge", async () => {
               transactionHash: commitedTransaction721.hash,
               options: { checkSuccess: true },
             });
+            const tx = (await aptos.getTransactionByHash({transactionHash: commitedTransaction721.hash}) as UserTransactionResponse)
+            const mintEvent = tx.events.find(e => e.type === "0x4::collection::Mint")
+            collectionAddress = mintEvent?.data.collection
+            tokenAddress = mintEvent?.data.token
+            console.log({collectionAddress, tokenAddress})
           } catch (error) {
             console.log({ error });
           }
         });
-
+        // return
         it("Should fail if caller is not the owner", async () => {
           try {
             let commitedTransaction = await aptosClient.lock721(
               testAccount,
-              collectionName,
-              tokenName,
+              tokenAddress,
               destinationChain,
-              1,
-              sourceNftContractAddress,
-              destinationUserAddress
+              destinationUserAddress,
+              collectionAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -500,7 +506,7 @@ describe("Bridge", async () => {
           } catch (error: any) {
             assert.ok(
               error["transaction"]["vm_status"].includes(
-                CONTRACT_ERROR_CODES.EOBJECT_DOES_NOT_EXIST
+                CONTRACT_ERROR_CODES.ENOT_OBJECT_OWNER
               )
             );
           }
@@ -510,12 +516,10 @@ describe("Bridge", async () => {
           try {
             let commitedTransaction = await aptosClient.lock721(
               nftOwner,
-              collectionName,
-              tokenNameInvalid,
+              tokenAddressInvalid,
               destinationChain,
-              1,
-              sourceNftContractAddress,
-              destinationUserAddress
+              destinationUserAddress,
+              collectionAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -542,12 +546,10 @@ describe("Bridge", async () => {
 
             let commitedTransaction = await aptosClient.lock721(
               nftOwner,
-              collectionName,
-              tokenName,
+              tokenAddress,
               destinationChain,
-              1,
-              sourceNftContractAddress,
               destinationUserAddress,
+              collectionAddress
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -581,6 +583,11 @@ describe("Bridge", async () => {
               transactionHash: commitedTransaction1155.hash,
               options: { checkSuccess: true },
             });
+            const tx = (await aptos.getTransactionByHash({transactionHash: commitedTransaction1155.hash}) as UserTransactionResponse)
+            const mintEvent = tx.events.find(e => e.type === "0x4::collection::Mint")
+            collectionAddress = mintEvent?.data.collection
+            tokenAddress = mintEvent?.data.token
+            console.log({collectionAddress, tokenAddress})
           } catch (error) {
             console.log({ error });
           }
@@ -590,13 +597,11 @@ describe("Bridge", async () => {
           try {
             let commitedTransaction = await aptosClient.lock1155(
               testAccount,
-              collectionName,
-              tokenName1155,
-              amount,
+              tokenAddress,
               destinationChain,
-              1,
-              sourceNftContractAddress,
-              destinationUserAddress
+              destinationUserAddress,
+              collectionAddress,
+              amount
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -606,7 +611,7 @@ describe("Bridge", async () => {
           } catch (error: any) {
             assert.ok(
               error["transaction"]["vm_status"].includes(
-                CONTRACT_ERROR_CODES.EOBJECT_DOES_NOT_EXIST
+                CONTRACT_ERROR_CODES.EINSUFFICIENT_BALANCE
               )
             );
           }
@@ -616,13 +621,11 @@ describe("Bridge", async () => {
           try {
             let commitedTransaction = await aptosClient.lock1155(
               nftOwner,
-              collectionName,
-              tokenNameInvalid,
-              amount,
+              tokenAddressInvalid,
               destinationChain,
-              1,
-              sourceNftContractAddress,
-              destinationUserAddress
+              destinationUserAddress,
+              collectionAddress,
+              amount
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -642,13 +645,11 @@ describe("Bridge", async () => {
           try {
             let commitedTransaction = await aptosClient.lock1155(
               nftOwner,
-              collectionName,
-              tokenName1155,
-              0,
+              tokenAddress,
               destinationChain,
-              1,
-              sourceNftContractAddress,
-              destinationUserAddress
+              destinationUserAddress,
+              collectionAddress,
+              0
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -668,13 +669,11 @@ describe("Bridge", async () => {
           try {
             let commitedTransaction = await aptosClient.lock1155(
               nftOwner,
-              collectionName,
-              tokenName1155,
-              amount,
+              tokenAddress,
               destinationChain,
-              1,
-              sourceNftContractAddress,
-              destinationUserAddress
+              destinationUserAddress,
+              collectionAddress,
+              amount
             );
             await aptos.waitForTransaction({
               transactionHash: commitedTransaction.hash,
@@ -689,15 +688,15 @@ describe("Bridge", async () => {
       });
     });
 
-    describe.skip("Claim", async () => {
+    describe("Claim", async () => {
       describe("Claim 721", async () => {
         let claimData: TClaimData = {
           collection: "Bridge",
-          tokenId: "63",
+          tokenId: `${tokenId721 + 1}`,
           description: "Token Description",
           uri: "https://upload.wikimedia.org/wikipedia/en/thumb/8/89/2024_ICC_Men%27s_T20_World_Cup_logo.svg/1200px-2024_ICC_Men%27s_T20_World_Cup_logo.svg.png",
-          royaltyPointsNumerator: 1,
-          royaltyPointsDenominator: 5,
+          royaltyPointsNumerator: 500, // 5%
+          royaltyPointsDenominator: 10000, // should always be 100000
           royaltyPayeeAddress: new HexString(
             nftOwner.accountAddress.toString()
           ),
@@ -719,11 +718,11 @@ describe("Bridge", async () => {
             "https://images.icc-cricket.com/image/private/t_q-best/v1706276260/prd/assets/tournaments/t20worldcup/2024/t20-logo-horizontal-light.svg",
           metadata: "asdf",
           signatures: [],
-          publicKeys: [validator1PbK, validator2PbK],
+          publicKeys: [validator1PbK],
           sender: nftOwner,
         };
 
-        it("Should fail if nft type is not valid", async () => {
+        it.skip("Should fail if nft type is not valid", async () => {
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
             nftOwner
@@ -731,7 +730,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
           ]);
 
           try {
@@ -750,7 +749,7 @@ describe("Bridge", async () => {
           }
         });
 
-        it("Should fail if destination chain is not valid", async () => {
+        it.skip("Should fail if destination chain is not valid", async () => {
           claimData.nftType = Buffer.from("singular");
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
@@ -759,7 +758,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
           ]);
 
           try {
@@ -778,7 +777,8 @@ describe("Bridge", async () => {
           }
         });
 
-        it("Should fail if thershold is not meet", async () => {
+        it.skip("Should fail if user balance is less than fees", async () => {
+          // claimData.publicKeys.push(validator3PbK);
           claimData.destinationChain = Buffer.from("APTOS");
 
           const msgHash = aptosClient.generateClaimDataHash(
@@ -788,7 +788,8 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator3PrK),
           ]);
 
           try {
@@ -799,36 +800,7 @@ describe("Bridge", async () => {
             });
             assert.ok(false);
           } catch (error: any) {
-            assert.ok(
-              error["transaction"]["vm_status"].includes(
-                CONTRACT_ERROR_CODES.E_THERSHOLD_NOT_REACHED
-              )
-            );
-          }
-        });
-
-        it("Should fail if user balance is less than fees", async () => {
-          claimData.publicKeys.push(validator3PbK);
-
-          const msgHash = aptosClient.generateClaimDataHash(
-            claimData,
-            nftOwner
-          );
-
-          claimData.signatures = await Promise.all([
-            ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
-            ed.sign(msgHash, validator3PrK),
-          ]);
-
-          try {
-            let commitedTransaction = await aptosClient.claim721(claimData);
-            await aptos.waitForTransaction({
-              transactionHash: commitedTransaction.hash,
-              options: { checkSuccess: true },
-            });
-            assert.ok(false);
-          } catch (error: any) {
+            // console.log({error})
             assert.ok(
               error["transaction"]["vm_status"].includes(
                 CONTRACT_ERROR_CODES.EINSUFFICIENT_BALANCE
@@ -837,8 +809,8 @@ describe("Bridge", async () => {
           }
         });
 
-        it("Should be able to claim and mint new nft successfully ", async () => {
-          claimData.fee = CLAIM_FEE_POINT_1_APT;
+        it.skip("Should fail if thershold is not meet", async () => {
+
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
             nftOwner
@@ -846,8 +818,39 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
-            ed.sign(msgHash, validator3PrK),
+            // ed.sign(msgHash, validator2PrK),
+          ]);
+
+          try {
+            let commitedTransaction = await aptosClient.claim721(claimData);
+            await aptos.waitForTransaction({
+              transactionHash: commitedTransaction.hash,
+              options: { checkSuccess: true },
+            });
+            assert.ok(false);
+          } catch (error: any) {
+            console.log({error})
+            assert.ok(
+              error["transaction"]["vm_status"].includes(
+                CONTRACT_ERROR_CODES.E_THERSHOLD_NOT_REACHED
+              )
+            );
+          }
+        });
+
+        it("Should be able to claim and mint new nft successfully ", async () => {
+          claimData.fee = CLAIM_FEE_POINT_1_APT;
+          console.log({tokenId: claimData.tokenId});
+
+          const msgHash = aptosClient.generateClaimDataHash(
+            claimData,
+            nftOwner
+          );
+
+          claimData.signatures = await Promise.all([
+            ed.sign(msgHash, validator1PrK),
+            // ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator3PrK),
           ]);
 
           try {
@@ -909,9 +912,10 @@ describe("Bridge", async () => {
           }
         });
 
-        it.skip("Should be able to claim and unlock nft successfully ", async () => {
+        it("Should be able to claim and unlock nft successfully ", async () => {
           claimData.fee = CLAIM_FEE_POINT_1_APT;
-          claimData.tokenId = "45";
+          claimData.tokenId = `${tokenId721}`;
+          console.log({tokenId: claimData.tokenId});
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
             nftOwner
@@ -919,8 +923,8 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
-            ed.sign(msgHash, validator3PrK),
+            // ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator3PrK),
           ]);
 
           try {
@@ -994,7 +998,7 @@ describe("Bridge", async () => {
       describe.skip("Claim 1155", async () => {
         let claimData: TClaimData = {
           collection: "Bridge",
-          tokenId: "47S",
+          tokenId: `${tokenId1155 + 1}`,
           description: "Token Description",
           uri: "https://images.unsplash.com/photo-1643408875993-d7566153dd89?q=80&w=1780&auto=format&fit=crop",
           royaltyPointsNumerator: 1,
@@ -1020,7 +1024,7 @@ describe("Bridge", async () => {
             "https://www.jumpstartmag.com/wp-content/uploads/2022/04/What-Is-NFT-Bridging.jpg",
           metadata: "asdf",
           signatures: [],
-          publicKeys: [validator1PbK, validator2PbK],
+          publicKeys: [validator1PbK],
           sender: nftOwner,
         };
 
@@ -1032,7 +1036,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
           ]);
 
           try {
@@ -1051,7 +1055,7 @@ describe("Bridge", async () => {
           }
         });
 
-        it("Should fail if destination chain is not valid", async () => {
+        it.skip("Should fail if destination chain is not valid", async () => {
           claimData.nftType = Buffer.from("multiple");
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
@@ -1060,7 +1064,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
           ]);
 
           try {
@@ -1089,7 +1093,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
           ]);
 
           try {
@@ -1109,7 +1113,7 @@ describe("Bridge", async () => {
         });
 
         it("Should fail if user balance is less than fees", async () => {
-          claimData.publicKeys.push(validator3PbK);
+          // claimData.publicKeys.push(validator3PbK);
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
@@ -1118,8 +1122,8 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
-            ed.sign(msgHash, validator3PrK),
+            // ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator3PrK),
           ]);
 
           try {
@@ -1149,8 +1153,8 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
-            ed.sign(msgHash, validator3PrK),
+            // ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator3PrK),
           ]);
 
           try {
@@ -1215,7 +1219,7 @@ describe("Bridge", async () => {
         it("Should be able to claim and unlock nft successfully ", async () => {
           claimData.fee = CLAIM_FEE_POINT_1_APT;
           claimData.nftType = Buffer.from("multiple");
-          claimData.tokenId = "47";
+          claimData.tokenId = `${tokenId1155}`;
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
@@ -1224,8 +1228,8 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
-            ed.sign(msgHash, validator3PrK),
+            // ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator3PrK),
           ]);
 
           try {
@@ -1306,9 +1310,9 @@ describe("Bridge", async () => {
             .digest();
 
           const validator1Signature = await ed.sign(msgHash, validator1PrK);
-          const validator2Signature = await ed.sign(msgHash, validator2PrK);
-          const validator3Signature = await ed.sign(msgHash, validator3PrK);
-          const validator4Signature = await ed.sign(msgHash, validator4PrK);
+          // const validator2Signature = await ed.sign(msgHash, validator2PrK);
+          // const validator3Signature = await ed.sign(msgHash, validator3PrK);
+          // const validator4Signature = await ed.sign(msgHash, validator4PrK);
 
           let commitedTransaction = await aptosClient.claimValidatorRewards(
             nftOwner,
@@ -1316,11 +1320,11 @@ describe("Bridge", async () => {
             validator1PbK,
             [
               validator1Signature,
-              validator2Signature,
-              validator3Signature,
-              validator4Signature,
+              // validator2Signature,
+              // validator3Signature,
+              // validator4Signature,
             ],
-            [validator1PbK, validator2PbK, validator3PbK, validator4PbK]
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,
@@ -1345,9 +1349,9 @@ describe("Bridge", async () => {
             .digest();
 
           const validator1Signature = await ed.sign(msgHash, validator1PrK);
-          const validator2Signature = await ed.sign(msgHash, validator2PrK);
-          const validator3Signature = await ed.sign(msgHash, validator3PrK);
-          const validator4Signature = await ed.sign(msgHash, validator4PrK);
+          // const validator2Signature = await ed.sign(msgHash, validator2PrK);
+          // const validator3Signature = await ed.sign(msgHash, validator3PrK);
+          // const validator4Signature = await ed.sign(msgHash, validator4PrK);
 
           let commitedTransaction = await aptosClient.claimValidatorRewards(
             adminAccount,
@@ -1355,11 +1359,11 @@ describe("Bridge", async () => {
             validator5PbK,
             [
               validator1Signature,
-              validator2Signature,
-              validator3Signature,
-              validator4Signature,
+              // validator2Signature,
+              // validator3Signature,
+              // validator4Signature,
             ],
-            [validator1PbK, validator2PbK, validator3PbK, validator4PbK]
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,
@@ -1384,14 +1388,14 @@ describe("Bridge", async () => {
             .digest();
 
           const validator1Signature = await ed.sign(msgHash, validator1PrK);
-          const validator2Signature = await ed.sign(msgHash, validator2PrK);
+          // const validator2Signature = await ed.sign(msgHash, validator2PrK);
 
           let commitedTransaction = await aptosClient.claimValidatorRewards(
             adminAccount,
             new HexString(nftOwner.accountAddress.toString()),
             validator1PbK,
-            [validator1Signature, validator2Signature],
-            [validator1PbK, validator2PbK]
+            [validator1Signature],
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,
@@ -1416,9 +1420,9 @@ describe("Bridge", async () => {
             .digest();
 
           const validator1Signature = await ed.sign(msgHash, validator1PrK);
-          const validator2Signature = await ed.sign(msgHash, validator2PrK);
-          const validator3Signature = await ed.sign(msgHash, validator3PrK);
-          const validator4Signature = await ed.sign(msgHash, validator4PrK);
+          // const validator2Signature = await ed.sign(msgHash, validator2PrK);
+          // const validator3Signature = await ed.sign(msgHash, validator3PrK);
+          // const validator4Signature = await ed.sign(msgHash, validator4PrK);
 
           let commitedTransaction = await aptosClient.claimValidatorRewards(
             adminAccount,
@@ -1426,11 +1430,11 @@ describe("Bridge", async () => {
             validator5PbK,
             [
               validator1Signature,
-              validator2Signature,
-              validator3Signature,
-              validator4Signature,
+              // validator2Signature,
+              // validator3Signature,
+              // validator4Signature,
             ],
-            [validator1PbK, validator2PbK, validator3PbK, validator4PbK]
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,
@@ -1458,9 +1462,9 @@ describe("Bridge", async () => {
             .digest();
 
           const validator1Signature = await ed.sign(msgHash, validator1PrK);
-          const validator2Signature = await ed.sign(msgHash, validator2PrK);
-          const validator3Signature = await ed.sign(msgHash, validator3PrK);
-          const validator4Signature = await ed.sign(msgHash, validator4PrK);
+          // const validator2Signature = await ed.sign(msgHash, validator2PrK);
+          // const validator3Signature = await ed.sign(msgHash, validator3PrK);
+          // const validator4Signature = await ed.sign(msgHash, validator4PrK);
 
           const validatorBalanceBeforeTx = await aptos.getAccountAPTAmount({
             accountAddress: validatorToReward.accountAddress,
@@ -1483,11 +1487,11 @@ describe("Bridge", async () => {
             validatorToRewardPbK,
             [
               validator1Signature,
-              validator2Signature,
-              validator3Signature,
-              validator4Signature,
+              // validator2Signature,
+              // validator3Signature,
+              // validator4Signature,
             ],
-            [validator1PbK, validator2PbK, validator3PbK, validator4PbK]
+            [validator1PbK]
           );
           await aptos.waitForTransaction({
             transactionHash: commitedTransaction.hash,

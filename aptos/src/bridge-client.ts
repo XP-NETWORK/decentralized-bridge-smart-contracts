@@ -147,12 +147,10 @@ export class BridgeClient {
 
   async lock721(
     owner: Ed25519Account,
-    collection: string,
-    name: string,
+    token_address: string,
     destination_chain: Uint8Array,
-    token_id: number,
-    source_nft_contract_address: Uint8Array,
-    destinationUserAddress: string
+    destination_user_address: string,
+    collection_address: string
   ) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -160,12 +158,10 @@ export class BridgeClient {
         data: {
           function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Lock721}`,
           functionArguments: [
-            collection,
-            name,
+            token_address,
             destination_chain,
-            token_id,
-            source_nft_contract_address,
-            destinationUserAddress
+            destination_user_address,
+            collection_address
           ],
         },
       });
@@ -181,13 +177,11 @@ export class BridgeClient {
 
   async lock1155(
     owner: Ed25519Account,
-    collection: string,
-    name: string,
-    amount: number,
+    token_address: string,
     destination_chain: Uint8Array,
-    token_id: number,
-    source_nft_contract_address: Uint8Array,
-    destination_user_address: string
+    destination_user_address: string,
+    collection_address: string,
+    amount: number,
   ) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -195,13 +189,11 @@ export class BridgeClient {
         data: {
           function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Lock1155}`,
           functionArguments: [
-            collection,
-            name,
-            amount,
+            token_address,
             destination_chain,
-            token_id,
-            source_nft_contract_address,
-            destination_user_address
+            destination_user_address,
+            collection_address,
+            amount,
           ],
         },
       });

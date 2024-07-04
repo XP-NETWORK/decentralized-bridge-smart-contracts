@@ -7,7 +7,7 @@ authors = []
 bridge="_" # set this to the admin account when deploying to mainnet
 
 [dev-addresses]
-bridge="aa538c6f038c0a4664fd2773ac630d2b507cfbbfd3eab6a29678b81a42f5ea8a"
+bridge="920306d16995e1f841ad7b277965abb2ecdf6c08a4e209cbaf37488eb590eb88"
 
 [dependencies]
 # AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "devnet" }
