@@ -36,6 +36,7 @@ module bridge::aptos_nft_bridge {
   const E_INVALID_DESTINATION_CHAIN: u64 = 14;
   const E_VALIDATOR_DOESNOT_EXIST: u64 = 15;
   const E_VALIDATOR_PENDING_REWARD_IS_ZERO: u64 = 16;
+  const E_DESTINATION_CHAIN_SAME_AS_SOURCE: u64 = 17;
 
   const TYPE_ERC721: vector<u8> = b"singular";
   const TYPE_ERC1155: vector<u8> = b"multiple";
@@ -326,12 +327,16 @@ module bridge::aptos_nft_bridge {
     // _token_id: u256,
     // source_nft_contract_address: vector<u8>,
   ) acquires Bridge {
+    
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
+
+    let bridge_data = borrow_global_mut<Bridge>(@bridge);
+
+    assert!(hash::sha2_256(bridge_data.self_chain) != hash::sha2_256(destination_chain), E_DESTINATION_CHAIN_SAME_AS_SOURCE);
 
     // let owner_address = signer::address_of(owner);
 
     // using bride data get resource account signer and address
-    let bridge_data = borrow_global_mut<Bridge>(@bridge);
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
     let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
 
@@ -413,10 +418,14 @@ module bridge::aptos_nft_bridge {
     collection_address: address,
     amount: u64, 
   ) acquires Bridge {
+
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
     assert!(amount > 0, E_TOKEN_AMOUNT_IS_ZERO);
-
+    
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
+
+    assert!(hash::sha2_256(bridge_data.self_chain) != hash::sha2_256(destination_chain), E_DESTINATION_CHAIN_SAME_AS_SOURCE);
+
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
     let bridge_resource_addr = signer::address_of(&bridge_signer_from_cap);
     

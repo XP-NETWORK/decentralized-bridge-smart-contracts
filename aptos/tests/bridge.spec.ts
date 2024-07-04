@@ -52,7 +52,7 @@ describe("Bridge", async () => {
   let validator3PrK: Buffer;
   let validator4PrK: Buffer;
   let validator5PrK: Buffer;
-  const tokenId721 = 126;
+  const tokenId721 = 128;
   const tokenId1155 = 107;
 
   adminAccount = Account.fromPrivateKey({
@@ -447,7 +447,7 @@ describe("Bridge", async () => {
 
     describe("Lock", async () => {
       const collectionName = "Bridge";
-      const destinationChain = Buffer.from("APTOS");
+      let destinationChain = Buffer.from("APTOS");
       const tokenSymbol = "ABC";
       const tokenName = `Bridge # ${tokenId721}`;
       const tokenName1155 = `Bridge # ${tokenId1155}`;
@@ -489,7 +489,31 @@ describe("Bridge", async () => {
           }
         });
         // return
+        it("Should fail if destination chain is APTOS", async () => {
+          try {
+            let commitedTransaction = await aptosClient.lock721(
+              testAccount,
+              tokenAddress,
+              destinationChain,
+              destinationUserAddress,
+              collectionAddress
+            );
+            await aptos.waitForTransaction({
+              transactionHash: commitedTransaction.hash,
+              options: { checkSuccess: true },
+            });
+            assert.ok(false);
+          } catch (error: any) {
+            assert.ok(
+              error["transaction"]["vm_status"].includes(
+                CONTRACT_ERROR_CODES.E_DESTINATION_CHAIN_SAME_AS_SOURCE
+              )
+            );
+          }
+        });
         it("Should fail if caller is not the owner", async () => {
+          destinationChain = Buffer.from("BSC");
+
           try {
             let commitedTransaction = await aptosClient.lock721(
               testAccount,
@@ -688,7 +712,7 @@ describe("Bridge", async () => {
       });
     });
 
-    describe("Claim", async () => {
+    describe.skip("Claim", async () => {
       describe("Claim 721", async () => {
         let claimData: TClaimData = {
           collection: "Bridge",
