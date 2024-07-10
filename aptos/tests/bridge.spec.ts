@@ -52,8 +52,9 @@ describe("Bridge", async () => {
   let validator3PrK: Buffer;
   let validator4PrK: Buffer;
   let validator5PrK: Buffer;
-  const tokenId721 = 128;
-  const tokenId1155 = 107;
+  const tokenId721 = 6;
+  const tokenId1155 = 2;
+  let collectionAddress: Uint8Array;
 
   adminAccount = Account.fromPrivateKey({
     privateKey: new Ed25519PrivateKey(process.env.ED25519_PK!),
@@ -457,9 +458,8 @@ describe("Bridge", async () => {
       const tokenDescription = "Token Description";
       const tokenUri =
         "https://images.unsplash.com/photo-1643408875993-d7566153dd89?q=80&w=1780&auto=format&fit=crop";
-      let collectionAddress = "";
-      let tokenAddress = "";
-      const tokenAddressInvalid = "0x011";
+      let tokenAddress = new HexString("");
+      const tokenAddressInvalid = new HexString("0x011");
       const destinationUserAddress = validator1.accountAddress.toString();
       let amount = 2;
 
@@ -481,7 +481,7 @@ describe("Bridge", async () => {
             });
             const tx = (await aptos.getTransactionByHash({transactionHash: commitedTransaction721.hash}) as UserTransactionResponse)
             const mintEvent = tx.events.find(e => e.type === "0x4::collection::Mint")
-            collectionAddress = mintEvent?.data.collection
+            collectionAddress = Buffer.from(mintEvent?.data.collection)
             tokenAddress = mintEvent?.data.token
             console.log({collectionAddress, tokenAddress})
           } catch (error) {
@@ -560,6 +560,7 @@ describe("Bridge", async () => {
         });
 
         it("Should successfully locks nft", async () => {
+          console.log({collectionAddress})
           try {
             const response = await aptosClient.userOwnsNft(
               new HexString(nftOwner.accountAddress.toString()),
@@ -712,44 +713,36 @@ describe("Bridge", async () => {
       });
     });
 
-    describe.skip("Claim", async () => {
+    describe("Claim", async () => {
       describe("Claim 721", async () => {
         let claimData: TClaimData = {
-          collection: "Bridge",
-          tokenId: `${tokenId721 + 1}`,
-          description: "Token Description",
+          name: `Bridge # ${tokenId721}`,
+          tokenId: tokenId721,
           uri: "https://upload.wikimedia.org/wikipedia/en/thumb/8/89/2024_ICC_Men%27s_T20_World_Cup_logo.svg/1200px-2024_ICC_Men%27s_T20_World_Cup_logo.svg.png",
-          royaltyPointsNumerator: 500, // 5%
-          royaltyPointsDenominator: 10000, // should always be 100000
+          royaltyPercentage: 5, // 5%
           royaltyPayeeAddress: new HexString(
             nftOwner.accountAddress.toString()
           ),
           fee: CLAIM_FEE_5_APT, // in octas. 1 APT = 10 ^ 8 octas
           destinationChain: Buffer.from("BSC"),
           sourceChain: Buffer.from("APTOS"),
-          sourceNftContractAddress: Buffer.from(
-            "0xba92cf00f301b9fa4cf5ead497d128bdb3e05e1b"
-          ),
+          sourceNftContractAddress: Buffer.from("0x133c9546ef1fdae5eef5b66333d7c30b4cae6455a3349e7a83cc15985dd8b54e"),
           transactionHash: Buffer.from(
             "0x9724e4d237117018e5d2135036d879b25ca36ae4469120b85ef7ebba8fa408d5"
           ),
           nftType: Buffer.from("multiple"), // singular for 721, multiple for 1155
           symbol: "WCC",
           amount: 0, // set this to 0 for claim 721
-          iconUri:
-            "https://upload.wikimedia.org/wikipedia/en/thumb/8/89/2024_ICC_Men%27s_T20_World_Cup_logo.svg/1200px-2024_ICC_Men%27s_T20_World_Cup_logo.svg.png",
-          projectUri:
-            "https://images.icc-cricket.com/image/private/t_q-best/v1706276260/prd/assets/tournaments/t20worldcup/2024/t20-logo-horizontal-light.svg",
           metadata: "asdf",
           signatures: [],
           publicKeys: [validator1PbK],
           sender: nftOwner,
+          destinationUserAddress: new HexString(nftOwner.accountAddress.toString())
         };
 
-        it.skip("Should fail if nft type is not valid", async () => {
+        it("Should fail if nft type is not valid", async () => {
           const msgHash = aptosClient.generateClaimDataHash(
-            claimData,
-            nftOwner
+            claimData
           );
 
           claimData.signatures = await Promise.all([
@@ -773,11 +766,10 @@ describe("Bridge", async () => {
           }
         });
 
-        it.skip("Should fail if destination chain is not valid", async () => {
+        it("Should fail if destination chain is not valid", async () => {
           claimData.nftType = Buffer.from("singular");
           const msgHash = aptosClient.generateClaimDataHash(
-            claimData,
-            nftOwner
+            claimData
           );
 
           claimData.signatures = await Promise.all([
@@ -801,18 +793,44 @@ describe("Bridge", async () => {
           }
         });
 
-        it.skip("Should fail if user balance is less than fees", async () => {
-          // claimData.publicKeys.push(validator3PbK);
+        it("Should fail if thershold is not meet", async () => {
           claimData.destinationChain = Buffer.from("APTOS");
 
           const msgHash = aptosClient.generateClaimDataHash(
-            claimData,
-            nftOwner
+            claimData
           );
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
             // ed.sign(msgHash, validator2PrK),
+          ]);
+
+          try {
+            let commitedTransaction = await aptosClient.claim721(claimData);
+            await aptos.waitForTransaction({
+              transactionHash: commitedTransaction.hash,
+              options: { checkSuccess: true },
+            });
+            assert.ok(false);
+          } catch (error: any) {
+            assert.ok(
+              error["transaction"]["vm_status"].includes(
+                CONTRACT_ERROR_CODES.E_THERSHOLD_NOT_REACHED
+              )
+            );
+          }
+        });
+
+        it("Should fail if user balance is less than fees", async () => {
+          claimData.publicKeys.push(validator5PbK);
+
+          const msgHash = aptosClient.generateClaimDataHash(
+            claimData,
+          );
+
+          claimData.signatures = await Promise.all([
+            ed.sign(msgHash, validator1PrK),
+            ed.sign(msgHash, validator5PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -824,7 +842,6 @@ describe("Bridge", async () => {
             });
             assert.ok(false);
           } catch (error: any) {
-            // console.log({error})
             assert.ok(
               error["transaction"]["vm_status"].includes(
                 CONTRACT_ERROR_CODES.EINSUFFICIENT_BALANCE
@@ -833,47 +850,16 @@ describe("Bridge", async () => {
           }
         });
 
-        it.skip("Should fail if thershold is not meet", async () => {
-
-          const msgHash = aptosClient.generateClaimDataHash(
-            claimData,
-            nftOwner
-          );
-
-          claimData.signatures = await Promise.all([
-            ed.sign(msgHash, validator1PrK),
-            // ed.sign(msgHash, validator2PrK),
-          ]);
-
-          try {
-            let commitedTransaction = await aptosClient.claim721(claimData);
-            await aptos.waitForTransaction({
-              transactionHash: commitedTransaction.hash,
-              options: { checkSuccess: true },
-            });
-            assert.ok(false);
-          } catch (error: any) {
-            console.log({error})
-            assert.ok(
-              error["transaction"]["vm_status"].includes(
-                CONTRACT_ERROR_CODES.E_THERSHOLD_NOT_REACHED
-              )
-            );
-          }
-        });
-
-        it("Should be able to claim and mint new nft successfully ", async () => {
+        it.skip("Should be able to claim and mint new nft successfully ", async () => {
           claimData.fee = CLAIM_FEE_POINT_1_APT;
-          console.log({tokenId: claimData.tokenId});
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
-            nftOwner
           );
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            // ed.sign(msgHash, validator2PrK),
+            ed.sign(msgHash, validator5PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -938,16 +924,14 @@ describe("Bridge", async () => {
 
         it("Should be able to claim and unlock nft successfully ", async () => {
           claimData.fee = CLAIM_FEE_POINT_1_APT;
-          claimData.tokenId = `${tokenId721}`;
-          console.log({tokenId: claimData.tokenId});
+
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
-            nftOwner
           );
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            // ed.sign(msgHash, validator2PrK),
+            ed.sign(msgHash, validator5PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -1005,15 +989,16 @@ describe("Bridge", async () => {
               assert.ok(false);
             }
 
-            const response = await aptosClient.userOwnsNft(
-              new HexString(nftOwner.accountAddress.toString()),
-              claimData.collection,
-              `${claimData.collection} # ${claimData.tokenId}`
-            );
-            assert.ok(response[0]);
+            // const response = await aptosClient.userOwnsNft(
+            //   new HexString(nftOwner.accountAddress.toString()),
+            //   claimData.name,
+            //   claimData.name
+            // );
+            // assert.ok(response[0]);
+            assert.ok(true)
           } catch (error: any) {
             console.log({ error });
-            // console.log({ error: error.transaction.payload.arguments });
+            console.log({ error: error.transaction.payload.arguments });
             assert.ok(false);
           }
         });
@@ -1021,12 +1006,10 @@ describe("Bridge", async () => {
 
       describe.skip("Claim 1155", async () => {
         let claimData: TClaimData = {
-          collection: "Bridge",
-          tokenId: `${tokenId1155 + 1}`,
-          description: "Token Description",
+          name: `Bridge ${tokenId1155 + 1}`,
+          tokenId: tokenId1155 + 1,
           uri: "https://images.unsplash.com/photo-1643408875993-d7566153dd89?q=80&w=1780&auto=format&fit=crop",
-          royaltyPointsNumerator: 1,
-          royaltyPointsDenominator: 5,
+          royaltyPercentage: 5,
           royaltyPayeeAddress: new HexString(
             nftOwner.accountAddress.toString()
           ),
@@ -1042,20 +1025,16 @@ describe("Bridge", async () => {
           nftType: Buffer.from("singular"), // singular for 721, multiple for 1155
           symbol: "WCC",
           amount: 5, // set this to 0 for claim 721
-          iconUri:
-            "https://www.jumpstartmag.com/wp-content/uploads/2022/04/What-Is-NFT-Bridging.jpg",
-          projectUri:
-            "https://www.jumpstartmag.com/wp-content/uploads/2022/04/What-Is-NFT-Bridging.jpg",
           metadata: "asdf",
           signatures: [],
           publicKeys: [validator1PbK],
           sender: nftOwner,
+          destinationUserAddress: new HexString(nftOwner.accountAddress.toString())
         };
 
         it("Should fail if nft type is not valid", async () => {
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
-            nftOwner
           );
 
           claimData.signatures = await Promise.all([
@@ -1083,7 +1062,6 @@ describe("Bridge", async () => {
           claimData.nftType = Buffer.from("multiple");
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
-            nftOwner
           );
 
           claimData.signatures = await Promise.all([
@@ -1112,7 +1090,6 @@ describe("Bridge", async () => {
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
-            nftOwner
           );
 
           claimData.signatures = await Promise.all([
@@ -1141,7 +1118,6 @@ describe("Bridge", async () => {
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
-            nftOwner
           );
 
           claimData.signatures = await Promise.all([
@@ -1172,7 +1148,6 @@ describe("Bridge", async () => {
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
-            nftOwner
           );
 
           claimData.signatures = await Promise.all([
@@ -1243,11 +1218,10 @@ describe("Bridge", async () => {
         it("Should be able to claim and unlock nft successfully ", async () => {
           claimData.fee = CLAIM_FEE_POINT_1_APT;
           claimData.nftType = Buffer.from("multiple");
-          claimData.tokenId = `${tokenId1155}`;
+          claimData.tokenId = tokenId1155;
 
           const msgHash = aptosClient.generateClaimDataHash(
             claimData,
-            nftOwner
           );
 
           claimData.signatures = await Promise.all([

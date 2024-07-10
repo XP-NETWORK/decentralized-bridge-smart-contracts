@@ -30,24 +30,21 @@ type TValidatorsObj = {
 
 export type TClaimData = {
   sender: Ed25519Account;
-  collection: string;
-  description: string;
+  destinationUserAddress: HexString;
+  name: string;
+  uri: string;
   symbol: string;
   amount: number;
-  uri: string;
-  iconUri: string;
-  projectUri: string;
-  royaltyPointsNumerator: number;
-  royaltyPointsDenominator: number;
+  royaltyPercentage: number;
   royaltyPayeeAddress: HexString;
   fee: number;
   signatures: Uint8Array[];
   publicKeys: Uint8Array[];
   sourceChain: Uint8Array;
-  sourceNftContractAddress: Uint8Array;
   destinationChain: Uint8Array;
+  sourceNftContractAddress: Uint8Array;
   transactionHash: Uint8Array;
-  tokenId: string;
+  tokenId: number;
   nftType: Uint8Array;
   metadata: string;
 };
@@ -147,10 +144,10 @@ export class BridgeClient {
 
   async lock721(
     owner: Ed25519Account,
-    token_address: string,
+    token_address: HexString,
     destination_chain: Uint8Array,
     destination_user_address: string,
-    collection_address: string
+    collection_address: Uint8Array
   ) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -158,10 +155,10 @@ export class BridgeClient {
         data: {
           function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Lock721}`,
           functionArguments: [
-            token_address,
+            token_address.toString(),
             destination_chain,
             destination_user_address,
-            collection_address
+            collection_address.toString()
           ],
         },
       });
@@ -177,10 +174,10 @@ export class BridgeClient {
 
   async lock1155(
     owner: Ed25519Account,
-    token_address: string,
+    token_address: HexString,
     destination_chain: Uint8Array,
     destination_user_address: string,
-    collection_address: string,
+    collection_address: Uint8Array,
     amount: number,
   ) {
     try {
@@ -189,10 +186,10 @@ export class BridgeClient {
         data: {
           function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Lock1155}`,
           functionArguments: [
-            token_address,
+            token_address.toString(),
             destination_chain,
             destination_user_address,
-            collection_address,
+            collection_address.toString(),
             amount,
           ],
         },
@@ -209,15 +206,11 @@ export class BridgeClient {
 
   async claim721({
     sender,
-    collection,
-    description,
+    destinationUserAddress,
+    name,
     symbol,
-    amount,
     uri,
-    iconUri,
-    projectUri,
-    royaltyPointsNumerator,
-    royaltyPointsDenominator,
+    royaltyPercentage,
     royaltyPayeeAddress,
     fee,
     signatures,
@@ -229,6 +222,7 @@ export class BridgeClient {
     tokenId,
     nftType,
     metadata,
+    amount
   }: TClaimData) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -236,11 +230,10 @@ export class BridgeClient {
         data: {
           function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Claim721}`,
           functionArguments: [
-            collection,
-            description,
+            destinationUserAddress.toString(),
+            name,
             uri,
-            royaltyPointsNumerator,
-            royaltyPointsDenominator,
+            royaltyPercentage,
             royaltyPayeeAddress.toString(),
             fee,
             signatures,
@@ -253,9 +246,6 @@ export class BridgeClient {
             nftType,
             metadata,
             symbol,
-            // amount,
-            // iconUri,
-            // projectUri,
           ],
         },
       });
@@ -271,15 +261,11 @@ export class BridgeClient {
 
   async claim1155({
     sender,
-    collection,
-    description,
+    destinationUserAddress,
+    name,
     symbol,
-    amount,
     uri,
-    iconUri,
-    projectUri,
-    royaltyPointsNumerator,
-    royaltyPointsDenominator,
+    royaltyPercentage,
     royaltyPayeeAddress,
     fee,
     signatures,
@@ -291,6 +277,7 @@ export class BridgeClient {
     tokenId,
     nftType,
     metadata,
+    amount
   }: TClaimData) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -298,11 +285,10 @@ export class BridgeClient {
         data: {
           function: `${BRIDGE_ADDRESS}::${BRIDGE_MODULE}::${BRIDGE_FUNCTIONS.Claim1155}`,
           functionArguments: [
-            collection,
-            description,
+            destinationUserAddress.toString(),
+            name,
             uri,
-            royaltyPointsNumerator,
-            royaltyPointsDenominator,
+            royaltyPercentage,
             royaltyPayeeAddress.toString(),
             fee,
             signatures,
@@ -315,9 +301,7 @@ export class BridgeClient {
             nftType,
             metadata,
             symbol,
-            amount,
-            iconUri,
-            projectUri,
+            amount
           ],
         },
       });
@@ -481,20 +465,19 @@ export class BridgeClient {
     return "0x" + Buffer.from(str).toString("hex");
   }
 
-  generateClaimDataHash(claimData: TClaimData, user: Ed25519Account): Buffer {
+  generateClaimDataHash(claimData: TClaimData): Buffer {
     const serializer = new BCS.Serializer();
-    serializer.serializeStr(claimData.tokenId);
+    serializer.serializeU256(claimData.tokenId);
     serializer.serializeBytes(claimData.sourceChain);
     serializer.serializeBytes(claimData.destinationChain);
     serializer.serializeFixedBytes(
-      new HexString(user.accountAddress.toString()).toUint8Array()
+      claimData.destinationUserAddress.toUint8Array()
     );
     serializer.serializeBytes(claimData.sourceNftContractAddress);
-    serializer.serializeStr(claimData.collection);
-    serializer.serializeU64(claimData.royaltyPointsNumerator);
-    serializer.serializeU64(claimData.royaltyPointsDenominator);
+    serializer.serializeStr(claimData.name);
+    serializer.serializeU64(claimData.royaltyPercentage);
     serializer.serializeFixedBytes(
-      new HexString(user.accountAddress.toString()).toUint8Array()
+      claimData.royaltyPayeeAddress.toUint8Array()
     );
     serializer.serializeStr(claimData.metadata);
     serializer.serializeBytes(claimData.transactionHash);

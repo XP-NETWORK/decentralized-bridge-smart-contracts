@@ -1,5 +1,5 @@
 const BRIDGE_ADDRESS =
-  "920306d16995e1f841ad7b277965abb2ecdf6c08a4e209cbaf37488eb590eb88";
+  "d32d4e153282f39a5a90c7e7d443fbb050cd0f7f37814078e829233b50b2cf98";
 
 const BRIDGE_MODULE = "aptos_nft_bridge";
 const MINT_MODULE = "mint";
