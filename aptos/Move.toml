@@ -8,8 +8,8 @@ bridge="_" # set this to the admin account when deploying to mainnet
 nftowner="_"
 
 [dev-addresses]
-bridge="d32d4e153282f39a5a90c7e7d443fbb050cd0f7f37814078e829233b50b2cf98"
-nftowner="ef78210d003c1d76c3c00058a13be7c0362d8ed9cff069b5442681bad4c087e5"
+bridge="c9e760e1b7a72ca1e841817ca22c204d22b2a673348329ce09fee912b490d81b"
+nftowner="763954411e5a1f5f9d7a1b595ad6ff5a6e7cdf8650e8e00ece01707fcd6c778a"
 
 [dependencies]
 # AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "devnet" }

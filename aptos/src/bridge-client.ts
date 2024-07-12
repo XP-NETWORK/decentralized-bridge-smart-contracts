@@ -16,9 +16,9 @@ import { BCS, HexString } from "aptos";
 import Big from "big.js";
 import { createHash } from "crypto";
 
-type TCollectionCounterObj = {
-  key: string;
-  value: string;
+type TAptosMapObj<K, V> = {
+  key: K;
+  value: V;
 };
 
 type TValidatorsObj = {
@@ -49,6 +49,11 @@ export type TClaimData = {
   metadata: string;
 };
 
+type TCollectionNFTObj = {
+  collection_address: string, 
+  token_id: string
+}
+
 type TBridgeData = {
   collection_objects: {
     handle: string;
@@ -57,10 +62,10 @@ type TBridgeData = {
     handle: string;
   };
   nft_collection_tokens: {
-    handle: string;
+    data: TAptosMapObj<TCollectionNFTObj, string>[];
   };
   nft_collections_counter: {
-    data: TCollectionCounterObj[];
+    data: TAptosMapObj<string, string>[];
   };
   nfts_counter: string;
   original_to_duplicate_mapping: {
@@ -147,7 +152,7 @@ export class BridgeClient {
     token_address: HexString,
     destination_chain: Uint8Array,
     destination_user_address: string,
-    collection_address: Uint8Array
+    collection_address: HexString
   ) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -177,7 +182,7 @@ export class BridgeClient {
     token_address: HexString,
     destination_chain: Uint8Array,
     destination_user_address: string,
-    collection_address: Uint8Array,
+    collection_address: HexString,
     amount: number,
   ) {
     try {
@@ -434,7 +439,7 @@ export class BridgeClient {
     return this.aptosClient.view({ payload });
   }
 
-  async getBridgeData(): Promise<TBridgeData | undefined> {
+  async getBridgeData(): Promise<TBridgeData> {
     try {
       const resources = await this.aptosClient.getAccountResources({
         accountAddress: BRIDGE_ADDRESS,
@@ -465,6 +470,16 @@ export class BridgeClient {
     return "0x" + Buffer.from(str).toString("hex");
   }
 
+  base64ToUint8Array(base64String: string): Uint8Array {
+    const binaryString = atob(base64String);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+}
+
   generateClaimDataHash(claimData: TClaimData): Buffer {
     const serializer = new BCS.Serializer();
     serializer.serializeU256(claimData.tokenId);
@@ -486,5 +501,9 @@ export class BridgeClient {
     serializer.serializeU64(claimData.fee);
     serializer.serializeStr(claimData.symbol);
     return createHash("SHA256").update(serializer.getBytes()).digest();
+  }
+  
+  hexStringToUint8Array(hexString: string): Uint8Array {
+    return new Uint8Array(hexString.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) ?? []);
   }
 }
