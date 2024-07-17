@@ -11,7 +11,7 @@ import Prelude "mo:base/Prelude";
 import Blob "mo:base/Blob";
 import Iter "mo:base/Iter";
 import Nat64 "mo:base/Nat64";
-import Hash "mo:base/Hash";
+import ExperimentalCycles "mo:base/ExperimentalCycles";
 import Ledger "canister:icp_ledger_canister";
 import Map "mo:map/Map";
 import { thash } "mo:map/Map";
@@ -175,8 +175,8 @@ actor class XPBridge(
         switch (result) {
           case (?value) {
             switch (value) {
-              case (#Ok(v)) {};
-              case (#Err(error)) {
+              case (#Ok(_)) {};
+              case (#Err(_)) {
                 throw Error.reject("Storage: Failed to unlock token");
               };
             };
@@ -192,8 +192,8 @@ actor class XPBridge(
         switch (result) {
           case (?value) {
             switch (value) {
-              case (#Ok(v)) {};
-              case (#Err(error)) {
+              case (#Ok(_)) {};
+              case (#Err(_)) {
                 throw Error.reject("Storage: Failed to unlock token");
               };
             };
@@ -217,7 +217,7 @@ actor class XPBridge(
         amount = { e8s = claim_data.fee };
         fee = { e8s = 10_000 };
         from_subaccount = null;
-        to = Principal.toLedgerAccount(Principal.fromActor(self), null);
+        to = Blob.toArray(Principal.toLedgerAccount(Principal.fromActor(self), null));
         created_at_time = null;
       });
       // check if the transfer was successfull
@@ -320,7 +320,7 @@ actor class XPBridge(
           let result = await Ledger.transfer({
             from = Principal.fromActor(self);
             created_at_time = null;
-            to = Principal.toLedgerAccount(v.address, null);
+            to = Blob.toArray(Principal.toLedgerAccount(v.address, null));
             memo = 0;
             fee = { e8s = 10_000 };
             amount = { e8s = pr };
@@ -393,5 +393,15 @@ actor class XPBridge(
 
   public query func get_validator_count(): async Nat {
     return validators_count;
-  }
+  };
+    //Internal cycle management - good general case
+    public func acceptCycles() : async () {
+        let available = ExperimentalCycles.available();
+        let accepted = ExperimentalCycles.accept<system>(available);
+        assert (accepted == available);
+    };
+
+    public query func availableCycles() : async Nat {
+        return ExperimentalCycles.balance();
+    };
 };

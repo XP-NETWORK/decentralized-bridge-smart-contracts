@@ -19,6 +19,7 @@ module{
         tx_window = null;
         burn_account = null; //burned nfts are deleted
         deployer = caller;
+        owner = caller;
         supported_standards = null;
       };
   };

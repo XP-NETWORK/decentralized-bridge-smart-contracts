@@ -8,6 +8,11 @@
         "icp_ledger_canister"
       ]
     },
+    "user_nft_minter": {
+      "main": "src/nft/user_nft_minter.mo",
+      "type": "motoko",
+      "gzip": true
+    },
     "nft": {
       "main": "src/nft/main.mo",
       "type": "motoko",
