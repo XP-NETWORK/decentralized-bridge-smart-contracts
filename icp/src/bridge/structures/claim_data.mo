@@ -11,7 +11,7 @@ module {
         destination_chain : Text;
         destination_user_address : Principal;
         royalty : Nat;
-        royalty_receiver : Nat;
+        royalty_receiver : Principal;
         metadata : Text;
         fee : Nat64;
         transaction_hash : Text;

@@ -217,7 +217,7 @@ actor class XPBridge(
         amount = { e8s = claim_data.fee };
         fee = { e8s = 10_000 };
         from_subaccount = null;
-        to = Blob.toArray(Principal.toLedgerAccount(Principal.fromActor(self), null));
+        to = Principal.toLedgerAccount(Principal.fromActor(self), null);
         created_at_time = null;
       });
       // check if the transfer was successfull
@@ -320,7 +320,7 @@ actor class XPBridge(
           let result = await Ledger.transfer({
             from = Principal.fromActor(self);
             created_at_time = null;
-            to = Blob.toArray(Principal.toLedgerAccount(v.address, null));
+            to = Principal.toLedgerAccount(v.address, null);
             memo = 0;
             fee = { e8s = 10_000 };
             amount = { e8s = pr };
@@ -382,4 +382,16 @@ actor class XPBridge(
       };
     };
   };
+
+  public query func get_locked_data(hash: Text): async ?LockedEvent {
+    return locked_events.get(hash);
+  };
+
+  public query func get_claimed_data(hash: Text): async ?ClaimedEvent {
+    return claimed_events.get(hash);
+  };
+
+  public query func get_validator_count(): async Nat {
+    return validators_count;
+  }
 };
