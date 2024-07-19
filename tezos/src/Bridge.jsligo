@@ -3,6 +3,7 @@
 #import "./StorageFactory.jsligo" "StorageFactory"
 
 #import "./SFTStorage.jsligo" "SFTStorage"
+#import "./NFTStorage.jsligo" "NFTStorage"
 
 export namespace Bridge {
     const self_chain = "TEZOS";
@@ -160,7 +161,7 @@ export namespace Bridge {
     }
     function is_token_deposited(nft: address, tid: nat): bool {
         const opt = Tezos.call_view("has_locked_token", tid, nft);
-        assert_some_with_error(opt, "Failed to check if token is deposited");
+        Assert.Error.some(opt, "Failed to check if token is deposited");
         return Option.unopt(opt);
     }
     function balance_fa2(owner: address, tid: nat, nft: address): nat {
@@ -628,22 +629,28 @@ export namespace Bridge {
         signatures: list<signer_and_signature>,
         s: storage
     ): list<address> {
+        let duplicateMap: map<key, bool> = Map.empty;
         let fold_fn = (
-            [[signers, percent], s]: [
-                [list<address>, int],
+            [[signers, percent, duplicate], s]: [
+                [list<address>, int, map<key, bool>],
                 signer_and_signature
             ]
-        ): [list<address>, int] => {
+        ): [list<address>, int, map<key, bool>] => {
+            let bool = Map.find_opt(s.signer, duplicate);
+            if (Option.is_some(bool)) {
+                return [signers, percent, duplicate];
+            }
+            Map.add(s.signer, true, duplicate)
             let sig = s.sig;
             let signer = s.signer;
             let is_valid = Crypto.check(signer, sig, hash);
             if (is_valid) {
-                return [List.cons(s.addr, signers), percent + 1];
+                return [List.cons(s.addr, signers), percent + 1, duplicate];
             } else {
-                return [signers, percent];
+                return [signers, percent, duplicate];
             }
         }
-        const [signers, percent] = List.fold(fold_fn, signatures, [list([]), 0]);
+        const [signers, percent, duplicate] = List.fold(fold_fn, signatures, [list([]), 0, duplicateMap]);
         if (percent < (((s.validators_count * 2) / 3)) + 1) {
             failwith("Insufficient signatures");
         }
@@ -712,7 +719,7 @@ export namespace Bridge {
     }
     function unlock_nft(to: address, token_id: nat, contract: address): operation {
         const ctr: contract<
-            StorageFactory.NFTStorage.NFTStorage.unlock_parameters
+            NFTStorage.NFTStorage.unlock_parameters
         > =
             Tezos.get_entrypoint("%unlock_token", contract);
         const params = { token_id, to };

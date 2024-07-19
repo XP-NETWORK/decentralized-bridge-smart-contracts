@@ -1,7 +1,7 @@
 import { Bridge, SignerAndSignature, NewValidator, storeNewValidator, loadLock721, storeLock721 } from "../wrappers/Bridge";
 import { ContractSystem, testKey } from "@tact-lang/emulator";
 import { TonClient } from "ton";
-import { Address, Dictionary, Slice, beginCell, toNano } from "ton-core";
+import { Address, Dictionary, Slice, beginCell, toNano } from "@ton/core";
 import { sign } from "ton-crypto";
 
 describe('wallet', () => {

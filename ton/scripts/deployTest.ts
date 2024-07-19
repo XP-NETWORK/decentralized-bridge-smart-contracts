@@ -1,5 +1,5 @@
-import { Address } from 'ton-core';
-import { NetworkProvider } from '@ton-community/blueprint';
+import { Address } from '@ton/core';
+import { NetworkProvider } from '@ton/blueprint';
 import { NftCollection } from '../build/Bridge/tact_NftCollection';
 import { toNano } from '@ton/core';
 

@@ -1,5 +1,8 @@
+use std::collections::BTreeMap;
+
 use collection_deployer::msg::{CollectionDeployerExecuteMsg, CollectionDeployerInstantiateMsg};
 use cosm_nft::royalty::RoyaltyData;
+use cosmwasm_schema::schemars::Set;
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg,
     Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg,
@@ -207,8 +210,13 @@ fn validate_signatures(
 
     hasher.update(serialized);
     let hash: [u8; 32] = hasher.finalize().into();
+    let mut unique = BTreeMap::new();
 
     for ele in sigs {
+        if unique.contains_key(&ele.signer_address)  {
+            continue;
+        }
+        unique.insert(ele.signer_address.clone(), true);
         if verify_signature(api, &ele.signature, &ele.signer_address, &hash)? {
             percentage += 1;
         }

@@ -5,10 +5,11 @@ message DeployNFT721Storage {
     isOriginal: Bool;
     key: Int;
     tokenId: Int;
-    destinationChain: String;
-    destinationUserAddress: String;
+    destinationChain: Cell;
+    destinationUserAddress: Cell;
     sourceNftContractAddressLock: Slice;
     sourceChain: String;
+    nftItemAddress: Address;
 }
 
 contract NFTStorageDeployer {
@@ -28,7 +29,7 @@ contract NFTStorageDeployer {
         let nftStorageERC721Init: StateInit = initOf NFTStorageERC721(msg.collectionAddress, self.owner);
         let nftStorageERC721Address: Address = contractAddress(nftStorageERC721Init);
         send(SendParameters{
-                value: ton("0.07"), // pay for message and potential deployment
+                value: ton("0.2"), // pay for message and potential deployment
                 to: nftStorageERC721Address,
                 mode: SendIgnoreErrors,
                 bounce: true,
@@ -42,7 +43,8 @@ contract NFTStorageDeployer {
                     destinationChain: msg.destinationChain,
                     destinationUserAddress: msg.destinationUserAddress,
                     sourceNftContractAddressLock: msg.sourceNftContractAddressLock,
-                    sourceChain: msg.sourceChain
+                    sourceChain: msg.sourceChain,
+                    nftItemAddress: msg.nftItemAddress
                 }.toCell()
             }
         );

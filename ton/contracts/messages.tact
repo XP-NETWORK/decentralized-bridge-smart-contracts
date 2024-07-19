@@ -1,3 +1,10 @@
+message LogEventMintRecord {
+    minter: Address;
+    item_id: Int;
+    generate_number: Int;
+}
+
+
 message(0x693d3950) GetRoyaltyParams {
     query_id: Int as uint64;
 }
@@ -20,15 +27,15 @@ struct RoyaltyParams {
 message(0x5fcc3d14) Transfer {
     query_id: Int as uint64;
     new_owner: Address;
-    response_destination: Address;
+    response_destination: Address?;
     custom_payload: Cell?;
     forward_amount: Int as coins;
-    forward_payload: Slice;
+    forward_payload: Slice as remaining;
 }
 message(0x05138d91) OwnershipAssigned {
     query_id: Int as uint64;
     prev_owner: Address;
-    forward_payload: Slice;
+    forward_payload: Slice as remaining;
 }
 message(0xd53276db) Excesses {
     query_id: Int as uint64;
@@ -47,39 +54,4 @@ struct GetNftData {
     collection_address: Address;
     owner_address: Address;
     individual_content: Cell;
-}
-message HiFromDeployNFT721Storage {
-    sourceNftContractAddress: Address;
-    storageAddress: Address;
-    isOriginal: Bool;
-    key: Int;
-    tokenId: Int;
-    destinationChain: Cell;
-    destinationUserAddress: Cell;
-    sourceNftContractAddressLock: Slice;
-    sourceChain: String;
-    nftItemAddress: Address;
-}
-
-message HiFromDeployNFT721Collection{
-    tokenId: Int as uint256;
-    newlyDeployCollection: Address;
-    sourceChain: String;
-    transactionHash: String;
-}
-message CollectionDeploy {
-    newOwner: Address;
-    metadata: Cell;
-    token_id: Int;
-}
-message StorageDeploy {
-    sourceNftContractAddress: Address;
-    isOriginal: Bool;
-    key: Int;
-    tokenId: Int;
-    destinationChain: Cell;
-    destinationUserAddress: Cell;
-    sourceNftContractAddressLock: Slice;
-    sourceChain: String;
-    nftItemAddress: Address;
 }

@@ -1,4 +1,6 @@
 
+use std::collections::BTreeMap;
+
 use common::CodeInfo;
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg, SubMsgResult, Uint128, WasmMsg
@@ -245,8 +247,13 @@ fn validate_signatures(
     let mut hasher = Sha256::new();
     hasher.update(serialized);
     let hash: [u8; 32] = hasher.finalize().into();
+    let mut unique = BTreeMap::new();
 
     for ele in sigs {
+        if unique.contains_key(&ele.signer_address) {
+            continue;
+        }
+        unique.insert(ele.signer_address.clone(), true);
         if verify_signature(api, &ele.signature, &ele.signer_address, &hash)? {
             percentage += 1;
         }

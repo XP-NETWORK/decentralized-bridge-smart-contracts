@@ -1,6 +1,6 @@
-import { Address, Dictionary, beginCell, internal, toNano } from 'ton-core';
+import { Address, Dictionary, beginCell, internal, toNano } from '@ton/core';
 import { Bridge, ClaimData, SignerAndSignature, storeClaimData } from '../wrappers/Bridge';
-import { NetworkProvider } from '@ton-community/blueprint';
+import { NetworkProvider } from '@ton/blueprint';
 import { testKey } from '@tact-lang/emulator';
 import { NFTCollectionDeployer } from '../build/Bridge/tact_NFTCollectionDeployer';
 import { NftCollection } from '../build/Bridge/tact_NftCollection';

@@ -7,6 +7,8 @@ message DeployNFT721Collection {
     destination_user_address: Address;
     source_chain: String;
     transaction_hash: String;
+    metadata: Cell;
+    token_id: Int;
 }
 message CreatedCollection {
     collectionAddress: Address;
@@ -35,7 +37,7 @@ contract NFTCollectionDeployer {
                 bounce: true,
                 code: collectionInit.code, // if child is not deployed, also deploy it
                 data: collectionInit.data,
-                body: CollectionDeploy{newOwner: msg.destination_user_address}.toCell()
+                body: CollectionDeploy{newOwner: msg.destination_user_address, metadata: msg.metadata, token_id: msg.token_id}.toCell()
             }
         );
         send(SendParameters{
@@ -44,6 +46,8 @@ contract NFTCollectionDeployer {
                 bounce: true,
                 mode: SendIgnoreErrors,
                 body: HiFromDeployNFT721Collection{
+                    tokenId: msg.token_id,
+                    newlyDeployCollection: collectionAddress,
                     sourceChain: msg.source_chain,
                     transactionHash: msg.transaction_hash
                 }.toCell()

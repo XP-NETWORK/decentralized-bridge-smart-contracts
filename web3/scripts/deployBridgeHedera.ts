@@ -1,7 +1,6 @@
 import { ethers } from "hardhat";
 
 async function main() {
-
   const sdf = await ethers.getContractFactory("HederaNFTStorageDeployer");
   const storageDeployerContract = await sdf.deploy();
   const sd = await storageDeployerContract.waitForDeployment();
