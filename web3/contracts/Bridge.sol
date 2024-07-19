@@ -217,30 +217,12 @@ contract Bridge {
     }
 
     function claimValidatorRewards(
-        address _validator,
-        bytes[] memory signatures
+        address _validator
     ) external {
         require(_validator != address(0), "Address cannot be zero address!");
-        require(signatures.length > 0, "Must have signatures!");
         require(
             validators[_validator].added == true,
             "Validator does not exist!"
-        );
-
-        uint256 percentage = 0;
-        for (uint256 i = 0; i < signatures.length; i++) {
-            address signer = recover(
-                keccak256(abi.encode(_validator)),
-                signatures[i]
-            );
-            if (validators[signer].added) {
-                percentage += 1;
-            }
-        }
-
-        require(
-            percentage >= ((validatorsCount * 2) / 3) + 1,
-            "Threshold not reached!"
         );
 
         emit RewardValidator(address(_validator));
