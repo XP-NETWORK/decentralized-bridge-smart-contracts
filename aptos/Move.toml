@@ -8,7 +8,7 @@ bridge="_" # set this to the admin account when deploying to mainnet
 nftowner="_"
 
 [dev-addresses]
-bridge="76ecc75105d60923b676eba236cb7677c70cebc848b4c10468034cd4dda54d62"
+bridge="16680aa38f980574d5cb0bf7ead328ed1105daebdca097fba0c82e1659f3de01"
 nftowner="2681bdebd4316be3e6c6bd7547afedc1b9956be58211b022fcebc4928bf0757c"
 
 [dependencies]

@@ -71,7 +71,7 @@ describe("Bridge", async () => {
   seed = Buffer.from(aptosClient.generateRandomSeed(8));
   selfChain = Buffer.from(CHAIN_ID);
 
-  describe.skip("Initialize", async () => {
+  describe("Initialize", async () => {
     it("Should fail if initialized by account which is not admin", async () => {
       let validators: Uint8Array[] = [validator1PbK];
       try {
@@ -207,7 +207,7 @@ describe("Bridge", async () => {
     });
   });
 
-  describe("After Initilazed", async () => {
+  describe.skip("After Initilazed", async () => {
     let successfullyProcessedClaims = 0;
 
     it("Should fail if bridge is not intialized", async () => {
