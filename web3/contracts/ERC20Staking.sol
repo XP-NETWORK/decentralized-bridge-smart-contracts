@@ -55,4 +55,15 @@ contract ERC20Staking {
         // Emit a staking event.
         emit Staked(stakingAmount, _validatorAddressAndChainType);
     }
+
+    /**
+     * @dev Add new chains.
+     */
+    function addNewChains(ValidatorAddressAndChainType[] memory _validatorAddressAndChainType) public {
+        require(stakingBalances[msg.sender] > 0, "You have to stake once");
+
+        // @TODO chains should be unique
+        // Emit a staking event.
+        emit Staked(stakingAmount, _validatorAddressAndChainType);
+    }
 }

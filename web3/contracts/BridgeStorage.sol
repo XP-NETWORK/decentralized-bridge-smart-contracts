@@ -232,20 +232,20 @@ contract BridgeStorage {
             i < _validatorAddressWithSignerAndSignature.length;
             i++
         ) {
-            require(
-                !usedSignatures[
+            if (
+                usedSignatures[
                     _validatorAddressWithSignerAndSignature[i]
                         .signerAndSignature
                         .signature
-                ],
-                "Signature already used"
-            );
+                ]
+            ) continue;
+
             usedSignatures[
                 _validatorAddressWithSignerAndSignature[i]
                     .signerAndSignature
                     .signature
             ] = true;
-
+            
             stakingSignatures[
                 _validatorAddressWithSignerAndSignature[i].validatorAddress
             ].push(
