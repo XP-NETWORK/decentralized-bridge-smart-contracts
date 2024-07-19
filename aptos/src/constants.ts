@@ -1,5 +1,5 @@
 const BRIDGE_ADDRESS =
-  "c9e760e1b7a72ca1e841817ca22c204d22b2a673348329ce09fee912b490d81b";
+  "76ecc75105d60923b676eba236cb7677c70cebc848b4c10468034cd4dda54d62";
 
 const BRIDGE_MODULE = "aptos_nft_bridge";
 const MINT_MODULE = "mint";
@@ -47,7 +47,7 @@ enum CONTRACT_ERROR_CODES {
 
 const CHAIN_ID = "APTOS";
 
-const CLAIM_FEE_5_APT = 5 * 10 ** 8;
+const CLAIM_FEE_20_APT = 20 * 10 ** 8;
 const CLAIM_FEE_POINT_1_APT = 0.1 * 10 ** 8;
 
 export {
@@ -58,6 +58,6 @@ export {
   CHAIN_ID,
   MINT_MODULE,
   MINT_FUNCTIONS,
-  CLAIM_FEE_5_APT,
+  CLAIM_FEE_20_APT,
   CLAIM_FEE_POINT_1_APT,
 };

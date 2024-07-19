@@ -32,7 +32,6 @@ export type TClaimData = {
   sender: Ed25519Account;
   destinationUserAddress: HexString;
   name: string;
-  uri: string;
   symbol: string;
   amount: number;
   royaltyPercentage: number;
@@ -50,9 +49,9 @@ export type TClaimData = {
 };
 
 type TCollectionNFTObj = {
-  collection_address: string, 
-  token_id: string
-}
+  collection_address: string;
+  token_id: string;
+};
 
 type TBridgeData = {
   collection_objects: {
@@ -163,7 +162,7 @@ export class BridgeClient {
             token_address.toString(),
             destination_chain,
             destination_user_address,
-            collection_address.toString()
+            collection_address.toString(),
           ],
         },
       });
@@ -183,7 +182,7 @@ export class BridgeClient {
     destination_chain: Uint8Array,
     destination_user_address: string,
     collection_address: HexString,
-    amount: number,
+    amount: number
   ) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -214,7 +213,6 @@ export class BridgeClient {
     destinationUserAddress,
     name,
     symbol,
-    uri,
     royaltyPercentage,
     royaltyPayeeAddress,
     fee,
@@ -227,7 +225,7 @@ export class BridgeClient {
     tokenId,
     nftType,
     metadata,
-    amount
+    amount,
   }: TClaimData) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -237,7 +235,6 @@ export class BridgeClient {
           functionArguments: [
             destinationUserAddress.toString(),
             name,
-            uri,
             royaltyPercentage,
             royaltyPayeeAddress.toString(),
             fee,
@@ -269,7 +266,6 @@ export class BridgeClient {
     destinationUserAddress,
     name,
     symbol,
-    uri,
     royaltyPercentage,
     royaltyPayeeAddress,
     fee,
@@ -282,7 +278,7 @@ export class BridgeClient {
     tokenId,
     nftType,
     metadata,
-    amount
+    amount,
   }: TClaimData) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -292,7 +288,6 @@ export class BridgeClient {
           functionArguments: [
             destinationUserAddress.toString(),
             name,
-            uri,
             royaltyPercentage,
             royaltyPayeeAddress.toString(),
             fee,
@@ -306,7 +301,7 @@ export class BridgeClient {
             nftType,
             metadata,
             symbol,
-            amount
+            amount,
           ],
         },
       });
@@ -475,10 +470,10 @@ export class BridgeClient {
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes;
-}
+  }
 
   generateClaimDataHash(claimData: TClaimData): Buffer {
     const serializer = new BCS.Serializer();
@@ -502,8 +497,14 @@ export class BridgeClient {
     serializer.serializeStr(claimData.symbol);
     return createHash("SHA256").update(serializer.getBytes()).digest();
   }
-  
+
   hexStringToUint8Array(hexString: string): Uint8Array {
-    return new Uint8Array(hexString.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) ?? []);
+    return new Uint8Array(
+      hexString.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) ?? []
+    );
   }
+
+  generateRandomTokenId = (): number => {
+    return Math.floor(Math.random() * 10000000) + 1;
+  };
 }

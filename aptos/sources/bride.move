@@ -497,7 +497,6 @@ module bridge::aptos_nft_bridge {
     user: &signer,
     destination_user_address: address,
     name: String, // collection name
-    uri: String, //token uri
     royalty_percentage: u64,
     royalty_payee_address: address,
     fee: u64,
@@ -620,7 +619,7 @@ module bridge::aptos_nft_bridge {
         name,
         name,
         option::some(royalty),
-        uri,
+        metadata,
       );
 
       let created_token_addr = token::create_token_address(&bridge_resource_addr, &name, &name);
@@ -673,7 +672,6 @@ module bridge::aptos_nft_bridge {
     user: &signer,
     destination_user_address: address,
     name: String,
-    uri: String,
     royalty_percentage: u64,
     royalty_payee_address: address,
     fee: u64,
@@ -750,7 +748,10 @@ module bridge::aptos_nft_bridge {
 
       if(resource_object_exists) {
         let token_object_resource = object::address_to_object<Token>(*token_address);
-         if(object::owner(token_object_resource) == bridge_resource_addr) {
+        let metadata = object::convert<Token, Metadata>(token_object_resource);
+        let token_balance = primary_fungible_store::balance(bridge_resource_addr, metadata);
+
+        if(token_balance > 0) {
           is_locked = true;
         }
       };
@@ -760,9 +761,9 @@ module bridge::aptos_nft_bridge {
     if (*token_address != @0x0 && is_locked) {
 
       let token_object = object::address_to_object<Token>(*token_address);
-      let metadata = object::convert<Token, Metadata>(token_object);
+      let token_metadata = object::convert<Token, Metadata>(token_object);
       
-      let store = primary_fungible_store::ensure_primary_store_exists(bridge_resource_addr, metadata);
+      let store = primary_fungible_store::ensure_primary_store_exists(bridge_resource_addr, token_metadata);
       let balance_of_tokens = fungible_asset::balance(store);
       
       if (balance_of_tokens >= amount) {
@@ -791,13 +792,26 @@ module bridge::aptos_nft_bridge {
 
         let royalty = royalty::create(royalty_percentage, 1000, royalty_payee_address);
 
+        let collection_address = collection::create_collection_address(&bridge_resource_addr, &name);
+        let collection_exists = object::object_exists<Collection>(collection_address);
+
+        if(!collection_exists) {
+          collection::create_unlimited_collection(
+            &bridge_signer_from_cap,
+            name,
+            name,
+            option::none(),
+            string::utf8(b""),
+          );
+        };
+
         let new_nft_constructor_ref = &token::create_named_token(
           &bridge_signer_from_cap,
           name,
           name,
           name,
           option::some(royalty),
-          uri,
+          metadata,
         );
 
         // Make this nft token fungible so there can multiple instances of it.
@@ -812,7 +826,7 @@ module bridge::aptos_nft_bridge {
         );
 
         let mint_ref = &fungible_asset::generate_mint_ref(new_nft_constructor_ref);
-        let fa = fungible_asset::mint(mint_ref, amount);
+        let fa = fungible_asset::mint(mint_ref, to_mint);
         primary_fungible_store::deposit(destination_user_address, fa);
       };
 
@@ -847,7 +861,7 @@ module bridge::aptos_nft_bridge {
         name,
         name,
         option::some(royalty),
-        uri,
+        metadata,
       );
 
       // Make this nft token fungible so there can multiple instances of it.
