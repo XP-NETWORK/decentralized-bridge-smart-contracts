@@ -29,9 +29,9 @@ shared actor class Storage(
         switch (response) {
             case (?value) {
                 switch (value) {
-                    case (#Ok(v)) {};
+                    case (#Ok(_)) {};
                     case (#Err(error)) {
-                        throw Error.reject("Storage: Failed to unlock token");
+                        throw Error.reject("Storage: Failed to unlock token" # debug_show error);
                     };
                 };
             };

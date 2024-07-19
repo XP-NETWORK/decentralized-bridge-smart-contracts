@@ -68,6 +68,7 @@ actor class XPBridge(
   private var duplicate_storage = HashMap.fromIter<StorageMappingKey, Principal>([].vals(), 0, OriginalToDuplicateMappingKey.equal, OriginalToDuplicateMappingKey.hash);
   private var locked_events = HashMap.fromIter<Text, LockedEvent>([].vals(), 0, Text.equal, Text.hash);
   private var claimed_events = HashMap.fromIter<Text, ClaimedEvent>([].vals(), 0, Text.equal, Text.hash);
+  private stable var nonce = 0;
 
   private stable var _init = false;
 
@@ -142,6 +143,7 @@ actor class XPBridge(
       };
       let hash = Nat32.toText(LockedEvent.hash(locked));
       locked_events.put(hash, locked);
+      nonce+=1;
       return hash;
     } else {
       await transfer_to_storage(duplicate_storage, source_nft_contract_address, tid, msg.caller);
@@ -156,6 +158,7 @@ actor class XPBridge(
       };
       let hash = Nat32.toText(LockedEvent.hash(locked));
       locked_events.put(hash, locked);
+      nonce+=1;
       return hash;
     };
   };
@@ -177,7 +180,7 @@ actor class XPBridge(
             switch (value) {
               case (#Ok(_)) {};
               case (#Err(_)) {
-                throw Error.reject("Storage: Failed to unlock token");
+                throw Error.reject("Storage: Failed to lock token" # debug_show value);
               };
             };
           };
@@ -193,8 +196,8 @@ actor class XPBridge(
           case (?value) {
             switch (value) {
               case (#Ok(_)) {};
-              case (#Err(_)) {
-                throw Error.reject("Storage: Failed to unlock token");
+              case (#Err(e)) {
+                throw Error.reject("Storage: Failed to lock token" # debug_show e);
               };
             };
           };
