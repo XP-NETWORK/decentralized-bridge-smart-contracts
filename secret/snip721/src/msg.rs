@@ -3,8 +3,10 @@
 use cosmwasm_std::{Addr, Binary, Coin};
 use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
+use secret_toolkit::utils::HandleCallback;
 use serde::{Deserialize, Serialize};
 
+use crate::contract::BLOCK_SIZE;
 use crate::expiration::Expiration;
 use crate::mint_run::{MintRunInfo, SerialNumber};
 use crate::royalties::{DisplayRoyaltyInfo, RoyaltyInfo};
@@ -12,7 +14,7 @@ use crate::token::{Extension, Metadata};
 
 /// Instantiation message
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InstantiateMsg {
+pub struct Snip721InstantiateMsg {
     pub owner: Addr,
     /// name of token contract
     pub name: String,
@@ -41,6 +43,7 @@ pub struct InstantiateMsg {
     pub royalty: u16,
     pub royalty_receiver: Addr,
     pub metadata: String,
+    pub transaction_hash: String
 }
 
 /// This type represents optional configuration values.
@@ -110,10 +113,14 @@ pub struct PostInstantiateCallback {
 }
 
 
+impl HandleCallback for Snip721ExecuteMsg {
+    const BLOCK_SIZE: usize = BLOCK_SIZE;
+}
+
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {
+pub enum Snip721ExecuteMsg {
     /// mint new token
     MintNft {
         /// optional token id. if omitted, use current token index
@@ -491,7 +498,7 @@ pub struct Send {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteAnswer {
+pub enum Snip721ExecuteAnswer {
     /// MintNft will also display the minted token's ID in the log attributes under the
     /// key `minted` in case minting was done as a callback message
     MintNft {
@@ -655,7 +662,7 @@ pub struct Tx {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
+pub enum Snip721QueryMsg {
     /// display the contract's name and symbol
     ContractInfo {},
     /// display the contract's configuration
@@ -898,7 +905,7 @@ pub struct BatchNftDossierElement {
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryAnswer {
+pub enum Snip721QueryAnswer {
     ContractInfo {
         name: String,
         symbol: String,

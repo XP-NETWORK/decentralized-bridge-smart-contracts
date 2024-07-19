@@ -16,7 +16,7 @@ use secret_toolkit::{
 
 use crate::{
     msg::{
-        QueryMsg, QueryWithPermit, QueryAnswer,
+        Snip1155QueryMsg, QueryWithPermit, Snip1155QueryAnswer,
     },
     state::{
         PREFIX_REVOKED_PERMITS,
@@ -40,19 +40,19 @@ use crate::{
 pub fn query(
     deps: Deps,
     _env: Env,
-    msg: QueryMsg,
+    msg: Snip1155QueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        QueryMsg::ContractInfo {  } => query_contract_info(deps),
-        QueryMsg::TokenIdPublicInfo { token_id } => query_token_id_public_info(deps, token_id),
-        QueryMsg::RegisteredCodeHash { contract } => query_registered_code_hash(deps, contract),
-        QueryMsg::WithPermit { permit, query } => permit_queries(deps, permit, query),
-        QueryMsg::Balance { .. } |
-        QueryMsg::AllBalances { .. } |
-        QueryMsg::TransactionHistory { .. } |
-        QueryMsg::Permission { .. } |
-        QueryMsg::AllPermissions { .. } |
-        QueryMsg::TokenIdPrivateInfo { .. } => viewing_keys_queries(deps, msg),
+        Snip1155QueryMsg::ContractInfo {  } => query_contract_info(deps),
+        Snip1155QueryMsg::TokenIdPublicInfo { token_id } => query_token_id_public_info(deps, token_id),
+        Snip1155QueryMsg::RegisteredCodeHash { contract } => query_registered_code_hash(deps, contract),
+        Snip1155QueryMsg::WithPermit { permit, query } => permit_queries(deps, permit, query),
+        Snip1155QueryMsg::Balance { .. } |
+        Snip1155QueryMsg::AllBalances { .. } |
+        Snip1155QueryMsg::TransactionHistory { .. } |
+        Snip1155QueryMsg::Permission { .. } |
+        Snip1155QueryMsg::AllPermissions { .. } |
+        Snip1155QueryMsg::TokenIdPrivateInfo { .. } => viewing_keys_queries(deps, msg),
     }
 }
 
@@ -101,7 +101,7 @@ fn permit_queries(
 
 fn viewing_keys_queries(
     deps: Deps,
-    msg: QueryMsg,
+    msg: Snip1155QueryMsg,
 ) -> StdResult<Binary> {
     let (addresses, key) = msg.get_validation_params()?;
 
@@ -109,30 +109,30 @@ fn viewing_keys_queries(
         let result = ViewingKey::check(deps.storage, address.as_str(), key.as_str());
         if result.is_ok() {
             return match msg {
-                QueryMsg::Balance { owner, viewer, token_id, ..
+                Snip1155QueryMsg::Balance { owner, viewer, token_id, ..
                 } => query_balance(deps, &owner, &viewer, token_id),
-                QueryMsg::AllBalances { tx_history_page, tx_history_page_size, ..
+                Snip1155QueryMsg::AllBalances { tx_history_page, tx_history_page_size, ..
                 } => query_all_balances(deps, address, tx_history_page, tx_history_page_size),
-                QueryMsg::TransactionHistory {
+                Snip1155QueryMsg::TransactionHistory {
                     page,
                     page_size,
                     ..
                 } => query_transactions(deps, address, page.unwrap_or(0), page_size),
-                QueryMsg::Permission { owner, allowed_address, token_id, ..
+                Snip1155QueryMsg::Permission { owner, allowed_address, token_id, ..
                 } => query_permission(deps, token_id, owner, allowed_address),
-                QueryMsg::AllPermissions { page, page_size, ..
+                Snip1155QueryMsg::AllPermissions { page, page_size, ..
                 } => query_all_permissions(deps, address, page.unwrap_or(0), page_size),
-                QueryMsg::TokenIdPrivateInfo { address, token_id, ..
+                Snip1155QueryMsg::TokenIdPrivateInfo { address, token_id, ..
                 } => query_token_id_private_info(deps, &address, token_id),
-                QueryMsg::ContractInfo {  } |
-                QueryMsg::TokenIdPublicInfo { .. } |
-                QueryMsg::RegisteredCodeHash { .. } |
-                QueryMsg::WithPermit { .. } => unreachable!("This query type does not require viewing key authentication"),
+                Snip1155QueryMsg::ContractInfo {  } |
+                Snip1155QueryMsg::TokenIdPublicInfo { .. } |
+                Snip1155QueryMsg::RegisteredCodeHash { .. } |
+                Snip1155QueryMsg::WithPermit { .. } => unreachable!("This query type does not require viewing key authentication"),
             };
         }
     }
 
-    to_binary(&QueryAnswer::ViewingKeyError {
+    to_binary(&Snip1155QueryAnswer::ViewingKeyError {
         msg: "Wrong viewing key for this address or viewing key not set".to_string(),
     })
 }
@@ -141,7 +141,7 @@ fn query_contract_info(
     deps: Deps,
 ) -> StdResult<Binary> {
     let contr_conf = contr_conf_r(deps.storage).load()?;
-    let response = QueryAnswer::ContractInfo {
+    let response = Snip1155QueryAnswer::ContractInfo {
         admin: contr_conf.admin,
         curators: contr_conf.curators,
         all_token_ids: contr_conf.token_id_list,
@@ -174,7 +174,7 @@ fn query_token_id_public_info(
 
             // private_metadata always == None for public info query
             tkn_info.private_metadata = None;
-            let response = QueryAnswer::TokenIdPublicInfo { token_id_info: tkn_info, total_supply, owner };
+            let response = Snip1155QueryAnswer::TokenIdPublicInfo { token_id_info: tkn_info, total_supply, owner };
             to_binary(&response)
         },
     }
@@ -240,7 +240,7 @@ fn query_token_id_private_info(
         Some(tkn_tot_supply_r(deps.storage).load(token_id.as_bytes())?)
     } else { None };
 
-    let response = QueryAnswer::TokenIdPrivateInfo { token_id_info: tkn_info, total_supply, owner };
+    let response = Snip1155QueryAnswer::TokenIdPrivateInfo { token_id_info: tkn_info, total_supply, owner };
     to_binary(&response)
 }
 
@@ -249,11 +249,11 @@ fn query_registered_code_hash(
     contract: Addr,
 ) -> StdResult<Binary> {
     let may_hash_res = get_receiver_hash(deps.storage, &contract);
-    let response: QueryAnswer = match may_hash_res {
+    let response: Snip1155QueryAnswer = match may_hash_res {
         Some(hash_res) => {
-            QueryAnswer::RegisteredCodeHash { code_hash: Some(hash_res?) }
+            Snip1155QueryAnswer::RegisteredCodeHash { code_hash: Some(hash_res?) }
         }
-        None => { QueryAnswer::RegisteredCodeHash { code_hash: None }},
+        None => { Snip1155QueryAnswer::RegisteredCodeHash { code_hash: None }},
     };
 
     to_binary(&response)
@@ -295,7 +295,7 @@ fn query_balance(
         Some(i) => i,
         None => Uint128::from(0_u64),
     };
-    let response = QueryAnswer::Balance { amount };
+    let response = Snip1155QueryAnswer::Balance { amount };
     to_binary(&response)
 }
 
@@ -326,7 +326,7 @@ fn query_all_balances(
         }
     }
 
-    let response = QueryAnswer::AllBalances(balances);
+    let response = Snip1155QueryAnswer::AllBalances(balances);
     to_binary(&response)
 }
 
@@ -339,7 +339,7 @@ fn query_transactions(
     let address = deps.api.addr_canonicalize(account.as_str())?;
     let (txs, total) = get_txs(deps.api, deps.storage, &address, page, page_size)?;
 
-    let response = QueryAnswer::TransactionHistory {
+    let response = Snip1155QueryAnswer::TransactionHistory {
         txs,
         total,
     };
@@ -354,7 +354,7 @@ fn query_permission(
 ) -> StdResult<Binary> {
     let permission = may_load_any_permission(deps.storage, &owner, &token_id, &allowed_addr)?;
 
-    let response = QueryAnswer::Permission(permission);
+    let response = Snip1155QueryAnswer::Permission(permission);
     to_binary(&response)
 }
 
@@ -380,7 +380,7 @@ fn query_all_permissions(
         };
     }
 
-    let response = QueryAnswer::AllPermissions { permission_keys: valid_pkeys, permissions, total };
+    let response = Snip1155QueryAnswer::AllPermissions { permission_keys: valid_pkeys, permissions, total };
     to_binary(&response)
 }
 

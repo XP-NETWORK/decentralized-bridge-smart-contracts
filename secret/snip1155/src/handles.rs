@@ -10,9 +10,9 @@ use secret_toolkit::{
 };
 
 use crate::{
-    collection_deployer_msg::CollectionDeployerInfo,
+    reply::ReplyCollectionInfo,
     msg::{
-        ExecuteAnswer, ExecuteMsg, InstantiateMsg, ResponseStatus::Success, SendAction,
+        Snip1155ExecuteAnswer, Snip1155ExecuteMsg, Snip1155InstantiateMsg, ResponseStatus::Success, SendAction,
         TransferAction,
     },
     receiver::Snip1155ReceiveMsg,
@@ -42,7 +42,7 @@ pub fn instantiate(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: Snip1155InstantiateMsg,
 ) -> StdResult<Response> {
     // save latest block info. not necessary once we migrate to CosmWasm v1.0
     blockinfo_w(deps.storage).save(&env.block)?;
@@ -80,7 +80,7 @@ pub fn instantiate(
     // save contract config -- where tx_cnt would have increased post initial balances
     contr_conf_w(deps.storage).save(&config)?;
 
-    let collection_info = CollectionDeployerInfo {
+    let collection_info = ReplyCollectionInfo {
         label: msg.label,
         owner: info.sender,
         address: env.contract.address,
@@ -93,6 +93,7 @@ pub fn instantiate(
         royalty: msg.royalty,
         royalty_receiver: msg.royalty_receiver,
         metadata: msg.metadata,
+        transaction_hash: msg.transaction_hash
     };
     Ok(Response::new().set_data(to_binary(&collection_info)?))
 
@@ -106,28 +107,28 @@ pub fn instantiate(
 /// contract handle function. See [ExecuteMsg](crate::msg::ExecuteMsg) and
 /// [ExecuteAnswer](crate::msg::ExecuteAnswer) for the api
 #[entry_point]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: Snip1155ExecuteMsg) -> StdResult<Response> {
     // allows approx latest block info to be available for queries. Important to enforce
     // allowance expiration. Remove this after BlockInfo becomes available to queries
     blockinfo_w(deps.storage).save(&env.block)?;
 
     let response = match msg {
-        ExecuteMsg::CurateTokenIds {
+        Snip1155ExecuteMsg::CurateTokenIds {
             initial_tokens,
             memo,
             padding: _,
         } => try_curate_token_ids(deps, env, info, initial_tokens, memo),
-        ExecuteMsg::MintTokens {
+        Snip1155ExecuteMsg::MintTokens {
             mint_tokens,
             memo,
             padding: _,
         } => try_mint_tokens(deps, env, info, mint_tokens, memo),
-        ExecuteMsg::BurnTokens {
+        Snip1155ExecuteMsg::BurnTokens {
             burn_tokens,
             memo,
             padding: _,
         } => try_burn_tokens(deps, env, info, burn_tokens, memo),
-        ExecuteMsg::ChangeMetadata {
+        Snip1155ExecuteMsg::ChangeMetadata {
             token_id,
             public_metadata,
             private_metadata,
@@ -139,7 +140,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             *public_metadata,
             *private_metadata,
         ),
-        ExecuteMsg::Transfer {
+        Snip1155ExecuteMsg::Transfer {
             token_id,
             from,
             recipient,
@@ -147,11 +148,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             memo,
             padding: _,
         } => try_transfer(deps, env, info, token_id, from, recipient, amount, memo),
-        ExecuteMsg::BatchTransfer {
+        Snip1155ExecuteMsg::BatchTransfer {
             actions,
             padding: _,
         } => try_batch_transfer(deps, env, info, actions),
-        ExecuteMsg::Send {
+        Snip1155ExecuteMsg::Send {
             token_id,
             from,
             recipient,
@@ -174,11 +175,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 memo,
             },
         ),
-        ExecuteMsg::BatchSend {
+        Snip1155ExecuteMsg::BatchSend {
             actions,
             padding: _,
         } => try_batch_send(deps, env, info, actions),
-        ExecuteMsg::GivePermission {
+        Snip1155ExecuteMsg::GivePermission {
             allowed_address,
             token_id,
             view_balance,
@@ -201,49 +202,49 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             transfer,
             transfer_expiry,
         ),
-        ExecuteMsg::RevokePermission {
+        Snip1155ExecuteMsg::RevokePermission {
             token_id,
             owner,
             allowed_address,
             padding: _,
         } => try_revoke_permission(deps, env, info, token_id, owner, allowed_address),
-        ExecuteMsg::CreateViewingKey {
+        Snip1155ExecuteMsg::CreateViewingKey {
             entropy,
             padding: _,
         } => try_create_viewing_key(deps, env, info, entropy),
-        ExecuteMsg::SetViewingKey { key, padding: _ } => try_set_viewing_key(deps, env, info, key),
-        ExecuteMsg::RevokePermit {
+        Snip1155ExecuteMsg::SetViewingKey { key, padding: _ } => try_set_viewing_key(deps, env, info, key),
+        Snip1155ExecuteMsg::RevokePermit {
             permit_name,
             padding: _,
         } => try_revoke_permit(deps, env, info, permit_name),
-        ExecuteMsg::AddCurators {
+        Snip1155ExecuteMsg::AddCurators {
             add_curators,
             padding: _,
         } => try_add_curators(deps, env, info, add_curators),
-        ExecuteMsg::RemoveCurators {
+        Snip1155ExecuteMsg::RemoveCurators {
             remove_curators,
             padding: _,
         } => try_remove_curators(deps, env, info, remove_curators),
-        ExecuteMsg::AddMinters {
+        Snip1155ExecuteMsg::AddMinters {
             token_id,
             add_minters,
             padding: _,
         } => try_add_minters(deps, env, info, token_id, add_minters),
-        ExecuteMsg::RemoveMinters {
+        Snip1155ExecuteMsg::RemoveMinters {
             token_id,
             remove_minters,
             padding: _,
         } => try_remove_minters(deps, env, info, token_id, remove_minters),
-        ExecuteMsg::ChangeAdmin {
+        Snip1155ExecuteMsg::ChangeAdmin {
             new_admin,
             padding: _,
         } => try_change_admin(deps, env, info, new_admin),
-        ExecuteMsg::RemoveAdmin {
+        Snip1155ExecuteMsg::RemoveAdmin {
             current_admin,
             contract_address,
             padding: _,
         } => try_remove_admin(deps, env, info, current_admin, contract_address),
-        ExecuteMsg::RegisterReceive {
+        Snip1155ExecuteMsg::RegisterReceive {
             code_hash,
             padding: _,
         } => try_register_receive(deps, env, info, code_hash),
@@ -277,7 +278,7 @@ fn try_curate_token_ids(
     contr_conf_w(deps.storage).save(&config)?;
 
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::CurateTokenIds {
+        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::CurateTokenIds {
             status: Success,
         })?),
     )
@@ -346,7 +347,7 @@ fn try_mint_tokens(
 
     contr_conf_w(deps.storage).save(&config)?;
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::MintTokens { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::MintTokens { status: Success })?))
 }
 
 // in the base specifications, this function can be performed by token owner only
@@ -413,7 +414,7 @@ fn try_burn_tokens(
 
     contr_conf_w(deps.storage).save(&config)?;
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::BurnTokens { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::BurnTokens { status: Success })?))
 }
 
 fn try_change_metadata(
@@ -469,7 +470,7 @@ fn try_change_metadata(
     }
 
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::ChangeMetadata {
+        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::ChangeMetadata {
             status: Success,
         })?),
     )
@@ -490,7 +491,7 @@ fn try_transfer(
         &mut deps, &env, &info, &token_id, &from, &recipient, amount, memo,
     )?;
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::Transfer { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::Transfer { status: Success })?))
 }
 
 fn try_batch_transfer(
@@ -515,7 +516,7 @@ fn try_batch_transfer(
     }
 
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::BatchTransfer {
+        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::BatchTransfer {
             status: Success,
         })?),
     )
@@ -532,7 +533,7 @@ fn try_send(
 
     impl_send(&mut deps, &env, &info, &mut messages, action)?;
 
-    let data = to_binary(&ExecuteAnswer::Send { status: Success })?;
+    let data = to_binary(&Snip1155ExecuteAnswer::Send { status: Success })?;
     let res = Response::new().add_messages(messages).set_data(data);
     Ok(res)
 }
@@ -550,7 +551,7 @@ fn try_batch_send(
         impl_send(&mut deps, &env, &info, &mut messages, action)?;
     }
 
-    let data = to_binary(&ExecuteAnswer::BatchSend { status: Success })?;
+    let data = to_binary(&Snip1155ExecuteAnswer::BatchSend { status: Success })?;
     let res = Response::new().add_messages(messages).set_data(data);
     Ok(res)
 }
@@ -653,7 +654,7 @@ fn try_give_permission(
     };
 
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::GivePermission {
+        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::GivePermission {
             status: Success,
         })?),
     )
@@ -687,7 +688,7 @@ fn try_revoke_permission(
     )?;
 
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::RevokePermission {
+        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::RevokePermission {
             status: Success,
         })?),
     )
@@ -707,7 +708,7 @@ fn try_create_viewing_key(
         entropy.as_ref(),
     );
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::CreateViewingKey { key })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::CreateViewingKey { key })?))
 }
 
 fn try_set_viewing_key(
@@ -718,7 +719,7 @@ fn try_set_viewing_key(
 ) -> StdResult<Response> {
     ViewingKey::set(deps.storage, info.sender.as_str(), key.as_str());
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::SetViewingKey {
+        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::SetViewingKey {
             status: Success,
         })?),
     )
@@ -737,7 +738,7 @@ fn try_revoke_permit(
         &permit_name,
     );
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::RevokePermit { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::RevokePermit { status: Success })?))
 }
 
 fn try_add_curators(
@@ -757,7 +758,7 @@ fn try_add_curators(
     }
     contr_conf_w(deps.storage).save(&config)?;
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::AddCurators { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::AddCurators { status: Success })?))
 }
 
 fn try_remove_curators(
@@ -778,7 +779,7 @@ fn try_remove_curators(
     contr_conf_w(deps.storage).save(&config)?;
 
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::RemoveCurators {
+        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::RemoveCurators {
             status: Success,
         })?),
     )
@@ -822,7 +823,7 @@ fn try_add_minters(
     token_info.token_config = flattened_token_config.to_enum();
     tkn_info_w(deps.storage).save(token_id.as_bytes(), &token_info)?;
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::AddMinters { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::AddMinters { status: Success })?))
 }
 
 fn try_remove_minters(
@@ -864,7 +865,7 @@ fn try_remove_minters(
     tkn_info_w(deps.storage).save(token_id.as_bytes(), &token_info)?;
 
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::RemoveMinters {
+        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::RemoveMinters {
             status: Success,
         })?),
     )
@@ -885,7 +886,7 @@ fn try_change_admin(
     config.admin = Some(new_admin);
     contr_conf_w(deps.storage).save(&config)?;
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::ChangeAdmin { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::ChangeAdmin { status: Success })?))
 }
 
 fn try_remove_admin(
@@ -912,7 +913,7 @@ fn try_remove_admin(
     config.admin = None;
     contr_conf_w(deps.storage).save(&config)?;
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::RemoveAdmin { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::RemoveAdmin { status: Success })?))
 }
 
 fn try_register_receive(
@@ -923,7 +924,7 @@ fn try_register_receive(
 ) -> StdResult<Response> {
     set_receiver_hash(deps.storage, &info.sender, code_hash);
 
-    let data = to_binary(&ExecuteAnswer::RegisterReceive { status: Success })?;
+    let data = to_binary(&Snip1155ExecuteAnswer::RegisterReceive { status: Success })?;
     Ok(Response::new()
         .add_attribute("register_status", "success")
         .set_data(data))

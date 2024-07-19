@@ -1,3 +1,4 @@
+use common::CodeInfo;
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, DepsMut, Env, MessageInfo, Reply, Response, SubMsg,
     SubMsgResult,
@@ -13,9 +14,8 @@ use crate::state::{
 };
 use crate::structs::ReplyStorageInfo;
 use crate::{
-    msg::{ExecuteMsg, InstantiateMsg},
+    msg::{StorageDeployerExecuteMsg, StorageDeployerInstantiateMsg},
     state::OWNER,
-    structs::CodeInfo,
 };
 
 use crate::offspring_msg::StorageInstantiateMsg;
@@ -36,7 +36,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: StorageDeployerInstantiateMsg,
 ) -> Result<Response, ContractError> {
     OWNER.save(deps.storage, &info.sender)?;
     STORAGE721_CODE.save(deps.storage, &msg.storage721_code_info)?;
@@ -62,7 +62,7 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: ExecuteMsg,
+    msg: StorageDeployerExecuteMsg,
 ) -> Result<Response, ContractError> {
     deps.api
         .debug(format!(" in storage deployer execute").as_str());
@@ -71,7 +71,7 @@ pub fn execute(
         return Err(ContractError::Unauthorized {});
     }
     let response = match msg {
-        ExecuteMsg::CreateStorage721 {
+        StorageDeployerExecuteMsg::CreateStorage721 {
             label,
             collection_address,
             collection_code_info,
@@ -88,7 +88,7 @@ pub fn execute(
             is_original,
             token_id,
         ),
-        ExecuteMsg::CreateStorage1155 {
+        StorageDeployerExecuteMsg::CreateStorage1155 {
             label,
             collection_address,
             collection_code_info,
@@ -152,6 +152,7 @@ fn try_create_storage_721(
     let offspring_code = STORAGE721_CODE.load(deps.storage)?;
     let init_submsg = SubMsg::reply_always(
         initmsg.to_cosmos_msg(
+            None,
             label,
             offspring_code.code_id,
             offspring_code.code_hash,
@@ -201,6 +202,7 @@ fn try_create_storage_1155(
     let offspring_code = STORAGE1155_CODE.load(deps.storage)?;
     let init_submsg = SubMsg::reply_always(
         initmsg.to_cosmos_msg(
+            None,
             label,
             offspring_code.code_id,
             offspring_code.code_hash,

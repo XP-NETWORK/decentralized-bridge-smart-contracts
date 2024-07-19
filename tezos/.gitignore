@@ -1,0 +1,15 @@
+_ligo/
+.ligo
+ligo.esy.lock
+addresses.json
+.env
+DeploymentCommands.bash
+build/
+node_modules/
+.DS_Store
+artifacts
+.taq/*-state.json
+.taq/config.local.*.json
+node_modules/
+src/**.parameterList.**
+src/**.storageList.**

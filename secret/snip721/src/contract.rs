@@ -16,11 +16,11 @@ use secret_toolkit::{
     viewing_key::{ViewingKey, ViewingKeyStore},
 };
 
-use crate::inventory::{Inventory, InventoryIter};
+use crate::{inventory::{Inventory, InventoryIter}, msg::Snip721InstantiateMsg};
 use crate::mint_run::{SerialNumber, StoredMintRunInfo};
 use crate::msg::{
     AccessLevel, BatchNftDossierElement, Burn, ContractStatus, Cw721Approval, Cw721OwnerOfResponse,
-    ExecuteAnswer, ExecuteMsg, InstantiateMsg, Mint, QueryAnswer, QueryMsg, QueryWithPermit,
+    Snip721ExecuteAnswer, Snip721ExecuteMsg, Mint, Snip721QueryAnswer, Snip721QueryMsg, QueryWithPermit,
     ReceiverInfo, ResponseStatus::Success, Send, Snip721Approval, Transfer, ViewerInfo,
 };
 use crate::receiver::{batch_receive_nft_msg, receive_nft_msg};
@@ -34,7 +34,7 @@ use crate::state::{
     PREFIX_ROYALTY_INFO, VIEWING_KEY_ERR_MSG,
 };
 use crate::token::{Metadata, Token};
-use crate::{collection_deployer_msg::CollectionDeployerInfo, expiration::Expiration};
+use crate::{reply::ReplyCollectionInfo, expiration::Expiration};
 
 /// pad handle responses and log attributes to blocks of 256 bytes to prevent leaking info based on
 /// response size
@@ -58,7 +58,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: Snip721InstantiateMsg,
 ) -> StdResult<Response> {
     let creator_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     save(deps.storage, CREATOR_KEY, &creator_raw)?;
@@ -126,7 +126,7 @@ pub fn instantiate(
     if msg.post_init_callback.is_some() {
         Ok(Response::new().add_messages(messages))
     } else {
-        let offspring_info = CollectionDeployerInfo {
+        let offspring_info = ReplyCollectionInfo {
             label: msg.name,
             owner: msg.owner,
             address: _env.contract.address,
@@ -139,6 +139,7 @@ pub fn instantiate(
             royalty: msg.royalty,
             royalty_receiver: msg.royalty_receiver,
             metadata: msg.metadata,
+            transaction_hash: msg.transaction_hash,
         };
         Ok(Response::new().set_data(to_binary(&offspring_info)?))
     }
@@ -154,11 +155,11 @@ pub fn instantiate(
 /// * `info` - contract execution info for authorization - identity of the call, and payment.
 /// * `msg` - HandleMsg passed in with the execute message
 #[entry_point]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: Snip721ExecuteMsg) -> StdResult<Response> {
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
 
     let response = match msg {
-        ExecuteMsg::MintNft {
+        Snip721ExecuteMsg::MintNft {
             token_id,
             owner,
             public_metadata,
@@ -183,7 +184,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             transferable,
             memo,
         ),
-        ExecuteMsg::BatchMintNft { mints, .. } => batch_mint(
+        Snip721ExecuteMsg::BatchMintNft { mints, .. } => batch_mint(
             deps,
             &env,
             &info.sender,
@@ -191,7 +192,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ContractStatus::Normal.to_u8(),
             mints,
         ),
-        ExecuteMsg::MintNftClones {
+        Snip721ExecuteMsg::MintNftClones {
             mint_run_id,
             quantity,
             owner,
@@ -214,7 +215,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             royalty_info,
             memo,
         ),
-        ExecuteMsg::SetMetadata {
+        Snip721ExecuteMsg::SetMetadata {
             token_id,
             public_metadata,
             private_metadata,
@@ -228,7 +229,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             public_metadata,
             private_metadata,
         ),
-        ExecuteMsg::SetRoyaltyInfo {
+        Snip721ExecuteMsg::SetRoyaltyInfo {
             token_id,
             royalty_info,
             ..
@@ -240,20 +241,20 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             token_id.as_deref(),
             royalty_info.as_ref(),
         ),
-        ExecuteMsg::Reveal { token_id, .. } => reveal(
+        Snip721ExecuteMsg::Reveal { token_id, .. } => reveal(
             deps,
             &info.sender,
             &config,
             ContractStatus::StopTransactions.to_u8(),
             &token_id,
         ),
-        ExecuteMsg::MakeOwnershipPrivate { .. } => make_owner_private(
+        Snip721ExecuteMsg::MakeOwnershipPrivate { .. } => make_owner_private(
             deps,
             &info.sender,
             &config,
             ContractStatus::StopTransactions.to_u8(),
         ),
-        ExecuteMsg::SetGlobalApproval {
+        Snip721ExecuteMsg::SetGlobalApproval {
             token_id,
             view_owner,
             view_private_metadata,
@@ -270,7 +271,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             view_private_metadata,
             expires,
         ),
-        ExecuteMsg::SetWhitelistedApproval {
+        Snip721ExecuteMsg::SetWhitelistedApproval {
             address,
             token_id,
             view_owner,
@@ -292,7 +293,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expires,
             SetAppResp::SetWhitelistedApproval,
         ),
-        ExecuteMsg::Approve {
+        Snip721ExecuteMsg::Approve {
             spender,
             token_id,
             expires,
@@ -308,7 +309,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expires,
             true,
         ),
-        ExecuteMsg::Revoke {
+        Snip721ExecuteMsg::Revoke {
             spender, token_id, ..
         } => approve_revoke(
             deps,
@@ -321,7 +322,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             None,
             false,
         ),
-        ExecuteMsg::ApproveAll {
+        Snip721ExecuteMsg::ApproveAll {
             operator, expires, ..
         } => set_whitelisted_approval(
             deps,
@@ -337,7 +338,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expires,
             SetAppResp::ApproveAll,
         ),
-        ExecuteMsg::RevokeAll { operator, .. } => set_whitelisted_approval(
+        Snip721ExecuteMsg::RevokeAll { operator, .. } => set_whitelisted_approval(
             deps,
             &env,
             &info.sender,
@@ -351,7 +352,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             None,
             SetAppResp::RevokeAll,
         ),
-        ExecuteMsg::TransferNft {
+        Snip721ExecuteMsg::TransferNft {
             recipient,
             token_id,
             memo,
@@ -366,7 +367,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             token_id,
             memo,
         ),
-        ExecuteMsg::BatchTransferNft { transfers, .. } => batch_transfer_nft(
+        Snip721ExecuteMsg::BatchTransferNft { transfers, .. } => batch_transfer_nft(
             deps,
             &env,
             &info.sender,
@@ -374,7 +375,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ContractStatus::Normal.to_u8(),
             transfers,
         ),
-        ExecuteMsg::SendNft {
+        Snip721ExecuteMsg::SendNft {
             contract,
             receiver_info,
             token_id,
@@ -393,7 +394,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             msg,
             memo,
         ),
-        ExecuteMsg::BatchSendNft { sends, .. } => batch_send_nft(
+        Snip721ExecuteMsg::BatchSendNft { sends, .. } => batch_send_nft(
             deps,
             &env,
             &info.sender,
@@ -401,7 +402,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ContractStatus::Normal.to_u8(),
             sends,
         ),
-        ExecuteMsg::RegisterReceiveNft {
+        Snip721ExecuteMsg::RegisterReceiveNft {
             code_hash,
             also_implements_batch_receive_nft,
             ..
@@ -413,7 +414,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             code_hash,
             also_implements_batch_receive_nft,
         ),
-        ExecuteMsg::BurnNft { token_id, memo, .. } => burn_nft(
+        Snip721ExecuteMsg::BurnNft { token_id, memo, .. } => burn_nft(
             deps,
             &env,
             &info.sender,
@@ -422,7 +423,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             token_id,
             memo,
         ),
-        ExecuteMsg::BatchBurnNft { burns, .. } => batch_burn_nft(
+        Snip721ExecuteMsg::BatchBurnNft { burns, .. } => batch_burn_nft(
             deps,
             &env,
             &info.sender,
@@ -430,7 +431,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ContractStatus::Normal.to_u8(),
             burns,
         ),
-        ExecuteMsg::CreateViewingKey { entropy, .. } => create_key(
+        Snip721ExecuteMsg::CreateViewingKey { entropy, .. } => create_key(
             deps,
             &env,
             &info,
@@ -438,45 +439,45 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ContractStatus::StopTransactions.to_u8(),
             &entropy,
         ),
-        ExecuteMsg::SetViewingKey { key, .. } => set_key(
+        Snip721ExecuteMsg::SetViewingKey { key, .. } => set_key(
             deps,
             &info.sender,
             &config,
             ContractStatus::StopTransactions.to_u8(),
             key,
         ),
-        ExecuteMsg::AddMinters { minters, .. } => add_minters(
+        Snip721ExecuteMsg::AddMinters { minters, .. } => add_minters(
             deps,
             &info.sender,
             &config,
             ContractStatus::StopTransactions.to_u8(),
             &minters,
         ),
-        ExecuteMsg::RemoveMinters { minters, .. } => remove_minters(
+        Snip721ExecuteMsg::RemoveMinters { minters, .. } => remove_minters(
             deps,
             &info.sender,
             &config,
             ContractStatus::StopTransactions.to_u8(),
             &minters,
         ),
-        ExecuteMsg::SetMinters { minters, .. } => set_minters(
+        Snip721ExecuteMsg::SetMinters { minters, .. } => set_minters(
             deps,
             &info.sender,
             &config,
             ContractStatus::StopTransactions.to_u8(),
             &minters,
         ),
-        ExecuteMsg::ChangeAdmin { address, .. } => change_admin(
+        Snip721ExecuteMsg::ChangeAdmin { address, .. } => change_admin(
             deps,
             &info.sender,
             &mut config,
             ContractStatus::StopTransactions.to_u8(),
             &address,
         ),
-        ExecuteMsg::SetContractStatus { level, .. } => {
+        Snip721ExecuteMsg::SetContractStatus { level, .. } => {
             set_contract_status(deps, &info.sender, &mut config, level)
         }
-        ExecuteMsg::RevokePermit { permit_name, .. } => {
+        Snip721ExecuteMsg::RevokePermit { permit_name, .. } => {
             revoke_permit(deps.storage, &info.sender, &permit_name)
         }
     };
@@ -540,7 +541,7 @@ pub fn mint(
     let minted_str = minted.pop().unwrap_or_default();
     Ok(Response::new()
         .add_attributes(vec![attr("minted", &minted_str)])
-        .set_data(to_binary(&ExecuteAnswer::MintNft {
+        .set_data(to_binary(&Snip721ExecuteAnswer::MintNft {
             token_id: minted_str,
         })?))
 }
@@ -576,7 +577,7 @@ pub fn batch_mint(
     let minted = mint_list(deps, env, config, &sender_raw, mints)?;
     Ok(Response::new()
         .add_attributes(vec![attr("minted", format!("{:?}", &minted))])
-        .set_data(to_binary(&ExecuteAnswer::BatchMintNft {
+        .set_data(to_binary(&Snip721ExecuteAnswer::BatchMintNft {
             token_ids: minted,
         })?))
 }
@@ -674,7 +675,7 @@ pub fn mint_clones(
             attr("first_minted", &first_minted),
             attr("last_minted", &last_minted),
         ])
-        .set_data(to_binary(&ExecuteAnswer::MintNftClones {
+        .set_data(to_binary(&Snip721ExecuteAnswer::MintNftClones {
             first_minted,
             last_minted,
         })?))
@@ -725,7 +726,7 @@ pub fn set_metadata(
     if let Some(private) = private_metadata {
         set_metadata_impl(deps.storage, &token, idx, PREFIX_PRIV_META, &private)?;
     }
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::SetMetadata { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip721ExecuteAnswer::SetMetadata { status: Success })?))
 }
 
 /// Returns StdResult<Response>
@@ -803,7 +804,7 @@ pub fn set_royalty_info(
     };
 
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::SetRoyaltyInfo {
+        Response::new().set_data(to_binary(&Snip721ExecuteAnswer::SetRoyaltyInfo {
             status: Success,
         })?),
     )
@@ -864,7 +865,7 @@ pub fn reveal(
             save(&mut pub_store, &token_key, &metadata)?;
         }
     }
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::Reveal { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip721ExecuteAnswer::Reveal { status: Success })?))
 }
 
 /// Returns StdResult<Response>
@@ -938,13 +939,13 @@ pub fn approve_revoke(
         all_perm = may_list;
     }
     let mut accesses: [Option<AccessLevel>; 3] = [None, None, None];
-    let response: ExecuteAnswer;
+    let response: Snip721ExecuteAnswer;
     if is_approve {
         accesses[transfer_idx] = Some(AccessLevel::ApproveToken);
-        response = ExecuteAnswer::Approve { status: Success };
+        response = Snip721ExecuteAnswer::Approve { status: Success };
     } else {
         accesses[transfer_idx] = Some(AccessLevel::RevokeToken);
-        response = ExecuteAnswer::Revoke { status: Success };
+        response = Snip721ExecuteAnswer::Revoke { status: Success };
     }
     let owner = token.owner.clone();
     let mut proc_info = ProcessAccInfo {
@@ -991,7 +992,7 @@ pub fn make_owner_private(
         save(&mut priv_store, sender_raw.as_slice(), &false)?
     }
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::MakeOwnershipPrivate {
+        Response::new().set_data(to_binary(&Snip721ExecuteAnswer::MakeOwnershipPrivate {
             status: Success,
         })?),
     )
@@ -1077,7 +1078,7 @@ pub fn set_global_approval(
         None,
     )?;
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::SetGlobalApproval {
+        Response::new().set_data(to_binary(&Snip721ExecuteAnswer::SetGlobalApproval {
             status: Success,
         })?),
     )
@@ -1172,10 +1173,10 @@ pub fn set_whitelisted_approval(
     )?;
     let response = match response_type {
         SetAppResp::SetWhitelistedApproval => {
-            ExecuteAnswer::SetWhitelistedApproval { status: Success }
+            Snip721ExecuteAnswer::SetWhitelistedApproval { status: Success }
         }
-        SetAppResp::ApproveAll => ExecuteAnswer::ApproveAll { status: Success },
-        SetAppResp::RevokeAll => ExecuteAnswer::RevokeAll { status: Success },
+        SetAppResp::ApproveAll => Snip721ExecuteAnswer::ApproveAll { status: Success },
+        SetAppResp::RevokeAll => Snip721ExecuteAnswer::RevokeAll { status: Success },
     };
     let res = Response::new().set_data(to_binary(&response)?);
     Ok(res)
@@ -1205,7 +1206,7 @@ pub fn batch_burn_nft(
     let sender_raw = deps.api.addr_canonicalize(sender.as_str())?;
     burn_list(deps, &env.block, config, &sender_raw, burns)?;
     let res =
-        Response::new().set_data(to_binary(&ExecuteAnswer::BatchBurnNft { status: Success })?);
+        Response::new().set_data(to_binary(&Snip721ExecuteAnswer::BatchBurnNft { status: Success })?);
     Ok(res)
 }
 
@@ -1238,7 +1239,7 @@ fn burn_nft(
         memo,
     }];
     burn_list(deps, &env.block, config, &sender_raw, burns)?;
-    let res = Response::new().set_data(to_binary(&ExecuteAnswer::BurnNft { status: Success })?);
+    let res = Response::new().set_data(to_binary(&Snip721ExecuteAnswer::BurnNft { status: Success })?);
     Ok(res)
 }
 
@@ -1265,7 +1266,7 @@ pub fn batch_transfer_nft(
     check_status(config.status, priority)?;
     let _m = send_list(deps, env, sender, config, Some(transfers), None)?;
 
-    let res = Response::new().set_data(to_binary(&ExecuteAnswer::BatchTransferNft {
+    let res = Response::new().set_data(to_binary(&Snip721ExecuteAnswer::BatchTransferNft {
         status: Success,
     })?);
     Ok(res)
@@ -1304,7 +1305,7 @@ pub fn transfer_nft(
     }]);
     let _m = send_list(deps, env, sender, config, transfers, None)?;
 
-    let res = Response::new().set_data(to_binary(&ExecuteAnswer::TransferNft { status: Success })?);
+    let res = Response::new().set_data(to_binary(&Snip721ExecuteAnswer::TransferNft { status: Success })?);
     Ok(res)
 }
 
@@ -1334,7 +1335,7 @@ fn batch_send_nft(
 
     let res = Response::new()
         .add_messages(messages)
-        .set_data(to_binary(&ExecuteAnswer::BatchSendNft { status: Success })?);
+        .set_data(to_binary(&Snip721ExecuteAnswer::BatchSendNft { status: Success })?);
     Ok(res)
 }
 
@@ -1381,7 +1382,7 @@ fn send_nft(
 
     let res = Response::new()
         .add_messages(messages)
-        .set_data(to_binary(&ExecuteAnswer::SendNft { status: Success })?);
+        .set_data(to_binary(&Snip721ExecuteAnswer::SendNft { status: Success })?);
     Ok(res)
 }
 
@@ -1413,7 +1414,7 @@ pub fn register_receive_nft(
     };
     let mut store = PrefixedStorage::new(deps.storage, PREFIX_RECEIVERS);
     save(&mut store, sender_raw.as_slice(), &regrec)?;
-    let res = Response::new().set_data(to_binary(&ExecuteAnswer::RegisterReceiveNft {
+    let res = Response::new().set_data(to_binary(&Snip721ExecuteAnswer::RegisterReceiveNft {
         status: Success,
     })?);
     Ok(res)
@@ -1448,7 +1449,7 @@ pub fn create_key(
         entropy.as_ref(),
     );
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::ViewingKey { key })?))
+    Ok(Response::new().set_data(to_binary(&Snip721ExecuteAnswer::ViewingKey { key })?))
 }
 
 /// Returns StdResult<Response>
@@ -1471,7 +1472,7 @@ pub fn set_key(
 ) -> StdResult<Response> {
     check_status(config.status, priority)?;
     ViewingKey::set(deps.storage, sender.as_str(), &key);
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::ViewingKey { key })?))
+    Ok(Response::new().set_data(to_binary(&Snip721ExecuteAnswer::ViewingKey { key })?))
 }
 
 /// Returns StdResult<Response>
@@ -1514,7 +1515,7 @@ pub fn add_minters(
     if update {
         save(deps.storage, MINTERS_KEY, &minters)?;
     }
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::AddMinters { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip721ExecuteAnswer::AddMinters { status: Success })?))
 }
 
 /// Returns StdResult<Response>
@@ -1563,7 +1564,7 @@ pub fn remove_minters(
         }
     }
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::RemoveMinters {
+        Response::new().set_data(to_binary(&Snip721ExecuteAnswer::RemoveMinters {
             status: Success,
         })?),
     )
@@ -1614,7 +1615,7 @@ pub fn set_minters(
     } else {
         save(deps.storage, MINTERS_KEY, &minters)?;
     }
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::SetMinters { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip721ExecuteAnswer::SetMinters { status: Success })?))
 }
 
 /// Returns StdResult<Response>
@@ -1649,7 +1650,7 @@ pub fn change_admin(
         config.admin = new_admin;
         save(deps.storage, CONFIG_KEY, &config)?;
     }
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::ChangeAdmin { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip721ExecuteAnswer::ChangeAdmin { status: Success })?))
 }
 
 /// Returns StdResult<Response>
@@ -1680,7 +1681,7 @@ pub fn set_contract_status(
         save(deps.storage, CONFIG_KEY, &config)?;
     }
     Ok(
-        Response::new().set_data(to_binary(&ExecuteAnswer::SetContractStatus {
+        Response::new().set_data(to_binary(&Snip721ExecuteAnswer::SetContractStatus {
             status: Success,
         })?),
     )
@@ -1707,7 +1708,7 @@ fn revoke_permit(
         permit_name,
     );
 
-    Ok(Response::new().set_data(to_binary(&ExecuteAnswer::RevokePermit { status: Success })?))
+    Ok(Response::new().set_data(to_binary(&Snip721ExecuteAnswer::RevokePermit { status: Success })?))
 }
 
 /////////////////////////////////////// Query /////////////////////////////////////
@@ -1719,46 +1720,46 @@ fn revoke_permit(
 /// * `env` - Env of contract's environment
 /// * `msg` - QueryMsg passed in with the query call
 #[entry_point]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: Snip721QueryMsg) -> StdResult<Binary> {
     let response = match msg {
-        QueryMsg::ContractInfo {} => query_contract_info(deps.storage),
-        QueryMsg::ContractCreator {} => query_contract_creator(deps),
-        QueryMsg::RoyaltyInfo { token_id, viewer } => {
+        Snip721QueryMsg::ContractInfo {} => query_contract_info(deps.storage),
+        Snip721QueryMsg::ContractCreator {} => query_contract_creator(deps),
+        Snip721QueryMsg::RoyaltyInfo { token_id, viewer } => {
             query_royalty(deps, &env.block, token_id.as_deref(), viewer, None)
         }
-        QueryMsg::ContractConfig {} => query_config(deps.storage),
-        QueryMsg::Minters {} => query_minters(deps),
-        QueryMsg::NumTokens { viewer } => query_num_tokens(deps, viewer, None),
-        QueryMsg::AllTokens {
+        Snip721QueryMsg::ContractConfig {} => query_config(deps.storage),
+        Snip721QueryMsg::Minters {} => query_minters(deps),
+        Snip721QueryMsg::NumTokens { viewer } => query_num_tokens(deps, viewer, None),
+        Snip721QueryMsg::AllTokens {
             viewer,
             start_after,
             limit,
         } => query_all_tokens(deps, viewer, start_after.as_deref(), limit, None),
-        QueryMsg::OwnerOf {
+        Snip721QueryMsg::OwnerOf {
             token_id,
             viewer,
             include_expired,
         } => query_owner_of(deps, &env.block, &token_id, viewer, include_expired, None),
-        QueryMsg::NftInfo { token_id } => query_nft_info(deps.storage, &token_id),
-        QueryMsg::PrivateMetadata { token_id, viewer } => {
+        Snip721QueryMsg::NftInfo { token_id } => query_nft_info(deps.storage, &token_id),
+        Snip721QueryMsg::PrivateMetadata { token_id, viewer } => {
             query_private_meta(deps, &env.block, &token_id, viewer, None)
         }
-        QueryMsg::AllNftInfo {
+        Snip721QueryMsg::AllNftInfo {
             token_id,
             viewer,
             include_expired,
         } => query_all_nft_info(deps, &env.block, &token_id, viewer, include_expired, None),
-        QueryMsg::NftDossier {
+        Snip721QueryMsg::NftDossier {
             token_id,
             viewer,
             include_expired,
         } => query_nft_dossier(deps, &env.block, token_id, viewer, include_expired, None),
-        QueryMsg::BatchNftDossier {
+        Snip721QueryMsg::BatchNftDossier {
             token_ids,
             viewer,
             include_expired,
         } => query_batch_nft_dossier(deps, &env.block, token_ids, viewer, include_expired, None),
-        QueryMsg::TokenApprovals {
+        Snip721QueryMsg::TokenApprovals {
             token_id,
             viewing_key,
             include_expired,
@@ -1770,7 +1771,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             include_expired,
             None,
         ),
-        QueryMsg::InventoryApprovals {
+        Snip721QueryMsg::InventoryApprovals {
             address,
             viewing_key,
             include_expired,
@@ -1781,7 +1782,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             });
             query_inventory_approvals(deps, &env.block, viewer, include_expired, None)
         }
-        QueryMsg::ApprovedForAll {
+        Snip721QueryMsg::ApprovedForAll {
             owner,
             viewing_key,
             include_expired,
@@ -1793,7 +1794,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             include_expired,
             None,
         ),
-        QueryMsg::Tokens {
+        Snip721QueryMsg::Tokens {
             owner,
             viewer,
             viewing_key,
@@ -1809,7 +1810,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             None,
         ),
-        QueryMsg::NumTokensOfOwner {
+        Snip721QueryMsg::NumTokensOfOwner {
             owner,
             viewer,
             viewing_key,
@@ -1821,7 +1822,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             viewing_key.as_deref(),
             None,
         ),
-        QueryMsg::VerifyTransferApproval {
+        Snip721QueryMsg::VerifyTransferApproval {
             token_ids,
             address,
             viewing_key,
@@ -1832,15 +1833,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             });
             query_verify_approval(deps, &env.block, token_ids, viewer, None)
         }
-        QueryMsg::IsUnwrapped { token_id } => query_is_unwrapped(deps.storage, &token_id),
-        QueryMsg::IsTransferable { token_id } => query_is_transferable(deps.storage, &token_id),
-        QueryMsg::ImplementsNonTransferableTokens {} => {
-            to_binary(&QueryAnswer::ImplementsNonTransferableTokens { is_enabled: true })
+        Snip721QueryMsg::IsUnwrapped { token_id } => query_is_unwrapped(deps.storage, &token_id),
+        Snip721QueryMsg::IsTransferable { token_id } => query_is_transferable(deps.storage, &token_id),
+        Snip721QueryMsg::ImplementsNonTransferableTokens {} => {
+            to_binary(&Snip721QueryAnswer::ImplementsNonTransferableTokens { is_enabled: true })
         }
-        QueryMsg::ImplementsTokenSubtype {} => {
-            to_binary(&QueryAnswer::ImplementsTokenSubtype { is_enabled: true })
+        Snip721QueryMsg::ImplementsTokenSubtype {} => {
+            to_binary(&Snip721QueryAnswer::ImplementsTokenSubtype { is_enabled: true })
         }
-        QueryMsg::TransactionHistory {
+        Snip721QueryMsg::TransactionHistory {
             address,
             viewing_key,
             page,
@@ -1852,8 +1853,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             });
             query_transactions(deps, viewer, page, page_size, None)
         }
-        QueryMsg::RegisteredCodeHash { contract } => query_code_hash(deps, &contract),
-        QueryMsg::WithPermit { permit, query } => permit_queries(deps, &env, permit, query),
+        Snip721QueryMsg::RegisteredCodeHash { contract } => query_code_hash(deps, &contract),
+        Snip721QueryMsg::WithPermit { permit, query } => permit_queries(deps, &env, permit, query),
     };
     pad_query_result(response, BLOCK_SIZE)
 }
@@ -1962,7 +1963,7 @@ pub fn permit_queries(
 /// * `deps` - a reference to Extern containing all the contract's external dependencies
 pub fn query_contract_creator(deps: Deps) -> StdResult<Binary> {
     let creator_raw: CanonicalAddr = load(deps.storage, CREATOR_KEY)?;
-    to_binary(&QueryAnswer::ContractCreator {
+    to_binary(&Snip721QueryAnswer::ContractCreator {
         creator: Some(deps.api.addr_humanize(&creator_raw)?),
     })
 }
@@ -1975,7 +1976,7 @@ pub fn query_contract_creator(deps: Deps) -> StdResult<Binary> {
 pub fn query_contract_info(storage: &dyn Storage) -> StdResult<Binary> {
     let config: Config = load(storage, CONFIG_KEY)?;
 
-    to_binary(&QueryAnswer::ContractInfo {
+    to_binary(&Snip721QueryAnswer::ContractInfo {
         name: config.name,
         symbol: config.symbol,
     })
@@ -2045,7 +2046,7 @@ pub fn query_royalty(
             viewer_raw.map(|v| !minters.contains(&v)).unwrap_or(true),
         )
     };
-    to_binary(&QueryAnswer::RoyaltyInfo {
+    to_binary(&Snip721QueryAnswer::RoyaltyInfo {
         royalty_info: royalty
             .map(|s| s.to_human(deps.api, hide_addr))
             .transpose()?,
@@ -2060,7 +2061,7 @@ pub fn query_royalty(
 pub fn query_config(storage: &dyn Storage) -> StdResult<Binary> {
     let config: Config = load(storage, CONFIG_KEY)?;
 
-    to_binary(&QueryAnswer::ContractConfig {
+    to_binary(&Snip721QueryAnswer::ContractConfig {
         token_supply_is_public: config.token_supply_is_public,
         owner_is_public: config.owner_is_public,
         sealed_metadata_is_enabled: config.sealed_metadata_is_enabled,
@@ -2081,7 +2082,7 @@ pub fn query_config(storage: &dyn Storage) -> StdResult<Binary> {
 pub fn query_minters(deps: Deps) -> StdResult<Binary> {
     let minters: Vec<CanonicalAddr> = may_load(deps.storage, MINTERS_KEY)?.unwrap_or_default();
 
-    to_binary(&QueryAnswer::Minters {
+    to_binary(&Snip721QueryAnswer::Minters {
         minters: minters
             .iter()
             .map(|m| deps.api.addr_humanize(m))
@@ -2104,7 +2105,7 @@ pub fn query_num_tokens(
     // authenticate permission to view token supply
     check_view_supply(deps, viewer, from_permit)?;
     let config: Config = load(deps.storage, CONFIG_KEY)?;
-    to_binary(&QueryAnswer::NumTokens {
+    to_binary(&Snip721QueryAnswer::NumTokens {
         count: config.token_cnt,
     })
 }
@@ -2152,7 +2153,7 @@ pub fn query_all_tokens(
         // i can't overflow if it was less than a u32
         i += 1;
     }
-    to_binary(&QueryAnswer::TokenList { tokens })
+    to_binary(&Snip721QueryAnswer::TokenList { tokens })
 }
 
 /// Returns StdResult<Binary> displaying the owner of the input token if the requester is authorized
@@ -2177,7 +2178,7 @@ pub fn query_owner_of(
     let (may_owner, approvals, _idx) =
         process_cw721_owner_of(deps, block, token_id, viewer, include_expired, from_permit)?;
     if let Some(owner) = may_owner {
-        return to_binary(&QueryAnswer::OwnerOf { owner, approvals });
+        return to_binary(&Snip721QueryAnswer::OwnerOf { owner, approvals });
     }
     Err(StdError::generic_err(format!(
         "You are not authorized to view the owner of token {}",
@@ -2201,7 +2202,7 @@ pub fn query_nft_info(storage: &dyn Storage, token_id: &str) -> StdResult<Binary
             token_uri: None,
             extension: None,
         });
-        return to_binary(&QueryAnswer::NftInfo {
+        return to_binary(&Snip721QueryAnswer::NftInfo {
             token_uri: meta.token_uri,
             extension: meta.extension,
         });
@@ -2216,7 +2217,7 @@ pub fn query_nft_info(storage: &dyn Storage, token_id: &str) -> StdResult<Binary
         )));
     }
     // otherwise, just return empty metadata
-    to_binary(&QueryAnswer::NftInfo {
+    to_binary(&Snip721QueryAnswer::NftInfo {
         token_uri: None,
         extension: None,
     })
@@ -2262,7 +2263,7 @@ pub fn query_private_meta(
         token_uri: None,
         extension: None,
     });
-    to_binary(&QueryAnswer::PrivateMetadata {
+    to_binary(&Snip721QueryAnswer::PrivateMetadata {
         token_uri: meta.token_uri,
         extension: meta.extension,
     })
@@ -2291,7 +2292,7 @@ pub fn query_all_nft_info(
     let meta_store = ReadonlyPrefixedStorage::new(deps.storage, PREFIX_PUB_META);
     let info: Option<Metadata> = may_load(&meta_store, &idx.to_le_bytes())?;
     let access = Cw721OwnerOfResponse { owner, approvals };
-    to_binary(&QueryAnswer::AllNftInfo { access, info })
+    to_binary(&Snip721QueryAnswer::AllNftInfo { access, info })
 }
 
 /// Returns StdResult<Binary> displaying all the token information the querier is permitted to
@@ -2326,7 +2327,7 @@ pub fn query_nft_dossier(
     .pop()
     .ok_or_else(|| StdError::generic_err("NftDossier can never return an empty dossier list"))?;
 
-    to_binary(&QueryAnswer::NftDossier {
+    to_binary(&Snip721QueryAnswer::NftDossier {
         owner: dossier.owner,
         public_metadata: dossier.public_metadata,
         private_metadata: dossier.private_metadata,
@@ -2367,7 +2368,7 @@ pub fn query_batch_nft_dossier(
 ) -> StdResult<Binary> {
     let nft_dossiers = dossier_list(deps, block, token_ids, viewer, include_expired, from_permit)?;
 
-    to_binary(&QueryAnswer::BatchNftDossier { nft_dossiers })
+    to_binary(&Snip721QueryAnswer::BatchNftDossier { nft_dossiers })
 }
 
 /// Returns StdResult<Binary> displaying the approvals in place for a specified token
@@ -2451,7 +2452,7 @@ pub fn query_token_approvals(
         } else {
             (all_meta_exp, all_meta_exp.is_some())
         };
-    to_binary(&QueryAnswer::TokenApprovals {
+    to_binary(&Snip721QueryAnswer::TokenApprovals {
         owner_is_public,
         public_ownership_expiration,
         private_metadata_is_public,
@@ -2510,7 +2511,7 @@ pub fn query_inventory_approvals(
         public_ownership_expiration.is_some()
     };
     let private_metadata_is_public = private_metadata_is_public_expiration.is_some();
-    to_binary(&QueryAnswer::InventoryApprovals {
+    to_binary(&Snip721QueryAnswer::InventoryApprovals {
         owner_is_public,
         public_ownership_expiration,
         private_metadata_is_public,
@@ -2551,7 +2552,7 @@ pub fn query_approved_for_all(
                 .map_err(|_| StdError::generic_err(VIEWING_KEY_ERR_MSG))?;
             // didn't supply a viewing key so just return an empty list of approvals
         } else {
-            return to_binary(&QueryAnswer::ApprovedForAll {
+            return to_binary(&Snip721QueryAnswer::ApprovedForAll {
                 operators: Vec::new(),
             });
         }
@@ -2570,7 +2571,7 @@ pub fn query_approved_for_all(
         include_expired.unwrap_or(false),
     )?;
 
-    to_binary(&QueryAnswer::ApprovedForAll { operators })
+    to_binary(&Snip721QueryAnswer::ApprovedForAll { operators })
 }
 
 /// Returns StdResult<Binary> displaying an optionally paginated list of all tokens belonging to
@@ -2635,7 +2636,7 @@ pub fn query_tokens(
     };
     // exit early if the limit is 0
     if cut_off == 0 {
-        return to_binary(&QueryAnswer::TokenList { tokens: Vec::new() });
+        return to_binary(&Snip721QueryAnswer::TokenList { tokens: Vec::new() });
     }
     // get list of owner's tokens
     let own_inv = Inventory::new(deps.storage, owner_raw)?;
@@ -2748,7 +2749,7 @@ pub fn query_tokens(
             }
         }
     }
-    to_binary(&QueryAnswer::TokenList { tokens })
+    to_binary(&Snip721QueryAnswer::TokenList { tokens })
 }
 
 /// Returns StdResult<Binary> displaying the number of tokens that the querier has permission to
@@ -2851,7 +2852,7 @@ pub fn query_num_owner_tokens(
     // if it is either the owner, ownership is public, or the querier has inventory-wide view owner permission,
     // let them see the full count
     if known_pass {
-        return to_binary(&QueryAnswer::NumTokens { count: own_inv.cnt });
+        return to_binary(&Snip721QueryAnswer::NumTokens { count: own_inv.cnt });
     }
 
     // get the list of tokens that might have viewable ownership for this querier
@@ -2894,7 +2895,7 @@ pub fn query_num_owner_tokens(
         }
     }
 
-    to_binary(&QueryAnswer::NumTokens { count })
+    to_binary(&Snip721QueryAnswer::NumTokens { count })
 }
 
 /// Returns StdResult<Binary> displaying true if the token has been unwrapped.  If sealed metadata
@@ -2913,13 +2914,13 @@ pub fn query_is_unwrapped(storage: &dyn Storage, token_id: &str) -> StdResult<Bi
             StdError::GenericErr { msg, .. }
                 if !config.token_supply_is_public && msg.contains("Token ID") =>
             {
-                to_binary(&QueryAnswer::IsUnwrapped {
+                to_binary(&Snip721QueryAnswer::IsUnwrapped {
                     token_is_unwrapped: !config.sealed_metadata_is_enabled,
                 })
             }
             _ => Err(err),
         },
-        Ok((token, _idx)) => to_binary(&QueryAnswer::IsUnwrapped {
+        Ok((token, _idx)) => to_binary(&Snip721QueryAnswer::IsUnwrapped {
             token_is_unwrapped: token.unwrapped,
         }),
     }
@@ -2940,13 +2941,13 @@ pub fn query_is_transferable(storage: &dyn Storage, token_id: &str) -> StdResult
             StdError::GenericErr { msg, .. }
                 if !config.token_supply_is_public && msg.contains("Token ID") =>
             {
-                to_binary(&QueryAnswer::IsTransferable {
+                to_binary(&Snip721QueryAnswer::IsTransferable {
                     token_is_transferable: true,
                 })
             }
             _ => Err(err),
         },
-        Ok((token, _idx)) => to_binary(&QueryAnswer::IsTransferable {
+        Ok((token, _idx)) => to_binary(&Snip721QueryAnswer::IsTransferable {
             token_is_transferable: token.transferable,
         }),
     }
@@ -2980,7 +2981,7 @@ pub fn query_transactions(
         page.unwrap_or(0),
         page_size.unwrap_or(30),
     )?;
-    to_binary(&QueryAnswer::TransactionHistory { total, txs })
+    to_binary(&Snip721QueryAnswer::TransactionHistory { total, txs })
 }
 
 /// Returns StdResult<Binary> after verifying that the specified address has transfer approval
@@ -3028,13 +3029,13 @@ pub fn query_verify_approval(
         })
         .is_err()
         {
-            return to_binary(&QueryAnswer::VerifyTransferApproval {
+            return to_binary(&Snip721QueryAnswer::VerifyTransferApproval {
                 approved_for_all: false,
                 first_unapproved_token: Some(id),
             });
         }
     }
-    to_binary(&QueryAnswer::VerifyTransferApproval {
+    to_binary(&Snip721QueryAnswer::VerifyTransferApproval {
         approved_for_all: true,
         first_unapproved_token: None,
     })
@@ -3054,12 +3055,12 @@ pub fn query_code_hash(deps: Deps, contract: &str) -> StdResult<Binary> {
     let store = ReadonlyPrefixedStorage::new(deps.storage, PREFIX_RECEIVERS);
     let may_reg_rec: Option<ReceiveRegistration> = may_load(&store, contract_raw.as_slice())?;
     if let Some(reg_rec) = may_reg_rec {
-        return to_binary(&QueryAnswer::RegisteredCodeHash {
+        return to_binary(&Snip721QueryAnswer::RegisteredCodeHash {
             code_hash: Some(reg_rec.code_hash),
             also_implements_batch_receive_nft: reg_rec.impl_batch,
         });
     }
-    to_binary(&QueryAnswer::RegisteredCodeHash {
+    to_binary(&Snip721QueryAnswer::RegisteredCodeHash {
         code_hash: None,
         also_implements_batch_receive_nft: false,
     })

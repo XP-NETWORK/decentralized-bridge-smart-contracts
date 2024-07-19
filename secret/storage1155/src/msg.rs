@@ -1,11 +1,10 @@
+use common::CodeInfo;
 use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::structs::CodeInfo;
-
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InstantiateMsg {
+pub struct Storage1155InstantiateMsg {
     pub collection_address: Addr,
     pub owner: Addr,
     pub collection_code_info: CodeInfo,
@@ -17,7 +16,7 @@ pub struct InstantiateMsg {
 /// Executes
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {
+pub enum Storage1155ExecuteMsg {
     // DepositToken {
     //     token_id: String,
     //     amount: u128,

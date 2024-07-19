@@ -1,0 +1,1059 @@
+#import "@ligo/fa/lib/fa2/nft/nft.impl.jsligo" "NFT"
+
+#import "./StorageFactory.jsligo" "StorageFactory"
+
+#import "./SFTStorage.jsligo" "SFTStorage"
+
+export namespace Bridge {
+    const self_chain = "TEZOS";
+    const nft_type = "singular";
+    const sft_type = "multiple";
+    export type AddrOrStr = ["Addr", address] | ["Str", string]
+    export function bm_opt_or_default_nat<K>(map: big_map<K, nat>, key: K) {
+        const opt = Big_map.find_opt(key, map);
+        return Option.is_some(opt) ? Option.unopt(opt) : 0n;
+    }
+    export function bm_opt_or_default_bool<K>(map: big_map<K, bool>, key: K) {
+        const opt = Big_map.find_opt(key, map);
+        return Option.is_some(opt) ? Option.unopt(opt) : false;
+    }
+    export function bm_opt_or_default_string<K>(map: big_map<K, string>, key: K) {
+        const opt = Big_map.find_opt(key, map);
+        return Option.is_some(opt) ? Option.unopt(opt) : "";
+    }
+    type claim_data = {
+        token_id: nat,
+        source_chain: string,
+        dest_chain: string,
+        dest_address: address,
+        source_nft_contract_address: AddrOrStr,
+        name: string,
+        symbol: string,
+        royalty: nat,
+        royalty_receiver: address,
+        metadata: string,
+        transaction_hash: string,
+        token_amount: nat,
+        nft_type: string,
+        fee: tez
+    }
+    type rewards = tez;
+    type contract_info = { chain: string, contract: AddrOrStr };
+    type signer_and_signature = { signer: key, sig: signature, addr: address };
+    function extract_addr(a: AddrOrStr): address {
+        match(a) {
+            when (Addr(addr)):
+                do { return addr }
+            when (Str(_)):
+                do {
+                    failwith(
+                        "Tried to extract address from AddrOrStr which didnt have an address"
+                    )
+                }
+        }
+    }
+    function extract_str(a: AddrOrStr): string {
+        match(a) {
+            when (Addr(_)):
+                do {
+                    failwith(
+                        "Tried to extract string from AddrOrStr which didnt have a string"
+                    )
+                }
+            when (Str(str)):
+                do { return str }
+        }
+    }
+    function add_token_to_locked_storage(storage: address, tid: nat): operation {
+        const ctr: contract<{ token_id: nat }> =
+            Tezos.get_entrypoint("%add_deposited_token", storage);
+        const transfer_nft_op =
+            Tezos.transaction({ token_id: tid }, 0mutez, ctr)
+        return transfer_nft_op;
+    }
+    export type storage = {
+        validators: big_map<address, rewards>,
+        unique_identifiers: big_map<bytes, bool>,
+        collection_deployer: address,
+        storage_deployer: address,
+        original_to_duplicate_mapping: big_map<
+            [AddrOrStr, string],
+            contract_info
+        >,
+        duplicate_to_original_mapping: big_map<
+            [AddrOrStr, string],
+            contract_info
+        >,
+        original_storage_mapping_nft: big_map<[AddrOrStr, string], address>,
+        original_storage_mapping_sft: big_map<[AddrOrStr, string], address>,
+        duplicate_storage_mapping_nft: big_map<[AddrOrStr, string], address>,
+        duplicate_storage_mapping_sft: big_map<[AddrOrStr, string], address>,
+        validators_count: nat,
+    };
+    type ret = [list<operation>, storage];
+    function emit_add_new_validator_ev(validator: address): operation {
+        return Tezos.emit("%added_new_validator", validator);
+    }
+    function emit_reward_validator_ev(validator: address): operation {
+        return Tezos.emit("%rewarded_validator", validator);
+    }
+    function emit_locked_ev<SourceNFT, DestAddress>(
+        token_id: nat,
+        dest_chain: string,
+        dest_address: DestAddress,
+        source_nft_address: SourceNFT,
+        token_amount: nat,
+        nft_type: string,
+        source_chain: string
+    ): operation {
+        return Tezos.emit(
+            "%locked",
+            {
+                token_id: token_id,
+                dest_chain: dest_chain,
+                dest_address: dest_address,
+                source_nft_address: source_nft_address,
+                token_amount: token_amount,
+                nft_type: nft_type,
+                source_chain: source_chain,
+            }
+        );
+    }
+    function emit_unlock_ev(
+        to: address,
+        token_id: nat,
+        contract: address,
+        amt: nat
+    ): operation {
+        return Tezos.emit("%unlocked", { to, token_id, contract, amt });
+    }
+    function emit_claimed_ev(
+        source_chain: string,
+        tx_hash: string,
+        nft_contract: address,
+        token_id: nat
+    ): operation {
+        return Tezos.emit(
+            "%claimed",
+            {
+                source_chain: source_chain,
+                tx_hash: tx_hash,
+                nft_contract,
+                token_id
+            }
+        );
+    }
+    function modifier_require_fees(): unit {
+        if (Tezos.get_amount() < 0mutez) {
+            failwith("Insufficient fees");
+        }
+    }
+    function modifier_matches_current_chain(dest_chain: string, _store: storage): unit {
+        if (dest_chain != self_chain) {
+            failwith("Cannot transfer to the same chain");
+        }
+    }
+    function modifier_has_correct_fee(fee: tez): unit {
+        if (Tezos.get_amount() < fee) {
+            failwith("Insufficient fees");
+        }
+    }
+    function is_token_deposited(nft: address, tid: nat): bool {
+        const opt = Tezos.call_view("has_locked_token", tid, nft);
+        assert_some_with_error(opt, "Failed to check if token is deposited");
+        return Option.unopt(opt);
+    }
+    function balance_fa2(owner: address, tid: nat, nft: address): nat {
+        const params = [owner, tid];
+        const opt: option<nat> = Tezos.call_view("get_balance", params, nft);
+        return Option.is_some(opt) ? Option.unopt(opt) : 0n;
+    }
+    type add_validator_parms = {
+        validator: address,
+        sigs: list<signer_and_signature>
+    };
+    function verify_signatures(msg: bytes, sigs: list<signer_and_signature>): int {
+        let fold_fn = ([acc, s]: [int, signer_and_signature]): int =>
+            Crypto.check(s.signer, s.sig, msg) ? acc + 1 : acc
+        return List.fold(fold_fn, sigs, 0);
+    }
+    @entry
+    function add_validator(p: add_validator_parms, store: storage): ret {
+        assert_with_error(List.length(p.sigs) > 0n, "No signatures provided");
+        assert_none_with_error(
+            Big_map.find_opt(p.validator, store.validators),
+            "Validator already exists"
+        );
+        const percent = verify_signatures(Bytes.pack(p.validator), p.sigs);
+        assert_with_error(
+            percent >= (((store.validators_count * 2) / 3)) + 1,
+            "Insufficient signatures"
+        );
+        const new_validator = Big_map.add(p.validator, 0mutez, store.validators)
+        return [
+            list([emit_add_new_validator_ev(p.validator)]),
+            {
+                ...store,
+                validators: new_validator,
+                validators_count: store.validators_count + 1n
+            }
+        ];
+    }
+    type claim_validator_rewards_params = {
+        validator: address,
+        sigs: list<signer_and_signature>
+    };
+    @entry
+    function claim_validator_rewards(
+        p: claim_validator_rewards_params,
+        s: storage
+    ): ret {
+        assert_with_error(List.length(p.sigs) > 0n, "No signatures provided");
+        const validator_rewards_opt =
+            Big_map.find_opt(p.validator, s.validators);
+        assert_some_with_error(
+            validator_rewards_opt, // Dont have to check for added as it will fail if it doesnt exist (Not Solidity :P)
+            "Validator does not exist"
+        );
+        const percent = verify_signatures(Bytes.pack(p.validator), p.sigs);
+        assert_with_error(
+            percent >= (((s.validators_count * 2) / 3)) + 1,
+            "Insufficient signatures"
+        );
+        let event_op = emit_reward_validator_ev(p.validator);
+        let validator_rewards = Option.unopt(validator_rewards_opt);
+        let new_validator =
+            Big_map.update(p.validator, Some(0mutez), s.validators)
+        let receiver: contract<unit> = Tezos.get_contract(p.validator)
+        let transfer_op = Tezos.transaction(unit, validator_rewards, receiver);
+        return [
+            list([transfer_op, event_op]),
+            { ...s, validators: new_validator }
+        ];
+    }
+    export type lock_nft_params = {
+        token_id: nat,
+        dest_chain: string,
+        dest_address: string,
+        source_nft_address: AddrOrStr, // shouldve been an address but cant convert address to string in ligo/michelson
+
+    }
+    function transfer_fa2(
+        from_: address,
+        to_: address,
+        token_id: nat,
+        nft: address,
+        amount: nat
+    ): operation {
+        const ctr: contract<NFT.TZIP12.transfer> =
+            Tezos.get_entrypoint("%transfer", nft);
+        const params =
+            list(
+                [
+                    {
+                        from_: from_,
+                        txs: list([{ to_: to_, amount, token_id: token_id }])
+                    }
+                ]
+            );
+        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        return transfer_nft_op;
+    };
+    export type lock_internal = {
+        to: string,
+        token_id: nat,
+        collection: AddrOrStr,
+        original: bool,
+        amt: nat,
+        new_deploy: bool,
+        dest_chain: string
+    }
+    @entry
+    function lock_nft(p: lock_nft_params, s: storage): ret {
+        let opt_ci =
+            Big_map.find_opt(
+                [p.source_nft_address, self_chain],
+                s.duplicate_to_original_mapping
+            )
+        if (Option.is_none(opt_ci)) {
+            // Is an Original NFT
+            let storage_contract_opt =
+                Big_map.find_opt(
+                    [p.source_nft_address, self_chain],
+                    s.original_storage_mapping_nft
+                );
+            if (Option.is_none(storage_contract_opt)) {
+                let deploy_storage_ep: contract<
+                    StorageFactory.StorageFactory.deploy_params
+                > =
+                    Tezos.get_entrypoint(
+                        "%deploy_nft_storage",
+                        s.storage_deployer
+                    );
+                let op_deploy_storage =
+                    Tezos.transaction(
+                        { collection: extract_addr(p.source_nft_address) },
+                        0mutez,
+                        deploy_storage_ep
+                    );
+                let lock_internal_op: contract<lock_internal> =
+                    Tezos.get_entrypoint(
+                        "%lock_internal",
+                        Tezos.get_self_address()
+                    );
+                let op_lock_nft_internal =
+                    Tezos.transaction(
+                        {
+                            to: p.dest_address,
+                            token_id: p.token_id,
+                            collection: p.source_nft_address,
+                            original: true,
+                            amt: 1n,
+                            new_deploy: true,
+                            dest_chain: p.dest_chain
+                        },
+                        0mutez,
+                        lock_internal_op
+                    );
+                return [list([op_deploy_storage, op_lock_nft_internal]), s];
+            }
+            let lock_internal_op: contract<lock_internal> =
+                Tezos.get_entrypoint("%lock_internal", Tezos.get_self_address());
+            let op_lock_nft_internal =
+                Tezos.transaction(
+                    {
+                        to: p.dest_address,
+                        token_id: p.token_id,
+                        collection: p.source_nft_address,
+                        original: true,
+                        amt: 1n,
+                        new_deploy: false,
+                        dest_chain: p.dest_chain
+                    },
+                    0mutez,
+                    lock_internal_op
+                );
+            return [list([op_lock_nft_internal]), s];
+        } else {
+            let storage_contract_opt =
+                Big_map.find_opt(
+                    [p.source_nft_address, self_chain],
+                    s.duplicate_storage_mapping_nft
+                );
+            if (Option.is_none(storage_contract_opt)) {
+                let deploy_storage_ep: contract<
+                    StorageFactory.StorageFactory.deploy_params
+                > =
+                    Tezos.get_entrypoint(
+                        "%deploy_nft_storage",
+                        s.storage_deployer
+                    );
+                let op_deploy_storage =
+                    Tezos.transaction(
+                        { collection: extract_addr(p.source_nft_address) },
+                        0mutez,
+                        deploy_storage_ep
+                    );
+                let lock_internal_op: contract<lock_internal> =
+                    Tezos.get_entrypoint(
+                        "%lock_internal",
+                        Tezos.get_self_address()
+                    );
+                let op_lock_nft_internal =
+                    Tezos.transaction(
+                        {
+                            to: p.dest_address,
+                            token_id: p.token_id,
+                            collection: p.source_nft_address,
+                            original: false,
+                            amt: 1n,
+                            new_deploy: true,
+                            dest_chain: p.dest_chain
+                        },
+                        0mutez,
+                        lock_internal_op
+                    );
+                return [list([op_deploy_storage, op_lock_nft_internal]), s];
+            }
+            let lock_internal_op: contract<lock_internal> =
+                Tezos.get_entrypoint("%lock_internal", Tezos.get_self_address());
+            let op_lock_nft_internal =
+                Tezos.transaction(
+                    {
+                        to: p.dest_address,
+                        token_id: p.token_id,
+                        collection: p.source_nft_address,
+                        original: false,
+                        amt: 1n,
+                        new_deploy: false,
+                        dest_chain: p.dest_chain
+                    },
+                    0mutez,
+                    lock_internal_op
+                );
+            return [list([op_lock_nft_internal]), s];
+        }
+        return [list([]), s]
+    }
+    @entry
+    function lock_internal(p: lock_internal, s: storage): ret {
+        let new_storage = { ...s,  };
+        assert_with_error(
+            Tezos.get_sender() == Tezos.get_self_address(),
+            "Only Callable by Self"
+        );
+        let opt_storage_contract: option<address> =
+            Tezos.call_view(
+                "get_store",
+                extract_addr(p.collection),
+                s.storage_deployer
+            );
+        assert_some_with_error(
+            opt_storage_contract,
+            "Storage contract not deployed"
+        );
+        let storage_contract = Option.unopt(opt_storage_contract);
+        if (p.original) {
+            if (p.new_deploy) {
+                let update_original_mapping =
+                    Big_map.add(
+                        [p.collection, self_chain],
+                        storage_contract,
+                        p.amt == 1n ? s.original_storage_mapping_nft : s.original_storage_mapping_sft
+                    );
+                new_storage
+                = {
+                      ...new_storage,
+                      original_storage_mapping_nft: update_original_mapping
+                  }
+            }
+            let transfer_op =
+                transfer_fa2(
+                    Tezos.get_source(),
+                    storage_contract,
+                    p.token_id,
+                    extract_addr(p.collection),
+                    p.amt
+                );
+            let add_op =
+                add_token_to_locked_storage(storage_contract, p.token_id)
+            let event_op =
+                emit_locked_ev(
+                    p.token_id,
+                    p.dest_chain,
+                    p.to,
+                    p.collection,
+                    p.amt,
+                    p.amt == 1n ? nft_type : sft_type,
+                    self_chain
+                );
+            return [list([transfer_op, add_op, event_op]), new_storage];
+        } else {
+            if (p.new_deploy) {
+                let update_duplicate_mapping =
+                    Big_map.add(
+                        [p.collection, self_chain],
+                        storage_contract,
+                        p.amt == 1n ? s.duplicate_storage_mapping_nft : s.duplicate_storage_mapping_sft
+                    );
+                new_storage
+                = {
+                      ...new_storage,
+                      duplicate_storage_mapping_nft: update_duplicate_mapping
+                  }
+            }
+            let ci =
+                Big_map.find(
+                    [p.collection, self_chain],
+                    s.duplicate_to_original_mapping
+                )
+            let transfer_op =
+                transfer_fa2(
+                    Tezos.get_source(),
+                    storage_contract,
+                    p.token_id,
+                    extract_addr(p.collection),
+                    p.amt
+                );
+            let add_op =
+                add_token_to_locked_storage(storage_contract, p.token_id)
+            let event_op =
+                emit_locked_ev(
+                    p.token_id,
+                    p.dest_chain,
+                    p.to,
+                    ci.contract,
+                    p.amt,
+                    p.amt == 1n ? nft_type : sft_type,
+                    ci.chain
+                );
+            return [list([transfer_op, add_op, event_op]), new_storage];
+        }
+    }
+    export type lock_sft_params = {
+        token_id: nat,
+        dest_chain: string,
+        dest_address: string,
+        source_nft_address: AddrOrStr,
+        token_amount: nat
+    }
+    @entry
+    function lock_sft(p: lock_sft_params, s: storage): ret {
+        let opt_ci =
+            Big_map.find_opt(
+                [p.source_nft_address, self_chain],
+                s.duplicate_to_original_mapping
+            )
+        if (Option.is_none(opt_ci)) {
+            let storage_contract_opt =
+                Big_map.find_opt(
+                    [p.source_nft_address, self_chain],
+                    s.original_storage_mapping_sft
+                );
+            if (Option.is_none(storage_contract_opt)) {
+                let deploy_storage_ep: contract<
+                    StorageFactory.StorageFactory.deploy_params
+                > =
+                    Tezos.get_entrypoint(
+                        "%deploy_sft_storage",
+                        Tezos.get_self_address()
+                    );
+                let op_deploy_storage =
+                    Tezos.transaction(
+                        { collection: extract_addr(p.source_nft_address) },
+                        0mutez,
+                        deploy_storage_ep
+                    );
+                let lock_internal_op: contract<lock_internal> =
+                    Tezos.get_entrypoint(
+                        "%lock_internal",
+                        Tezos.get_self_address()
+                    );
+                let op_lock_nft_internal =
+                    Tezos.transaction(
+                        {
+                            to: p.dest_address,
+                            token_id: p.token_id,
+                            collection: p.source_nft_address,
+                            original: true,
+                            amt: 1n,
+                            new_deploy: true,
+                            dest_chain: p.dest_chain
+                        },
+                        0mutez,
+                        lock_internal_op
+                    );
+                return [list([op_deploy_storage, op_lock_nft_internal]), s];
+            }
+            let lock_internal_op: contract<lock_internal> =
+                Tezos.get_entrypoint("%lock_internal", Tezos.get_self_address());
+            let op_lock_nft_internal =
+                Tezos.transaction(
+                    {
+                        to: p.dest_address,
+                        token_id: p.token_id,
+                        collection: p.source_nft_address,
+                        original: true,
+                        amt: 1n,
+                        new_deploy: false,
+                        dest_chain: p.dest_chain
+                    },
+                    0mutez,
+                    lock_internal_op
+                );
+            return [list([op_lock_nft_internal]), s];
+        } else {
+            let storage_contract_opt =
+                Big_map.find_opt(
+                    [p.source_nft_address, self_chain],
+                    s.duplicate_storage_mapping_sft
+                );
+            if (Option.is_none(storage_contract_opt)) {
+                let deploy_storage_ep: contract<
+                    StorageFactory.StorageFactory.deploy_params
+                > =
+                    Tezos.get_entrypoint(
+                        "%deploy_sft_storage",
+                        Tezos.get_self_address()
+                    );
+                let op_deploy_storage =
+                    Tezos.transaction(
+                        { collection: extract_addr(p.source_nft_address) },
+                        0mutez,
+                        deploy_storage_ep
+                    );
+                let lock_internal_op: contract<lock_internal> =
+                    Tezos.get_entrypoint(
+                        "%lock_internal",
+                        Tezos.get_self_address()
+                    );
+                let op_lock_nft_internal =
+                    Tezos.transaction(
+                        {
+                            to: p.dest_address,
+                            token_id: p.token_id,
+                            collection: p.source_nft_address,
+                            original: false,
+                            amt: 1n,
+                            new_deploy: true,
+                            dest_chain: p.dest_chain
+                        },
+                        0mutez,
+                        lock_internal_op
+                    );
+                return [list([op_deploy_storage, op_lock_nft_internal]), s];
+            }
+            let lock_internal_op: contract<lock_internal> =
+                Tezos.get_entrypoint("%lock_internal", Tezos.get_self_address());
+            let op_lock_nft_internal =
+                Tezos.transaction(
+                    {
+                        to: p.dest_address,
+                        token_id: p.token_id,
+                        collection: p.source_nft_address,
+                        original: false,
+                        amt: 1n,
+                        new_deploy: false,
+                        dest_chain: p.dest_chain
+                    },
+                    0mutez,
+                    lock_internal_op
+                );
+            return [list([op_lock_nft_internal]), s];
+        }
+        return [list([]), s]
+    }
+    function verify_signature(
+        hash: bytes,
+        signatures: list<signer_and_signature>,
+        s: storage
+    ): list<address> {
+        let fold_fn = (
+            [[signers, percent], s]: [
+                [list<address>, int],
+                signer_and_signature
+            ]
+        ): [list<address>, int] => {
+            let sig = s.sig;
+            let signer = s.signer;
+            let is_valid = Crypto.check(signer, sig, hash);
+            if (is_valid) {
+                return [List.cons(s.addr, signers), percent + 1];
+            } else {
+                return [signers, percent];
+            }
+        }
+        const [signers, percent] = List.fold(fold_fn, signatures, [list([]), 0]);
+        if (percent < (((s.validators_count * 2) / 3)) + 1) {
+            failwith("Insufficient signatures");
+        }
+        return signers;
+    }
+    function create_claim_data_hash(cd: claim_data): bytes {
+        let hash = Crypto.keccak(Bytes.pack(cd));
+        return hash;
+    }
+    function reward_validators(
+        fee: tez,
+        vali_rewardable: list<address>,
+        store: storage
+    ): big_map<address, rewards> {
+        assert_with_error(fee > 0mutez, "Fee must be greater than 0");
+        let total_rewards = Tezos.get_balance();
+        assert_with_error(
+            total_rewards >= fee,
+            "Insufficient rewards to distribute"
+        );
+        const reward_per_validator =
+            total_rewards / List.length(vali_rewardable);
+        let distribute_rewards = (
+            stg: big_map<address, rewards>,
+            validators: list<address>
+        ): big_map<address, rewards> => {
+            let fold_fn = ([stg, v]: [big_map<address, rewards>, address]): big_map<
+                address,
+                rewards
+            > => {
+                let prev_rewards = Big_map.find_opt(v, stg);
+                assert_some_with_error(prev_rewards, "Validator does not exist");
+                let new_rewards =
+                    Option.unopt(prev_rewards) + reward_per_validator;
+                return Big_map.update(v, Some(new_rewards), stg);
+            }
+            return List.fold(fold_fn, validators, stg);
+        };
+        let new_validators =
+            distribute_rewards(store.validators, vali_rewardable);
+        return new_validators;
+    }
+    type claim_params = { data: claim_data, sigs: list<signer_and_signature> };
+    function get_duplicate_or_original_storage(
+        has_duplicate: bool,
+        s: storage,
+        source_nft_contract_address: AddrOrStr,
+        source_chain: string,
+        ogci: option<contract_info>,
+        type_: string
+    ): option<address> {
+        if (has_duplicate) {
+            const mapping = Option.unopt(ogci);
+            let opt_contract = mapping.contract;
+            return Big_map.find_opt(
+                [opt_contract, self_chain],
+                type_ == nft_type ? s.duplicate_storage_mapping_nft : s.duplicate_storage_mapping_sft
+            );
+        } else {
+            let contract = source_nft_contract_address;
+            return Big_map.find_opt(
+                [contract, source_chain],
+                type_ == nft_type ? s.original_storage_mapping_nft : s.original_storage_mapping_sft
+            );
+        }
+    }
+    function unlock_nft(to: address, token_id: nat, contract: address): operation {
+        const ctr: contract<
+            StorageFactory.NFTStorage.NFTStorage.unlock_parameters
+        > =
+            Tezos.get_entrypoint("%unlock_token", contract);
+        const params = { token_id, to };
+        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        return transfer_nft_op;
+    };
+    function unlock_sft(to: address, token_id: nat, amt: nat, contract: address): operation {
+        const ctr: contract<SFTStorage.SFTStorage.unlock_parameters> =
+            Tezos.get_entrypoint("%unlock_token", contract);
+        const params = { token_id, to, amt };
+        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        return transfer_nft_op;
+    };
+    function mint_nft(to: address, contract: address, md: string, token_id: nat): operation {
+        const ctr: option<
+            contract<
+                list<
+                    { token_id: nat, token_uri: string, to: address, amt: nat }
+                >
+            >
+        > =
+            Tezos.get_entrypoint_opt("%mint", contract);
+        assert_some_with_error(ctr, "Contract does not have mint entrypoint");
+        const params: {
+            token_id: nat,
+            token_uri: string,
+            to: address,
+            amt: nat
+        } = { to, token_uri: md, token_id: token_id, amt: 1n };
+        const transfer_nft_op =
+            Tezos.transaction(list([params]), 0mutez, Option.unopt(ctr))
+        return transfer_nft_op;
+    };
+    function mint_sft(to: address, contract: address, amt: nat, md: string): operation {
+        const ctr: contract<{ to: address, amt: nat, metadata: string }> =
+            Tezos.get_entrypoint("%mint_token", contract);
+        const params: { to: address, amt: nat, metadata: string } = {
+            to,
+            amt,
+            metadata: md
+        };
+        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        return transfer_nft_op;
+    };
+    export type internal_ns_nd_params = {
+        token_id: nat,
+        dest_chain: string,
+        dest_address: address,
+        collection: AddrOrStr,
+        token_amount: nat,
+        source_chain: string,
+        md: string,
+        transaction_hash: string,
+    }
+    @entry
+    function internal_ns_nd_part(p: internal_ns_nd_params, s: storage): ret {
+        assert_with_error(
+            Tezos.get_sender() == Tezos.get_self_address(),
+            "Only Callable by Self"
+        );
+        let opt_deployed: option<address> =
+            Tezos.call_view("get_store", p.collection, s.collection_deployer);
+        assert_some_with_error(opt_deployed, "Collection not deployed");
+        let deployed: address = Option.unopt(opt_deployed);
+        let new_original_to_duplicate_map =
+            Big_map.add(
+                [p.collection, p.source_chain],
+                { chain: self_chain, contract: Addr(deployed) },
+                s.original_to_duplicate_mapping
+            );
+        let new_duplicate_to_original_map =
+            Big_map.add(
+                [Addr(deployed), self_chain],
+                { chain: p.source_chain, contract: p.collection },
+                s.duplicate_to_original_mapping
+            )
+        let mint_op = mint_nft(p.dest_address, deployed, p.md, p.token_id);
+        let claim_event_op =
+            emit_claimed_ev(
+                p.dest_chain,
+                p.transaction_hash,
+                deployed,
+                p.token_id
+            );
+        return [
+            list([mint_op, claim_event_op]),
+            {
+                ...s,
+                duplicate_to_original_mapping: new_duplicate_to_original_map,
+                original_to_duplicate_mapping: new_original_to_duplicate_map
+            }
+        ] as ret;
+    }
+    @entry
+    function claim_nft(p: claim_params, s: storage): ret {
+        let storage = { ...s,  };
+        let op = list([]) as list<operation>;
+        modifier_has_correct_fee(p.data.fee);
+        modifier_matches_current_chain(p.data.dest_chain, s);
+        assert_with_error(p.data.nft_type == nft_type, "Invalid NFT Type");
+        const hash = create_claim_data_hash(p.data);
+        assert_none_with_error(
+            Big_map.find_opt(hash, s.unique_identifiers),
+            "Data already processed"
+        );
+        const validators_to_reward = verify_signature(hash, p.sigs, s);
+        const new_rewarded_validators =
+            reward_validators(p.data.fee, validators_to_reward, s);
+        storage = { ...storage, validators: new_rewarded_validators };
+        const opt_mapping =
+            Big_map.find_opt(
+                [p.data.source_nft_contract_address, p.data.source_chain],
+                s.original_to_duplicate_mapping
+            );
+        const has_duplicate = Option.is_some(opt_mapping);
+        const storage_address =
+            get_duplicate_or_original_storage(
+                has_duplicate,
+                s,
+                p.data.source_nft_contract_address,
+                p.data.source_chain,
+                opt_mapping,
+                nft_type
+            );
+        const has_storage = Option.is_some(storage_address);
+        if (has_duplicate && has_storage) {
+            const sc = Option.unopt(storage_address);
+            let cf = Option.unopt(opt_mapping);
+            let contract: address = extract_addr(cf.contract)
+            let is = is_token_deposited(sc, p.data.token_id);
+            if (is) {
+                let unlock_op =
+                    unlock_nft(p.data.dest_address, p.data.token_id, sc);
+                op = List.cons(unlock_op, op);
+            } else {
+                let mint_op =
+                    mint_nft(
+                        p.data.dest_address,
+                        contract,
+                        p.data.metadata,
+                        p.data.token_id
+                    );
+                op
+                = List.cons(
+                      emit_claimed_ev(
+                          p.data.source_chain,
+                          p.data.transaction_hash,
+                          contract,
+                          p.data.token_id
+                      ),
+                      op
+                  );
+                op = List.cons(mint_op, op);
+            }
+        } else if (has_duplicate && ! has_storage) {
+            let cf = Option.unopt(opt_mapping);
+            let contract: address = extract_addr(cf.contract)
+            let mint_op =
+                mint_nft(
+                    p.data.dest_address,
+                    contract,
+                    p.data.metadata,
+                    p.data.token_id
+                );
+            op = List.cons(mint_op, op);
+            op
+            = List.cons(
+                  emit_claimed_ev(
+                      p.data.source_chain,
+                      p.data.transaction_hash,
+                      contract,
+                      p.data.token_id
+                  ),
+                  op
+              )
+        } else if (! has_duplicate && has_storage) {
+            const oc: address = extract_addr(p.data.source_nft_contract_address);
+            assert_some_with_error(
+                storage_address,
+                "Storage not deployed for this collection"
+            );
+            const sc = Option.unopt(storage_address);
+            let is = is_token_deposited(sc, p.data.token_id);
+            if (is) {
+                let unlock_op =
+                    unlock_nft(p.data.dest_address, p.data.token_id, sc);
+                op = List.cons(unlock_op, op);
+            } else {
+                let mint_op =
+                    mint_nft(
+                        p.data.dest_address,
+                        oc,
+                        p.data.metadata,
+                        p.data.token_id
+                    );
+                op = List.cons(mint_op, op);
+            }
+            op
+            = List.cons(
+                  emit_claimed_ev(
+                      p.data.source_chain,
+                      p.data.transaction_hash,
+                      oc,
+                      p.data.token_id
+                  ),
+                  op
+              );
+        } else if (! has_duplicate && ! has_storage) {
+            let ctr = p.data.source_nft_contract_address;
+            let deploy_ep: contract<{ collection: AddrOrStr }> =
+                Tezos.get_entrypoint("%deploy_nft", s.collection_deployer);
+            let deploy_op =
+                Tezos.transaction({ collection: ctr }, 0mutez, deploy_ep);
+            let ep =
+                Tezos.get_entrypoint(
+                    "%internal_ns_nd_part",
+                    Tezos.get_self_address()
+                );
+            let handle_final_op =
+                Tezos.transaction(
+                    {
+                        token_id: p.data.token_id,
+                        dest_chain: p.data.dest_chain,
+                        dest_address: p.data.dest_address,
+                        collection: ctr,
+                        token_amount: p.data.token_amount,
+                        source_chain: p.data.source_chain,
+                        md: p.data.metadata,
+                        transaction_hash: p.data.transaction_hash,
+                    },
+                    0mutez,
+                    ep
+                );
+            op = List.cons(deploy_op, List.cons(handle_final_op, op));
+            return [op, storage]
+        }
+        return [op, s];
+    }
+    function claim_sft(p: claim_params, s: storage): ret {
+        modifier_has_correct_fee(p.data.fee);
+        modifier_matches_current_chain(p.data.dest_chain, s);
+        assert_with_error(p.data.nft_type == sft_type, "Invalid NFT Type");
+        const hash = create_claim_data_hash(p.data);
+        assert_none_with_error(
+            Big_map.find_opt(hash, s.unique_identifiers),
+            "Data already processed!"
+        );
+        const unique_identifiers = Big_map.add(hash, true, s.unique_identifiers);
+        const validators_to_reward = verify_signature(hash, p.sigs, s);
+        const validators =
+            reward_validators(p.data.fee, validators_to_reward, s);
+        let new_storage = {
+            ...s, unique_identifiers: unique_identifiers, validators: validators
+        };
+        let op_list = list([]) as list<operation>;
+        const src_nft_address_str = p.data.source_nft_contract_address
+        const duplicate_collection_address =
+            Big_map.find_opt(
+                [src_nft_address_str, p.data.source_chain],
+                s.original_to_duplicate_mapping
+            );
+        const has_duplicate = Option.is_some(duplicate_collection_address);
+        const storage_address =
+            get_duplicate_or_original_storage(
+                has_duplicate,
+                s,
+                p.data.source_nft_contract_address,
+                p.data.source_chain,
+                duplicate_collection_address,
+                sft_type
+            );
+        const has_storage = Option.is_some(storage_address);
+        if (has_duplicate && has_storage) {
+            const sc = Option.unopt(storage_address);
+            let cf = Option.unopt(duplicate_collection_address);
+            let contract: address = extract_addr(cf.contract);
+            let bal = balance_fa2(sc, p.data.token_id, contract);
+            if (bal >= p.data.token_amount) {
+                let unlockop =
+                    unlock_sft(
+                        p.data.dest_address,
+                        p.data.token_id,
+                        p.data.token_amount,
+                        sc
+                    );
+                op_list = List.cons(unlockop, op_list);
+            } else {
+                const to_mint = p.data.token_amount - bal;
+                let unlockop =
+                    unlock_sft(p.data.dest_address, p.data.token_id, bal, sc);
+                let mintop =
+                    mint_sft(
+                        p.data.dest_address,
+                        contract,
+                        abs(to_mint),
+                        p.data.metadata
+                    );
+                op_list = List.cons(mintop, List.cons(unlockop, op_list));
+            }
+        } else if (has_duplicate && ! has_storage) {
+            let cf = Option.unopt(duplicate_collection_address);
+            let contract: address = extract_addr(cf.contract);
+            let mintop =
+                mint_sft(
+                    p.data.dest_address,
+                    contract,
+                    p.data.token_amount,
+                    p.data.metadata
+                );
+            op_list = List.cons(mintop, op_list);
+        } else if (! has_duplicate && has_storage) {
+            const sc = Option.unopt(storage_address);
+            let contract: address =
+                extract_addr(p.data.source_nft_contract_address);
+            let bal = balance_fa2(sc, p.data.token_id, contract);
+            if (bal >= p.data.token_amount) {
+                let unlockop =
+                    unlock_sft(
+                        p.data.dest_address,
+                        p.data.token_id,
+                        p.data.token_amount,
+                        sc
+                    );
+                op_list = List.cons(unlockop, op_list);
+            } else {
+                const to_mint = p.data.token_amount - bal;
+                let unlockop =
+                    unlock_sft(p.data.dest_address, p.data.token_id, bal, sc);
+                let mintop =
+                    mint_sft(
+                        p.data.dest_address,
+                        contract,
+                        abs(to_mint),
+                        p.data.metadata
+                    );
+                op_list = List.cons(mintop, List.cons(unlockop, op_list));
+            }
+        } else if (! has_duplicate && ! has_storage) {
+            // Handle this case
+            failwith("Not implemented");
+        }
+        return [op_list, new_storage];
+    }
+}

@@ -4,7 +4,7 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use snip721::msg::{
-    ExecuteAnswer, ExecuteMsg, InstantiateMsg, QueryAnswer, QueryMsg,
+    Snip721ExecuteAnswer, Snip721QueryAnswer, Snip721QueryMsg, Snip721ExecuteMsg, Snip721InstantiateMsg,
 };
 
 fn main() {
@@ -13,9 +13,9 @@ fn main() {
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 
-    export_schema(&schema_for!(InstantiateMsg), &out_dir);
-    export_schema(&schema_for!(ExecuteMsg), &out_dir);
-    export_schema(&schema_for!(ExecuteAnswer), &out_dir);
-    export_schema(&schema_for!(QueryMsg), &out_dir);
-    export_schema(&schema_for!(QueryAnswer), &out_dir);
+    export_schema(&schema_for!(Snip721InstantiateMsg), &out_dir);
+    export_schema(&schema_for!(Snip721ExecuteMsg), &out_dir);
+    export_schema(&schema_for!(Snip721ExecuteAnswer), &out_dir);
+    export_schema(&schema_for!(Snip721QueryMsg), &out_dir);
+    export_schema(&schema_for!(Snip721QueryAnswer), &out_dir);
 }

@@ -3,7 +3,7 @@ use cosmwasm_std::{
 };
 use secret_toolkit::utils::HandleCallback;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::msg::{Storage721ExecuteMsg, Storage721InstantiateMsg};
 use crate::snip721_msg::Snip721ExecuteMsg;
 use crate::state::{COLLECTION721_ADDRESS, COLLECTION721_CODE, OWNER};
 use crate::storage_deployer_msg::StorageDeployerInfo;
@@ -13,7 +13,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: Storage721InstantiateMsg,
 ) -> StdResult<Response> {
     deps.api
         .debug(format!("Storage 721 was initialized by {}", info.sender).as_str());
@@ -39,14 +39,14 @@ pub fn execute(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: ExecuteMsg,
+    msg: Storage721ExecuteMsg,
 ) -> StdResult<Response> {
     if OWNER.load(deps.storage)? != info.sender {
         return Err(StdError::generic_err("Unauthorized"));
     }
     match msg {
         // ExecuteMsg::DepositToken { token_id } => deposit_token(deps, env, token_id),
-        ExecuteMsg::UnLockToken { token_id, to } => unlock_token(deps, token_id, to),
+        Storage721ExecuteMsg::UnLockToken { token_id, to } => unlock_token(deps, token_id, to),
     }
 }
 

@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "cosm_nft",
+    "nft_store",
+    "store_deployer",
+    "collection_deployer",
+    "bridge",
+]
+
+
+[workspace.dependencies]
+cosmwasm-schema = "^1.5"
+cosmwasm-std = "^1.5"
+cw-storage-plus = "^1.2"
+cw721-base = { version = "0.18.0", features = ["library"] }
+thiserror = "1.0.58"
+cw0 = "0.10.3"
+cw2 = "^1.1"
+cw-multi-test = "0.13.4"

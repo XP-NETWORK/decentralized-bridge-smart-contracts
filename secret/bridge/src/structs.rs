@@ -1,6 +1,7 @@
 // In general, data that is stored for user display may be different from the data used
 // for internal functions of the smart contract. That is why we have StoreOffspringInfo.
 
+use common::CodeInfo;
 use cosmwasm_std::{Addr, Binary};
 use schemars::{JsonSchema, Map};
 use serde::{Deserialize, Serialize};
@@ -42,7 +43,7 @@ pub struct SignerAndSignature {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InstantiateMsg {
+pub struct BridgeInstantiateMsg {
     pub validators: Vec<(Binary, Addr)>,
     pub chain_type: String,
     // pub collection_deployer: Addr,
@@ -169,15 +170,6 @@ pub struct RoyaltyInfo {
     pub royalties: Vec<Royalty>,
 }
 
-/// Info needed to instantiate an offspring
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct CodeInfo {
-    /// code id of the stored offspring contract
-    pub code_id: u64,
-    /// code hash of the stored offspring contract
-    pub code_hash: String,
-}
-
 /// code hash and address of a contract
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct ContractInfo {
@@ -218,6 +210,7 @@ pub struct ReplyCollectionInfo {
     pub code_hash: String,
     pub source_nft_contract_address: String,
     pub source_chain: String,
+    pub transaction_hash: String,
     pub destination_user_address: Addr,
     pub token_id: String,
     pub token_amount: u128,

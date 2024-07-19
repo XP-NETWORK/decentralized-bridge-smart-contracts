@@ -4,6 +4,7 @@ use cosmwasm_std::{
 };
 
 use secret_toolkit::utils::{pad_handle_result, InitCallback};
+use snip1155::state::state_structs::CurateTokenId;
 
 use crate::bridge_msg::BridgeInfo;
 use crate::error::ContractError;
@@ -13,12 +14,12 @@ use crate::state::{
 };
 use crate::structs::ReplyCollectionInfo;
 use crate::{
-    msg::{ExecuteMsg, InstantiateMsg},
+    msg::{CollectionDeployerExecuteMsg, CollectionDeployerInstantiateMsg},
     state::OWNER,
 };
 
 use crate::offspring_msg::{
-    Collection1155InstantiateMsg, Collection721InstantiateMsg, CurateTokenId,
+    Collection1155InstantiateMsg, Collection721InstantiateMsg,
 };
 
 ////////////////////////////////////// Init ///////////////////////////////////////
@@ -37,7 +38,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: CollectionDeployerInstantiateMsg,
 ) -> Result<Response, ContractError> {
     OWNER.save(deps.storage, &info.sender)?;
     SNIP721_CODE.save(deps.storage, &msg.collection721_code_info)?;
@@ -63,13 +64,13 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: ExecuteMsg,
+    msg: CollectionDeployerExecuteMsg,
 ) -> Result<Response, ContractError> {
     if OWNER.load(deps.storage)? != info.sender {
         return Err(ContractError::Unauthorized {});
     }
     let response = match msg {
-        ExecuteMsg::CreateCollection721 {
+        CollectionDeployerExecuteMsg::CreateCollection721 {
             owner,
             name,
             symbol,
@@ -81,6 +82,7 @@ pub fn execute(
             royalty,
             royalty_receiver,
             metadata,
+            transaction_hash
         } => try_create_collection_721(
             deps,
             env,
@@ -95,8 +97,9 @@ pub fn execute(
             royalty,
             royalty_receiver,
             metadata,
+            transaction_hash
         ),
-        ExecuteMsg::CreateCollection1155 {
+        CollectionDeployerExecuteMsg::CreateCollection1155 {
             name,
             symbol,
             has_admin,
@@ -113,6 +116,7 @@ pub fn execute(
             royalty,
             royalty_receiver,
             metadata,
+            transaction_hash
         } => try_create_collection_1155(
             deps,
             env,
@@ -132,6 +136,7 @@ pub fn execute(
             royalty,
             royalty_receiver,
             metadata,
+            transaction_hash
         ),
     };
     pad_handle_result(response, BLOCK_SIZE)
@@ -163,6 +168,7 @@ fn try_create_collection_721(
     royalty: u16,
     royalty_receiver: Addr,
     metadata: String,
+    transaction_hash:String
 ) -> Result<Response, ContractError> {
     let owner_addr = deps.api.addr_validate(&owner)?;
 
@@ -172,13 +178,13 @@ fn try_create_collection_721(
     // };
 
     let initmsg = Collection721InstantiateMsg {
-        label: name.clone() + &symbol,
+        label: name.clone() + &symbol + &source_nft_contract_address,
         owner: owner_addr.clone(),
         admin: Some(owner_addr.into_string()),
         name: name.clone(),
         symbol: symbol.clone(),
         entropy: name.clone() + &symbol,
-        source_nft_contract_address,
+        source_nft_contract_address: source_nft_contract_address.clone(),
         source_chain,
         destination_user_address,
         token_id,
@@ -186,12 +192,14 @@ fn try_create_collection_721(
         royalty,
         royalty_receiver,
         metadata,
+        transaction_hash
     };
 
     let offspring_code = SNIP721_CODE.load(deps.storage)?;
     let init_submsg = SubMsg::reply_always(
         initmsg.to_cosmos_msg(
-            name + &symbol,
+            None,
+            name + &symbol + &source_nft_contract_address,
             offspring_code.code_id,
             offspring_code.code_hash,
             None,
@@ -214,8 +222,8 @@ fn try_create_collection_721(
 fn try_create_collection_1155(
     deps: DepsMut,
     _env: Env,
-    name: String,
-    symbol: String,
+    _name: String,
+    _symbol: String,
     has_admin: bool,
     admin: Option<Addr>,
     curators: Vec<Addr>,
@@ -230,6 +238,7 @@ fn try_create_collection_1155(
     royalty: u16,
     royalty_receiver: Addr,
     metadata: String,
+    transaction_hash:String
 ) -> Result<Response, ContractError> {
     // let owner = admin.clone().unwrap().into_string();
     // let owner_addr = deps.api.addr_validate(&owner)?;
@@ -245,8 +254,8 @@ fn try_create_collection_1155(
         curators,
         initial_tokens,
         entropy,
-        label,
-        source_nft_contract_address,
+        label: label.clone(),
+        source_nft_contract_address: source_nft_contract_address.clone(),
         source_chain,
         destination_user_address,
         token_id,
@@ -254,12 +263,14 @@ fn try_create_collection_1155(
         royalty,
         royalty_receiver,
         metadata,
+        transaction_hash
     };
 
     let offspring_code = SNIP1155_CODE.load(deps.storage)?;
     let init_submsg = SubMsg::reply_always(
         initmsg.to_cosmos_msg(
-            name + &symbol,
+            None,
+            label,
             offspring_code.code_id,
             offspring_code.code_hash,
             None,
