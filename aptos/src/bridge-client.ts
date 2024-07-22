@@ -248,6 +248,7 @@ export class BridgeClient {
             nftType,
             metadata,
             symbol,
+            0
           ],
         },
       });

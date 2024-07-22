@@ -510,6 +510,7 @@ module bridge::aptos_nft_bridge {
     nft_type: vector<u8>,
     metadata: String, // we are not using it.
     symbol: String, // not used here. used in 1155 inside primary store
+    amount: u64,
   ) acquires Bridge, ProcessedClaims {
 
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
