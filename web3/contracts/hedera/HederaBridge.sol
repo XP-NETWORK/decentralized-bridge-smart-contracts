@@ -104,6 +104,7 @@ contract HederaBridge is
         uint256 tokenAmount; // Number of NFTs being transferred
         string nftType; // Type of the NFT (could be ERC721 or ERC1155)
         uint256 fee; // fee that needs to be paid by the user to the bridge,
+        string lockTxChain; // The tx on which the nft is locked.
     }
 
     event AddNewValidator(address _validator);
@@ -122,6 +123,7 @@ contract HederaBridge is
     event UnLock721(address to, uint256 tokenId, address contractAddr);
 
     event Claimed(
+        string lockTxChain, // Lock Transaction Chain
         string sourceChain, // Chain from where the NFT is being transferred
         string transactionHash, // Transaction hash of the transfer on the source chain
         address nftContract,
@@ -531,6 +533,7 @@ contract HederaBridge is
                     storageContract
                 );
                 emit Claimed(
+                    data.lockTxChain,
                     data.sourceChain,
                     data.transactionHash,
                     duplicateCollectionAddress
@@ -550,6 +553,7 @@ contract HederaBridge is
                     data.sourceNftContractAddress
                 );
                 emit Claimed(
+                    data.lockTxChain,
                     data.sourceChain,
                     data.transactionHash,
                     nftContract,
@@ -568,6 +572,7 @@ contract HederaBridge is
                 data.sourceNftContractAddress
             );
             emit Claimed(
+                data.lockTxChain,
                 data.sourceChain,
                 data.transactionHash,
                 nftContract,
@@ -607,6 +612,7 @@ contract HederaBridge is
             );
 
             emit Claimed(
+                data.lockTxChain,
                 data.sourceChain,
                 data.transactionHash,
                 nftContract,
@@ -648,6 +654,7 @@ contract HederaBridge is
                     data.sourceNftContractAddress
                 );
                 emit Claimed(
+                    data.lockTxChain,
                     data.sourceChain,
                     data.transactionHash,
                     nftContract,
@@ -808,7 +815,8 @@ contract HederaBridge is
                 data.transactionHash,
                 data.tokenAmount,
                 data.nftType,
-                data.fee
+                data.fee,
+                data.lockTxChain
             )
         );
 
