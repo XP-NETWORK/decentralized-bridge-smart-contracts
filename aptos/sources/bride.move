@@ -650,7 +650,7 @@ module bridge::aptos_nft_bridge {
 
         let value_duplicate = DuplicateToOriginalInfo {
           source_chain,
-          source_contract: bcs::to_bytes(&source_nft_contract_address),
+          source_contract: source_nft_contract_address,
         };
 
         table::add(&mut bridge_data.original_to_duplicate_mapping, key, value);
@@ -901,7 +901,7 @@ module bridge::aptos_nft_bridge {
 
         let value_duplicate = DuplicateToOriginalInfo {
           source_chain,
-          source_contract: bcs::to_bytes(&source_nft_contract_address),
+          source_contract: source_nft_contract_address,
         };
 
         table::add(&mut bridge_data.original_to_duplicate_mapping, key, value);
