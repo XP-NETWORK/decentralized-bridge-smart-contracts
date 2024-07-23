@@ -74,6 +74,7 @@ pub trait BridgeContract {
     #[event("Claimed721")]
     fn claimed721(
         &self,
+        #[indexed] lock_tx_chain: ManagedBuffer,
         #[indexed] source_chain: ManagedBuffer,
         #[indexed] transaction_hash: ManagedBuffer,
         #[indexed] token_id: TokenIdentifier,
@@ -83,6 +84,7 @@ pub trait BridgeContract {
     #[event("Claimed1155")]
     fn claimed1155(
         &self,
+        #[indexed] lock_tx_chain: ManagedBuffer,
         #[indexed] source_chain: ManagedBuffer,
         #[indexed] transaction_hash: ManagedBuffer,
         #[indexed] token_id: TokenIdentifier,
@@ -503,6 +505,7 @@ pub trait BridgeContract {
                             data.source_nft_contract_address.clone().into(),
                         );
                         self.claimed721(
+                            data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             data.source_nft_contract_address.into(),
@@ -527,6 +530,7 @@ pub trait BridgeContract {
                             &BigUint::from(1u64),
                         );
                         self.claimed721(
+                        data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             TokenIdentifier::from(v.address.clone()),
@@ -545,6 +549,7 @@ pub trait BridgeContract {
                             data.source_nft_contract_address.clone().into(),
                         );
                         self.claimed721(
+                                  data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             data.source_nft_contract_address.into(),
@@ -638,6 +643,7 @@ pub trait BridgeContract {
                                 data.token_amount.clone(),
                             );
                             self.claimed1155(
+                                   data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 data.source_nft_contract_address.into(),
@@ -669,6 +675,7 @@ pub trait BridgeContract {
                                 &data.token_amount,
                             );
                             self.claimed1155(
+                                   data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 TokenIdentifier::from(v.address.clone()),
@@ -695,6 +702,7 @@ pub trait BridgeContract {
                             &data.token_amount,
                         );
                         self.claimed1155(
+                               data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             TokenIdentifier::from(v.address.clone()),
@@ -753,6 +761,7 @@ pub trait BridgeContract {
                                 &to_mint,
                             );
                             self.claimed1155(
+                                   data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 data.source_nft_contract_address.into(),
@@ -963,6 +972,7 @@ pub trait BridgeContract {
                 );
                 if data.token_amount == 1 {
                     self.claimed721(
+                           data.lock_tx_chain,
                         data.source_chain,
                         data.transaction_hash,
                         tid,
@@ -970,6 +980,7 @@ pub trait BridgeContract {
                     )
                 } else {
                     self.claimed1155(
+                           data.lock_tx_chain,
                         data.source_chain,
                         data.transaction_hash,
                         tid,
