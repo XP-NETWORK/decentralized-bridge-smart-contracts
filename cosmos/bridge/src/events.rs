@@ -104,6 +104,7 @@ impl UnLock721EventInfo {
 
 #[cw_serde]
 pub struct ClaimedEventInfo {
+    pub lock_tx_chain: String,
     pub source_chain: String,
     pub transaction_hash: String,
     pub contract: Addr,
@@ -113,12 +114,14 @@ bridge_event!(ClaimedEventInfo);
 
 impl ClaimedEventInfo {
     pub fn new(
+        lock_tx_chain: String,
         source_chain: String,
         transaction_hash: String,
         contract: Addr,
         token_id: String,
     ) -> Self {
         Self {
+            lock_tx_chain,
             source_chain,
             transaction_hash,
             contract,

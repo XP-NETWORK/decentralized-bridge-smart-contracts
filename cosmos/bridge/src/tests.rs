@@ -217,6 +217,7 @@ mod tests {
                 royalty_receiver: Addr::unchecked("rr"),
                 token_amount: Default::default(),
                 transaction_hash: "tx_hash".to_string(),
+                lock_tx_chain: "BRUH".to_string()
             },
             &[],
             "test-nft-contract",
@@ -328,6 +329,7 @@ mod tests {
             symbol: "BRUH".to_string(),
             token_amount: 1,
             transaction_hash: "0xabc123".to_string(),
+            lock_tx_chain: "APTOS".to_string()
         };
 
         app.sudo(cw_multi_test::SudoMsg::Bank(
@@ -380,6 +382,7 @@ mod tests {
         let json = from_json::<ClaimedEventInfo>(cei.value.clone());
         assert!(json.is_ok(), "json is not ok");
         let ev = json.unwrap();
+        assert!(ev.lock_tx_chain == "APTOS".to_string(), "Invalid lock tx chain");
 
         let approve = app.execute_contract(
             Addr::unchecked("claimer"),

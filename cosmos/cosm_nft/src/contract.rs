@@ -38,6 +38,7 @@ pub mod methods {
             token_amount: msg.token_amount,
             royalty: msg.royalty,
             transaction_hash: msg.transaction_hash,
+            lock_tx_chain: msg.lock_tx_chain
         })?;
         Ok(NftContract::default()
             .instantiate(
