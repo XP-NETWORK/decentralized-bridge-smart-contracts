@@ -128,12 +128,13 @@ pub struct ClaimData {
     pub token_amount: u128,
     pub nft_type: String,
     pub fee: u128,
+    pub lock_tx_chain: String
 }
 
 impl ClaimData {
     pub fn concat_all_fields(&self) -> String {
         format!(
-            "{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+            "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
             self.token_id,
             self.source_chain,
             self.destination_chain,
@@ -147,7 +148,8 @@ impl ClaimData {
             self.transaction_hash,
             self.token_amount,
             self.nft_type,
-            self.fee
+            self.fee,
+            self.lock_tx_chain
         )
     }
 }
@@ -217,6 +219,7 @@ pub struct ReplyCollectionInfo {
     pub royalty: u16,
     pub royalty_receiver: Addr,
     pub metadata: String,
+    pub lock_tx_chain: String
 }
 
 #[derive(Deserialize)]

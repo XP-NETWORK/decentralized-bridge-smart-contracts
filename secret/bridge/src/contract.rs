@@ -1109,6 +1109,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     )
                     .try_into()?,
                     Claimed721EventInfo::new(
+                        msg.data.lock_tx_chain,
                         msg.data.source_chain,
                         msg.data.transaction_hash,
                         duplicate_collection_address
@@ -1159,6 +1160,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     funds: vec![],
                 });
                       let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
+                        msg.data.lock_tx_chain,
                     msg.data.source_chain,
                     msg.data.transaction_hash,
                     duplicate_collection_address.contract_address.to_string(),
@@ -1203,6 +1205,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
             funds: vec![],
         });
           let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
+            msg.data.lock_tx_chain,
             msg.data.source_chain,
             msg.data.transaction_hash,
             duplicate_collection_address.contract_address.to_string(),
@@ -1273,6 +1276,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     storage_contract.0.to_string(),
                 )
                 .try_into()?,   Claimed721EventInfo::new(
+                    msg.data.lock_tx_chain,
                         msg.data.source_chain,
                         msg.data.transaction_hash,
                         msg.data.source_nft_contract_address.clone(),
@@ -1323,6 +1327,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                 });
 
                 let clog: Vec<Attribute> = vec![Claimed721EventInfo::new(
+                    msg.data.lock_tx_chain,
                     msg.data.source_chain,
                     msg.data.transaction_hash,
                     msg.data.source_nft_contract_address,
@@ -1482,7 +1487,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         storage_contract.0.to_string(),
                         msg.data.token_amount,
                     )
-                    .try_into()?, Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
+                    .try_into()?, Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
 
                     let _ = NFT_COLLECTION_OWNER.remove(
                         deps.storage,
@@ -1519,7 +1524,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         storage_contract.0.to_string(),
                         _v.1,
                     )
-                    .try_into()?,  Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
+                    .try_into()?,  Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
 
                     let _ = NFT_COLLECTION_OWNER.remove(
                         deps.storage,
@@ -1586,7 +1591,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             msg: to_binary(&create_collection_msg)?,
             funds: vec![],
         });
-        let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
+        let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
 
         Ok(Response::new().add_message(message).add_attributes(emit))
     }
@@ -1656,7 +1661,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 msg.data.token_amount,
             )
             .try_into()?, 
-            Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, msg.data.source_nft_contract_address.clone(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?
+            Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, msg.data.source_nft_contract_address.clone(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?
             ];
 
             let _ = NFT_COLLECTION_OWNER.remove(
@@ -1694,7 +1699,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 original_collection.amount.into(),
             )
             .try_into()?,
-                     Claimed1155EventInfo::new(msg.data.source_chain, msg.data.transaction_hash, msg.data.source_nft_contract_address.clone(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
+                     Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, msg.data.source_nft_contract_address.clone(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
 
             let _ = NFT_COLLECTION_OWNER.remove(
                 deps.storage,
@@ -2100,6 +2105,7 @@ fn register_collection_721_impl(
         funds: vec![],
     });
     let emit: Vec<Attribute> = vec![Claimed721EventInfo::new(
+        msg.data.lock_tx_chain,
         reply_info.source_chain,
         reply_info.transaction_hash,
         reply_info.address.to_string(),
@@ -2164,7 +2170,7 @@ fn register_collection_1155_impl(
         funds: vec![],
     });
 
-    let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(reply_info.source_chain, reply_info.transaction_hash, reply_info.address.to_string(), reply_info.token_id, reply_info.token_amount).try_into()?];
+    let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(reply_info.lock_tx_chain, reply_info.source_chain, reply_info.transaction_hash, reply_info.address.to_string(), reply_info.token_id, reply_info.token_amount).try_into()?];
 
     Ok(Response::new()
         .add_message(message)
