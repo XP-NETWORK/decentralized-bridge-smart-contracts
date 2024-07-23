@@ -273,11 +273,11 @@ actor class XPBridge(
       } else {
         let _mint = collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       };
-      emit_claimed_event(claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
+      emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
     } else if (has_duplicate and not has_storage) {
       let collection = actor (Principal.toText(o_unwrap(duplicate_collection_address))) : NFT.NFT;
       let _mint = await collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
-      emit_claimed_event(claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
+      emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
       // Emit Claimed EV;
     } else if (not has_duplicate and not has_storage) {
       let new_collection_address = await collection_factory.deploy_nft_collection(claim_data.name, claim_data.symbol);
@@ -290,7 +290,7 @@ actor class XPBridge(
       );
       let collection = actor (Principal.toText(new_collection_address)) : NFT.NFT;
       let _mint = await collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
-      emit_claimed_event(claim_data.source_chain, Principal.toText(new_collection_address), claim_data.token_id, claim_data.transaction_hash);
+      emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(new_collection_address), claim_data.token_id, claim_data.transaction_hash);
     } else if (not has_duplicate and has_storage) {
       let sc = o_unwrap(storage);
       let collection = actor (claim_data.source_nft_contract_address) : NFT.NFT;
@@ -300,7 +300,7 @@ actor class XPBridge(
       } else {
         let _mint = collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       };
-      emit_claimed_event(claim_data.source_chain, claim_data.source_nft_contract_address, claim_data.token_id, claim_data.transaction_hash);
+      emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, claim_data.source_nft_contract_address, claim_data.token_id, claim_data.transaction_hash);
     } else {
       Prelude.unreachable();
     };
@@ -358,12 +358,13 @@ actor class XPBridge(
     return;
   };
 
-  private func emit_claimed_event(source_chain : Text, nft_contract : Text, token_id : Nat, transaction_hash : Text) : Text {
+  private func emit_claimed_event(lock_tx_chain: Text, source_chain : Text, nft_contract : Text, token_id : Nat, transaction_hash : Text) : Text {
     let claimed = {
       source_chain = source_chain;
       nft_contract = Principal.fromText(nft_contract);
       token_id = token_id;
       transaction_hash = transaction_hash;
+      lock_tx_chain = lock_tx_chain;
     };
     let hash = Nat32.toText(ClaimedEvent.hash(claimed));
     claimed_events.put(hash, claimed);

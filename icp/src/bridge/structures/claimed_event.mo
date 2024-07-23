@@ -11,6 +11,7 @@ module {
         nft_contract : Principal;
         token_id : Nat;
         transaction_hash : Text;
+        lock_tx_chain: Text;
     };
 
     public func hash(c : ClaimedEvent) : Hash.Hash {
