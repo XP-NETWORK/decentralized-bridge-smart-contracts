@@ -549,6 +549,7 @@ fn deploy_collection_721(
     royalty_receiver: Addr,
     metadata: String,
     transaction_hash: String,
+    lock_tx_chain: String
 ) -> StdResult<Response> {
     let create_collection_msg = CollectionDeployerExecuteMsg::CreateCollection721 {
         owner,
@@ -563,6 +564,7 @@ fn deploy_collection_721(
         royalty_receiver,
         metadata,
         transaction_hash,
+        lock_tx_chain
     };
 
     let init_wasm_msg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -699,6 +701,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     )
                     .try_into()?,
                     ClaimedEventInfo::new(
+                        msg.data.lock_tx_chain,
                         msg.data.source_chain,
                         msg.data.transaction_hash,
                         duplicate_collection_address.contract_address.clone(),
@@ -738,6 +741,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     funds: vec![],
                 });
                 let log: Vec<Attribute> = vec![ClaimedEventInfo::new(
+                    msg.data.lock_tx_chain,
                     msg.data.source_chain,
                     msg.data.transaction_hash,
                     duplicate_collection_address.contract_address,
@@ -768,6 +772,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
             funds: vec![],
         });
         let log: Vec<Attribute> = vec![ClaimedEventInfo::new(
+            msg.data.lock_tx_chain,
             msg.data.source_chain,
             msg.data.transaction_hash,
             duplicate_collection_address.contract_address,
@@ -791,6 +796,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
             msg.data.royalty_receiver,
             msg.data.metadata,
             msg.data.transaction_hash,
+            msg.data.lock_tx_chain
         )
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
@@ -825,6 +831,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                     )
                     .try_into()?,
                     ClaimedEventInfo::new(
+                        msg.data.lock_tx_chain,
                         msg.data.source_chain,
                         msg.data.transaction_hash,
                         Addr::unchecked(msg.data.source_nft_contract_address.clone()),
@@ -862,6 +869,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                 });
 
                 let log: Vec<Attribute> = vec![ClaimedEventInfo::new(
+                    msg.data.lock_tx_chain,
                     msg.data.source_chain,
                     msg.data.transaction_hash,
                     Addr::unchecked(msg.data.source_nft_contract_address),
@@ -1156,6 +1164,7 @@ fn register_collection_721_impl(
         funds: vec![],
     });
     let emit: Vec<Attribute> = vec![ClaimedEventInfo::new(
+        reply_info.lock_tx_chain,
         reply_info.source_chain,
         reply_info.transaction_hash,
         reply_info.address.clone(),

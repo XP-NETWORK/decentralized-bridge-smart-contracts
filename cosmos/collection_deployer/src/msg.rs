@@ -23,6 +23,7 @@ pub enum CollectionDeployerExecuteMsg {
         royalty_receiver: Addr,
         metadata: String,
         transaction_hash: String,
+        lock_tx_chain: String
     },
 }
 
@@ -42,5 +43,6 @@ pub struct ReplyCollectionInfo {
     pub royalty: u16,
     pub royalty_receiver: Addr,
     pub metadata: String,
-    transaction_hash: String,
+    pub transaction_hash: String,
+    pub lock_tx_chain: String
 }

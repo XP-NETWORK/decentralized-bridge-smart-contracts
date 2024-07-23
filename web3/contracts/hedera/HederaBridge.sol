@@ -104,6 +104,7 @@ contract HederaBridge is
         uint256 tokenAmount; // Number of NFTs being transferred
         string nftType; // Type of the NFT (could be ERC721 or ERC1155)
         uint256 fee; // fee that needs to be paid by the user to the bridge,
+        string lockTxChain; // The tx on which the nft is locked.
     }
 
     event AddNewValidator(address _validator);
@@ -122,6 +123,7 @@ contract HederaBridge is
     event UnLock721(address to, uint256 tokenId, address contractAddr);
 
     event Claimed(
+        string lockTxChain, // Lock Transaction Chain
         string sourceChain, // Chain from where the NFT is being transferred
         string transactionHash, // Transaction hash of the transfer on the source chain
         address nftContract,
@@ -203,30 +205,12 @@ contract HederaBridge is
     }
 
     function claimValidatorRewards(
-        address _validator,
-        bytes[] memory signatures
+        address _validator
     ) external {
         require(_validator != address(0), "Address cannot be zero address!");
-        require(signatures.length > 0, "Must have signatures!");
         require(
             validators[_validator].added == true,
             "Validator does not exist!"
-        );
-
-        uint256 percentage = 0;
-        for (uint256 i = 0; i < signatures.length; i++) {
-            address signer = recover(
-                keccak256(abi.encode(_validator)),
-                signatures[i]
-            );
-            if (validators[signer].added) {
-                percentage += 1;
-            }
-        }
-
-        require(
-            percentage >= ((validatorsCount * 2) / 3) + 1,
-            "Threshold not reached!"
         );
 
         emit RewardValidator(address(_validator));
@@ -549,6 +533,7 @@ contract HederaBridge is
                     storageContract
                 );
                 emit Claimed(
+                    data.lockTxChain,
                     data.sourceChain,
                     data.transactionHash,
                     duplicateCollectionAddress
@@ -568,6 +553,7 @@ contract HederaBridge is
                     data.sourceNftContractAddress
                 );
                 emit Claimed(
+                    data.lockTxChain,
                     data.sourceChain,
                     data.transactionHash,
                     nftContract,
@@ -586,6 +572,7 @@ contract HederaBridge is
                 data.sourceNftContractAddress
             );
             emit Claimed(
+                data.lockTxChain,
                 data.sourceChain,
                 data.transactionHash,
                 nftContract,
@@ -625,6 +612,7 @@ contract HederaBridge is
             );
 
             emit Claimed(
+                data.lockTxChain,
                 data.sourceChain,
                 data.transactionHash,
                 nftContract,
@@ -666,6 +654,7 @@ contract HederaBridge is
                     data.sourceNftContractAddress
                 );
                 emit Claimed(
+                    data.lockTxChain,
                     data.sourceChain,
                     data.transactionHash,
                     nftContract,
@@ -826,7 +815,8 @@ contract HederaBridge is
                 data.transactionHash,
                 data.tokenAmount,
                 data.nftType,
-                data.fee
+                data.fee,
+                data.lockTxChain
             )
         );
 

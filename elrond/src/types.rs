@@ -1,6 +1,6 @@
 use multiversx_sc::{
     api::ManagedTypeApi,
-    types::{BigUint, ManagedAddress, ManagedBuffer, ManagedVec, TokenIdentifier},
+    types::{BigUint, ManagedAddress, ManagedBuffer},
 };
 
 multiversx_sc::derive_imports!();
@@ -24,9 +24,9 @@ where
 {
     fn default() -> Self {
         Self {
-            token_id: todo!(),
-            chain: todo!(),
-            contract_address: todo!(),
+            token_id: Default::default(),
+            chain: Default::default(),
+            contract_address: Default::default(),
         }
     }
 }

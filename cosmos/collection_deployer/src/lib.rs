@@ -69,6 +69,7 @@ pub mod entry {
                 royalty_receiver,
                 metadata,
                 transaction_hash,
+                lock_tx_chain
             } => try_create_collection_721(
                 deps,
                 env,
@@ -84,6 +85,7 @@ pub mod entry {
                 royalty_receiver,
                 metadata,
                 transaction_hash,
+                lock_tx_chain
             ),
         }?;
 
@@ -105,6 +107,7 @@ pub mod entry {
         royalty_receiver: Addr,
         metadata: String,
         transaction_hash: String,
+        lock_tx_chain: String
     ) -> Result<Response, CollectionFactoryContractError> {
         let owner_addr = deps.api.addr_validate(&owner)?;
 
@@ -121,6 +124,7 @@ pub mod entry {
             royalty_receiver,
             metadata,
             transaction_hash,
+            lock_tx_chain
         };
 
         let code_id = SNIP721_CODE.load(deps.storage)?;

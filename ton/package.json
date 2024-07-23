@@ -22,6 +22,7 @@
         "typescript": "^5.3.3"
     },
     "dependencies": {
-        "@tact-lang/emulator": "^4.2.3"
+        "@tact-lang/emulator": "^4.2.3",
+        "@tact-lang/ton-abi": "^0.0.3"
     }
 }
