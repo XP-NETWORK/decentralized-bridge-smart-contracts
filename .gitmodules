@@ -1,3 +1,6 @@
 [submodule "web3/lib/hedera"]
 	path = web3/lib/hedera
 	url = https://github.com/hashgraph/hedera-smart-contracts
+[submodule "aptos/aptos-core"]
+	path = aptos/aptos-core
+	url = https://github.com/aptos-labs/aptos-core.git

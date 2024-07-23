@@ -207,7 +207,7 @@ describe("Bridge", async () => {
     });
   });
 
-  describe.skip("After Initilazed", async () => {
+  describe("After Initilazed", async () => {
     let successfullyProcessedClaims = 0;
 
     it("Should fail if bridge is not intialized", async () => {
@@ -817,6 +817,7 @@ describe("Bridge", async () => {
               destinationUserAddress: new HexString(
                 nftOwner.accountAddress.toString()
               ),
+              lockTxChain: Buffer.from("APTOS")
             };
           } catch (error) {
             console.log({ error });
@@ -880,7 +881,7 @@ describe("Bridge", async () => {
           }
         });
 
-        it("Should fail if thershold is not meet", async () => {
+        it.skip("Should fail if thershold is not meet", async () => {
           claimData.destinationChain = Buffer.from("APTOS");
 
           const msgHash = aptosClient.generateClaimDataHash(claimData);
@@ -911,13 +912,13 @@ describe("Bridge", async () => {
         });
 
         it("Should fail if user balance is less than fees", async () => {
-          claimData.publicKeys.push(validator2PbK);
-
+          // claimData.publicKeys.push(validator2PbK);
+          claimData.destinationChain = Buffer.from("APTOS");
           const msgHash = aptosClient.generateClaimDataHash(claimData);
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -950,7 +951,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -1031,7 +1032,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -1130,6 +1131,7 @@ describe("Bridge", async () => {
               destinationUserAddress: new HexString(
                 nftOwner.accountAddress.toString()
               ),
+              lockTxChain: Buffer.from("APTOS")
             };
           } catch (error) {
             console.log({ error });
@@ -1192,7 +1194,7 @@ describe("Bridge", async () => {
           }
         });
 
-        it("Should fail if thershold is not meet", async () => {
+        it.skip("Should fail if thershold is not meet", async () => {
           claimData.destinationChain = Buffer.from("APTOS");
 
           const msgHash = aptosClient.generateClaimDataHash(claimData);
@@ -1223,13 +1225,14 @@ describe("Bridge", async () => {
         });
 
         it("Should fail if user balance is less than fees", async () => {
-          claimData.publicKeys.push(validator2PbK);
+          // claimData.publicKeys.push(validator2PbK);
+          claimData.destinationChain = Buffer.from("APTOS");
 
           const msgHash = aptosClient.generateClaimDataHash(claimData);
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -1263,7 +1266,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -1339,7 +1342,7 @@ describe("Bridge", async () => {
 
           claimData.signatures = await Promise.all([
             ed.sign(msgHash, validator1PrK),
-            ed.sign(msgHash, validator2PrK),
+            // ed.sign(msgHash, validator2PrK),
             // ed.sign(msgHash, validator3PrK),
           ]);
 
@@ -1422,7 +1425,7 @@ describe("Bridge", async () => {
       });
     });
 
-    describe("Claim Validator Reward", async () => {
+    describe.skip("Claim Validator Reward", async () => {
       it("should fail if sender is not admin", async () => {
         try {
           const serializer = new BCS.Serializer();

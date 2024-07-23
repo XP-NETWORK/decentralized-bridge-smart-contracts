@@ -111,7 +111,8 @@ module bridge::aptos_nft_bridge {
     token_amount: u256,
     nft_type: vector<u8>,
     fee: u64,
-    symbol: String
+    symbol: String,
+    lock_tx_chain: vector<u8>,
   }
 
   #[event]
@@ -154,7 +155,8 @@ module bridge::aptos_nft_bridge {
     source_chain: vector<u8>,
     token_id: u256,
     transaction_hash: vector<u8>,
-    nft_contract: vector<u8>
+    nft_contract: vector<u8>,
+    lock_tx_chain: vector<u8>,
   }
 
   #[event]
@@ -163,7 +165,8 @@ module bridge::aptos_nft_bridge {
     token_id: u256,
     amount: u64,
     transaction_hash: vector<u8>,
-    nft_contract: vector<u8>
+    nft_contract: vector<u8>,
+    lock_tx_chain: vector<u8>,
   }
   
   fun is_sig_valid(
@@ -511,6 +514,7 @@ module bridge::aptos_nft_bridge {
     metadata: String, // we are not using it.
     symbol: String, // not used here. used in 1155 inside primary store
     amount: u64,
+    lock_tx_chain: vector<u8>,
   ) acquires Bridge, ProcessedClaims {
 
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
@@ -534,7 +538,8 @@ module bridge::aptos_nft_bridge {
       token_amount: 0,
       nft_type,
       fee,
-      symbol
+      symbol,
+      lock_tx_chain
     };
 
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
@@ -593,7 +598,8 @@ module bridge::aptos_nft_bridge {
         token_id, 
         transaction_hash, 
         source_chain, 
-        nft_contract: source_nft_contract_address
+        nft_contract: source_nft_contract_address,
+        lock_tx_chain
       });
       
     } else {
@@ -662,7 +668,8 @@ module bridge::aptos_nft_bridge {
         token_id, 
         transaction_hash, 
         source_chain, 
-        nft_contract: bcs::to_bytes(&collection_address)
+        nft_contract: bcs::to_bytes(&collection_address),
+        lock_tx_chain
       });
 
     };
@@ -687,6 +694,7 @@ module bridge::aptos_nft_bridge {
     metadata: String,
     symbol: String,
     amount: u64,
+    lock_tx_chain: vector<u8>,
   ) acquires Bridge, ProcessedClaims {
 
     assert!(exists<Bridge>(@bridge), E_NOT_INITIALIZED);
@@ -710,7 +718,8 @@ module bridge::aptos_nft_bridge {
       token_amount: (amount as u256),
       nft_type,
       fee,
-      symbol
+      symbol,
+      lock_tx_chain
     };
 
     let bridge_signer_from_cap = account::create_signer_with_capability(&bridge_data.signer_cap);
@@ -835,8 +844,9 @@ module bridge::aptos_nft_bridge {
         token_id, 
         transaction_hash, 
         source_chain, 
-        amount, 
-        nft_contract: source_nft_contract_address
+        amount,
+        nft_contract: source_nft_contract_address,
+        lock_tx_chain
       });
 
     } else {
@@ -909,11 +919,13 @@ module bridge::aptos_nft_bridge {
         table::add(&mut bridge_data.duplicate_to_original_mapping, key_duplicate, value_duplicate);
       };
 
-      event::emit(Claim721Event { 
-        token_id, 
-        transaction_hash, 
-        source_chain, 
-        nft_contract: bcs::to_bytes(&collection_address)
+      event::emit(Claim1155Event { 
+        token_id,
+        transaction_hash,
+        source_chain,
+        amount,
+        nft_contract: bcs::to_bytes(&collection_address),
+        lock_tx_chain
       });
     };
 

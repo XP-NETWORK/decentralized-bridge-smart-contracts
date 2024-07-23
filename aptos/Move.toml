@@ -8,18 +8,18 @@ bridge="_" # set this to the admin account when deploying to mainnet
 nftowner="_"
 
 [dev-addresses]
-bridge="f912a22038eb93957780dc21d46d254a5475b9bc670ef860b90d26e15cc53805"
-nftowner="2681bdebd4316be3e6c6bd7547afedc1b9956be58211b022fcebc4928bf0757c"
+bridge="41f82a0bf778301b06a4ec405275d70932ec8373473b963c80564d6d8d0432f5"
+nftowner="2d9b8865ce9fdfac3d34e6a7682992621a658ed45a2dec937b11b42e02318bd3"
 
 [dependencies]
 # AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "devnet" }
 # AptosTokenObjects = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-token-objects/", rev = "devnet" }
 # AptosStdlib = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-stdlib", rev = "devnet" }
-AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework", rev = "devnet" }
-AptosTokenObjects = { local = "../../aptos-core/aptos-move/framework/aptos-token-objects/", rev = "devnet" }
-AptosStdlib = { local = "../../aptos-core/aptos-move/framework/aptos-stdlib" }
+AptosFramework = { local = "aptos-core/aptos-move/framework/aptos-framework", rev = "devnet" }
+AptosTokenObjects = { local = "aptos-core/aptos-move/framework/aptos-token-objects/", rev = "devnet" }
+AptosStdlib = { local = "aptos-core/aptos-move/framework/aptos-stdlib" }
 
 [dev-dependencies]
-AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework", rev = "devnet" }
-AptosTokenObjects = { local = "../../aptos-core/aptos-move/framework/aptos-token-objects/", rev = "devnet" }
-AptosStdlib = { local = "../../aptos-core/aptos-move/framework/aptos-stdlib" }
+AptosFramework = { local = "aptos-core/aptos-move/framework/aptos-framework", rev = "devnet" }
+AptosTokenObjects = { local = "aptos-core/aptos-move/framework/aptos-token-objects/", rev = "devnet" }
+AptosStdlib = { local = "aptos-core/aptos-move/framework/aptos-stdlib" }

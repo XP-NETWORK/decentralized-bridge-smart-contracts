@@ -46,6 +46,7 @@ export type TClaimData = {
   tokenId: number;
   nftType: Uint8Array;
   metadata: string;
+  lockTxChain: Uint8Array;
 };
 
 type TCollectionNFTObj = {
@@ -226,6 +227,7 @@ export class BridgeClient {
     nftType,
     metadata,
     amount,
+    lockTxChain
   }: TClaimData) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -248,7 +250,8 @@ export class BridgeClient {
             nftType,
             metadata,
             symbol,
-            0
+            0,
+            lockTxChain
           ],
         },
       });
@@ -280,6 +283,7 @@ export class BridgeClient {
     nftType,
     metadata,
     amount,
+    lockTxChain
   }: TClaimData) {
     try {
       const transaction = await this.aptosClient.transaction.build.simple({
@@ -303,6 +307,7 @@ export class BridgeClient {
             metadata,
             symbol,
             amount,
+            lockTxChain
           ],
         },
       });
@@ -496,6 +501,7 @@ export class BridgeClient {
     serializer.serializeBytes(claimData.nftType);
     serializer.serializeU64(claimData.fee);
     serializer.serializeStr(claimData.symbol);
+    serializer.serializeBytes(claimData.lockTxChain);
     return createHash("SHA256").update(serializer.getBytes()).digest();
   }
 
