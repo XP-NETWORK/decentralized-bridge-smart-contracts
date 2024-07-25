@@ -46,6 +46,8 @@ contract Bridge {
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
 
+    mapping(address => bool) public blackListedValidators;
+
     INFTCollectionDeployer public collectionDeployer;
     INFTStorageDeployer public storageDeployer;
 
@@ -100,6 +102,7 @@ contract Bridge {
     }
 
     event AddNewValidator(address _validator);
+    event BlackListValidator(address _validator);
     event RewardValidator(address _validator);
 
     event Locked(
@@ -194,29 +197,44 @@ contract Bridge {
         address _validator,
         SignerAndSignature[] memory signatures
     ) external {
+        require(!blackListedValidators[_validator], "validator blacklisted");
         require(_validator != address(0), "Address cannot be zero address!");
         require(signatures.length > 0, "Must have signatures!");
         require(!validators[_validator].added, "Validator already added");
 
-        uint256 percentage = 0;
+        bytes[] memory signaturesArr = new bytes[](signatures.length);
+
         for (uint256 i = 0; i < signatures.length; i++) {
-            address signer = recover(
-                keccak256(abi.encode(_validator)),
-                signatures[i].signature
-            );
-            if (validators[signer].added) {
-                percentage += 1;
-            }
+            signaturesArr[i] = signatures[i].signature;
         }
 
-        require(
-            percentage >= ((validatorsCount * 2) / 3) + 1,
-            "Threshold not reached!"
-        );
+        verifySignature(keccak256(abi.encode(_validator)), signaturesArr);
 
         emit AddNewValidator(address(_validator));
         validators[_validator].added = true;
         validatorsCount += 1;
+    }
+
+    function blackListValidator(
+        address _validator,
+        SignerAndSignature[] memory signatures
+    ) external {
+        require(_validator != address(0), "Address cannot be zero address!");
+        require(signatures.length > 0, "Must have signatures!");
+        require(validators[_validator].added, "Validator is not added");
+
+        bytes[] memory signaturesArr = new bytes[](signatures.length);
+
+        for (uint256 i = 0; i < signatures.length; i++) {
+            signaturesArr[i] = signatures[i].signature;
+        }
+
+        verifySignature(keccak256(abi.encode(_validator,"blackList")), signaturesArr);
+
+        emit BlackListValidator(address(_validator));
+        validators[_validator].added = false;
+        validatorsCount -= 1;
+        blackListedValidators[_validator] = true;
     }
 
     function claimValidatorRewards(

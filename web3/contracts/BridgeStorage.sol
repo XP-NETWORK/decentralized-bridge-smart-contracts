@@ -38,9 +38,14 @@ contract BridgeStorage {
     // Mapping from staker's address to an array of their signatures.
     mapping(string => SignerAndSignature[]) public stakingSignatures;
 
+    // Mapping from blackListed validators's address to an array of their signatures.
+    mapping(string => SignerAndSignature[]) public blackListSignatures;
+
     // Mapping of existing validators.
     mapping(address => bool) public validators;
-    // stakingSignatures[][chainSymbol][SignerAndSignature]
+
+    // Mapping of existing  black Listed validators
+    mapping(address => bool) public blackListedValidators;
 
     // Mapping of votes of new validators. validatorStatusChangeVotes[validatorAddress][status][validatorEpoch] = numberOfVotes
     mapping(address => mapping(bool => mapping(uint256 => uint256)))
@@ -75,6 +80,9 @@ contract BridgeStorage {
 
     // Mapping to check if a signature has already been used.
     mapping(bytes => bool) public usedSignatures;
+
+    // Mapping to check if a signature has already been used.
+    mapping(bytes => bool) public usedSignaturesBlackList;
 
     // Mapping to store fee for all chains
     // chainFee[chainType][fee]
@@ -187,7 +195,7 @@ contract BridgeStorage {
     function changeValidatorStatus(
         address _validatorAddress,
         bool _status
-    ) public onlyValidator {
+    ) internal {
         uint256 _validatorEpoch = validatorEpoch[_validatorAddress];
         require(
             validatorVoted[_validatorAddress][msg.sender][_validatorEpoch] ==
@@ -254,6 +262,44 @@ contract BridgeStorage {
                 );
         }
         changeValidatorStatus(_stakerAddress, true);
+    }
+
+    /**
+     * @dev Approves a stake.
+     * @param _validatorAddressWithSignerAndSignature Address of the staker.
+     */
+    function blackListValidator(
+        address _validatorAddress,
+        ValidatorAddressWithSignerAndSignature[]
+            calldata _validatorAddressWithSignerAndSignature
+    ) public onlyValidator {
+        for (
+            uint256 i = 0;
+            i < _validatorAddressWithSignerAndSignature.length;
+            i++
+        ) {
+            if (
+                usedSignaturesBlackList[
+                    _validatorAddressWithSignerAndSignature[i]
+                        .signerAndSignature
+                        .signature
+                ]
+            ) continue;
+
+            usedSignaturesBlackList[
+                _validatorAddressWithSignerAndSignature[i]
+                    .signerAndSignature
+                    .signature
+            ] = true;
+            
+            blackListSignatures[
+                _validatorAddressWithSignerAndSignature[i].validatorAddress
+            ].push(
+                    _validatorAddressWithSignerAndSignature[i]
+                        .signerAndSignature
+                );
+        }
+        changeValidatorStatus(_validatorAddress, false);
     }
 
     /**
