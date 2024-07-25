@@ -54,6 +54,7 @@ struct ClaimData4 {
     newContent: Cell;
     transactionHash: String; // Transaction hash of the transfer on the source chain
     royalty: RoyaltyParams; // royalty of nft collection
+    lockTxChain: String;
 }
 
 struct ClaimData {
@@ -117,6 +118,7 @@ message UnLock721Event {
     contractAddress: Address;
 }
 message ClaimedEvent {
+    lockTxChain: String;
     tokenId: Int as uint256;
     newlyDeployCollection: Address;
     sourceChain: String; // Chain from where the NFT is being transferred
@@ -412,7 +414,7 @@ contract Bridge {
 
     receive(msg: HiFromDeployNFT721Collection){
         require(context().sender == self.collectionDeployer, "Only collection deployer can call this message");
-        emit(ClaimedEvent{tokenId: msg.tokenId, newlyDeployCollection: msg.newlyDeployCollection, sourceChain: msg.sourceChain, transactionHash: msg.transactionHash}.toCell());
+        emit(ClaimedEvent{ lockTxChain: msg.lockTxChain, tokenId: msg.tokenId, newlyDeployCollection: msg.newlyDeployCollection, sourceChain: msg.sourceChain, transactionHash: msg.transactionHash}.toCell());
     }
 
     receive(oa: OwnershipAssigned){
@@ -508,6 +510,7 @@ contract Bridge {
         if(hasDuplicate && hasStorage){
             if(isTokenExists != null){
                 self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!);
+                emit(ClaimedEvent{lockTxChain: msg.data.data4.lockTxChain, tokenId: msg.data.data1.tokenId, newlyDeployCollection: storageContract!!, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
             }
             else{
                 send(SendParameters{
@@ -524,6 +527,7 @@ contract Bridge {
                 self.tokenInfoGetSelf.set(tokenKey, nftAddress);
                 lastCollectionAddress = duplicateCollectionAddressNotNull.contractAddress;
                 lastTokenId = duplicateCollectionAddressNotNull.lastIndex + 1;
+                emit(ClaimedEvent{lockTxChain: msg.data.data4.lockTxChain, tokenId: msg.data.data1.tokenId, newlyDeployCollection: duplicateCollectionAddressNotNull.contractAddress, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
             }
         }
         else if (hasDuplicate && !hasStorage){
@@ -543,6 +547,7 @@ contract Bridge {
                 
                 lastCollectionAddress = duplicateCollectionAddressNotNull.contractAddress;
                 lastTokenId = duplicateCollectionAddressNotNull.lastIndex + 1;
+                emit(ClaimedEvent{lockTxChain: msg.data.data4.lockTxChain, tokenId: msg.data.data1.tokenId, newlyDeployCollection: duplicateCollectionAddressNotNull.contractAddress, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
         }
         else if (!hasDuplicate && !hasStorage){
                 send(SendParameters{
@@ -557,7 +562,8 @@ contract Bridge {
                         source_chain: msg.data.data1.sourceChain,
                         transaction_hash: msg.data.data4.transactionHash,
                         metadata: msg.data.data3.metadata,
-                        token_id: msg.data.data1.tokenId
+                        token_id: msg.data.data1.tokenId,
+                        lockTxChain: msg.data.data4.lockTxChain
                     }.toCell()
                     }
                 );
@@ -577,6 +583,7 @@ contract Bridge {
 
                 self.tokenInfoKeySelf.set(nftAddress, Token{tokenId: msg.data.data1.tokenId, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress});
                 self.tokenInfoGetSelf.set(tokenKey, nftAddress);
+                emit(ClaimedEvent{lockTxChain: msg.data.data4.lockTxChain, tokenId: msg.data.data1.tokenId, newlyDeployCollection: collectionAddress, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
         }
         else if (!hasDuplicate && hasStorage){
             let originalCollection: Address = sourceNftContractAddressSlice.loadAddress();
@@ -586,7 +593,9 @@ contract Bridge {
 
             if(isTokenExists != null){
                self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!);
+               emit(ClaimedEvent{lockTxChain: msg.data.data4.lockTxChain, tokenId: msg.data.data1.tokenId, newlyDeployCollection: originalCollection, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
             }
+            
             else{
                 // ============= This could be wrong. Need verification ============
                  send(SendParameters{
@@ -598,6 +607,7 @@ contract Bridge {
 
                     }
                 );
+                 emit(ClaimedEvent{lockTxChain: msg.data.data4.lockTxChain, tokenId: msg.data.data1.tokenId, newlyDeployCollection: originalCollection, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
             }
             // ============= This could be wrong. Need verification ============
         }
@@ -605,7 +615,7 @@ contract Bridge {
             require(false, "Invalid bridge state");
         }
         if (lastCollectionAddress != null && lastTokenId != null){
-           emit(ClaimedEvent{tokenId: lastTokenId!!, newlyDeployCollection: lastCollectionAddress!!, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
+          
         }
         // emit(ClaimedEvent{sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
     }

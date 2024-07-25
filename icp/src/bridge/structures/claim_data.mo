@@ -16,6 +16,7 @@ module {
         fee : Nat64;
         transaction_hash : Text;
         source_chain : Text;
+        lock_tx_chain: Text;
     };
 
     public func hash(c : ClaimData) : Blob {
