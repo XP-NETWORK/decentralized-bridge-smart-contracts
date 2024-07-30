@@ -264,23 +264,7 @@ fn add_validator_to_state(
 }
 
 fn claim_validator_rewards(deps: DepsMut, data: ClaimValidatorRewardsMsg) -> StdResult<Response> {
-    if data.signatures.is_empty() {
-        return Err(StdError::generic_err("Must have signatures!"));
-    }
-
     let state = CONFIG.load(deps.storage)?;
-
-    if !VALIDATORS_STORAGE
-        .may_load(deps.storage, data.validator.0.clone())?
-        .is_some()
-    {
-        return Err(StdError::generic_err("Validator does not exist!"));
-    }
-
-    let percentage = validate_signatures(deps.api, &data.validator, &data.signatures)?;
-    if percentage < required_threshold(state.validators_count as u128) {
-        return Err(StdError::generic_err("Threshold not reached!"));
-    }
 
     let rewards_option = VALIDATORS_STORAGE.may_load(deps.storage, data.validator.clone().0)?;
     let res;

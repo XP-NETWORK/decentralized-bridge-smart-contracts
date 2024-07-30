@@ -59,7 +59,6 @@ pub struct AddValidatorMsg {
 #[cw_serde]
 pub struct ClaimValidatorRewardsMsg {
     pub validator: Binary,
-    pub signatures: Vec<SignerAndSignature>,
 }
 
 #[cw_serde]
