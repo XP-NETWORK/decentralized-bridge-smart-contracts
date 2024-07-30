@@ -322,10 +322,6 @@ fn add_validator_to_state(
 }
 
 fn claim_validator_rewards(deps: DepsMut, data: ClaimValidatorRewardsMsg) -> StdResult<Response> {
-    if data.signatures.is_empty() {
-        return Err(StdError::generic_err("Must have signatures!"));
-    }
-
     let state = config_read(deps.storage).load()?;
 
     if !VALIDATORS_STORAGE
@@ -333,11 +329,6 @@ fn claim_validator_rewards(deps: DepsMut, data: ClaimValidatorRewardsMsg) -> Std
         .is_some()
     {
         return Err(StdError::generic_err("Validator does not exist!"));
-    }
-
-    let percentage = validate_signatures(deps.api, &data.validator, &data.signatures)?;
-    if percentage < required_threshold(state.validators_count as u128) {
-        return Err(StdError::generic_err("Threshold not reached!"));
     }
 
     let rewards_option = VALIDATORS_STORAGE.get(deps.storage, &data.validator.clone());
@@ -2105,7 +2096,7 @@ fn register_collection_721_impl(
         funds: vec![],
     });
     let emit: Vec<Attribute> = vec![Claimed721EventInfo::new(
-        msg.data.lock_tx_chain,
+        reply_info.lock_tx_chain,
         reply_info.source_chain,
         reply_info.transaction_hash,
         reply_info.address.to_string(),
