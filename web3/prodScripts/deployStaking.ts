@@ -1,9 +1,10 @@
 import { ethers } from "hardhat";
 
 async function main() {
+    
+    const erc20TokenAddress = '0x8cf8238abf7b933Bf8BB5Ea2C7E4Be101c11de2A';
+    const stakingAmount_ = '1';
 
-    const erc20TokenAddress = '0x61f00f09bA58F1613b05aE4f9AF9039fd8F959d0';
-    const stakingAmount_ = '100';
     const stakingAmount = ethers.parseEther(stakingAmount_);
 
     const stakingContract = await ethers.deployContract("ERC20Staking", [stakingAmount, erc20TokenAddress]);
