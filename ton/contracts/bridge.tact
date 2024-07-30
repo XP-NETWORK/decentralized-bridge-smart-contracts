@@ -361,9 +361,9 @@ contract Bridge {
     }
 
     receive(msg: RewardValidator){
-        let v: Validator = self.Validator(msg.validator.key)!!;
-        require(v.added,"Validator does not exist!");
-
+        let v_o: Validator? = self.Validator(msg.validator.key)!!;
+        require(v_o != null,"Validator does not exist!");
+        let v: Validator = v_o!!;
         let reward: Int = v.pendingRewards;
         v.pendingRewards = 0;
         self.validators.set(msg.validator.key,v);
@@ -371,7 +371,7 @@ contract Bridge {
         let amount: Int = min(reward, myBalance() - context().value - self.MinTonForStorage);
         require(amount > 0, "Insufficient balance");
         send(SendParameters{
-            to: address(msg.validator.key.toString()),
+            to: v.address,
             bounce: true,
             value: amount,
             mode: SendRemainingValue + SendIgnoreErrors
