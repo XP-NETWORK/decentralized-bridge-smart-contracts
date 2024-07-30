@@ -77,8 +77,6 @@ message AddValidator {
 }
 message RewardValidator {
     validator: NewValidator;
-    sigs: map<Int, SignerAndSignature>;
-    len: Int as uint256;
 }
 message Lock721 {
     tokenId: Int as uint256;
@@ -202,7 +200,7 @@ contract Bridge {
                 value: ton("0.07"),
                 to: nftItemAddress,
                 mode: SendIgnoreErrors,
-                bounce: false,
+                bounce: true,
                 body: Transfer{
                     query_id: 0,
                     new_owner: storageAddress,
@@ -363,40 +361,21 @@ contract Bridge {
     }
 
     receive(msg: RewardValidator){
-        let length: Int = msg.len;
-
-        require(length > 0,"Must have signatures!");
         let v: Validator = self.Validator(msg.validator.key)!!;
         require(v.added,"Validator does not exist!");
 
-        let percentage: Int = 0;
-        let counter: Int = 0;
-
-        repeat(length) {
-            let sig: SignerAndSignature = msg.sigs.get(counter)!!;
-            let op_hash: Int = msg.validator.toCell().hash();
-            let ok: Bool = checkSignature(op_hash, sig.signature, sig.key);
-            let vv: Validator = self.Validator(sig.key)!!;
-            if(ok && vv.added){
-                percentage = percentage + 1;
-            }
-            counter = counter + 1;
-        }
-
-        require(percentage >= (((self.validatorsCount * 2)/3)+1),"Threshold not reached!");
-        let vvv: Validator = self.Validator(msg.validator.key)!!;
-        let reward: Int = vvv.pendingRewards;
-        vvv.pendingRewards = 0;
+        let reward: Int = v.pendingRewards;
+        v.pendingRewards = 0;
         self.validators.set(msg.validator.key,v);
 
         let amount: Int = min(reward, myBalance() - context().value - self.MinTonForStorage);
         require(amount > 0, "Insufficient balance");
-        // send(SendParameters{
-        //     to: address(msg.validator.key.toString()),
-        //     bounce: true,
-        //     value: amount,
-        //     mode: SendRemainingValue + SendIgnoreErrors
-        // });
+        send(SendParameters{
+            to: address(msg.validator.key.toString()),
+            bounce: true,
+            value: amount,
+            mode: SendRemainingValue + SendIgnoreErrors
+        });
     }
 
     receive(msg: HiFromDeployNFT721Storage){
@@ -614,9 +593,9 @@ contract Bridge {
         else{
             require(false, "Invalid bridge state");
         }
-        if (lastCollectionAddress != null && lastTokenId != null){
+        // if (lastCollectionAddress != null && lastTokenId != null){
           
-        }
+        // }
         // emit(ClaimedEvent{sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
     }
 
