@@ -32,7 +32,7 @@ export async function run(provider: NetworkProvider) {
     // console.log("duplicate 721 ", await bridge.getDuplicate721Mapping(Address.parseFriendly("EQALVS0Pz2gYa6-HoNBsd8XJeu3Afskz8LRfsb1M7XujNtR9").address) + "\n");
 
 
-    console.log("original to duplicate ", await bridge.getOriginalToDuplicate("0x19ae04e68c092551eb5c6d487f1b9e755539d88b", "BSC").then((e)=>console.log("gando",e)) + "\n");
+    // console.log("original to duplicate ", await bridge.getOriginalToDuplicate("0x19ae04e68c092551eb5c6d487f1b9e755539d88b", "BSC").then((e)=>console.log(e)) + "\n");
     
     // console.log("duplicate to original ", await bridge.getDuplicateToOriginal(Address.parseFriendly("EQALVS0Pz2gYa6-HoNBsd8XJeu3Afskz8LRfsb1M7XujNtR9").address) + "\n");
 
