@@ -14,7 +14,7 @@ interface INFTCollectionDeployer {
      *
      * @param _owner The address to be set as the new owner.
      */
-    function setOwner(address _owner) external;
+    function setOwner(address _owner, address _bridge) external;
 
     /**
      * @dev Deploy a new ERC721Royalty contract with the specified name and symbol.

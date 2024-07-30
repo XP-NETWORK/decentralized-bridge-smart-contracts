@@ -135,11 +135,6 @@ contract HederaBridge is
         _;
     }
 
-    modifier onlyValidator() {
-        require(false, "Failed to verify signature!");
-        _;
-    }
-
     modifier matchesCurrentChain(string memory destinationChain) {
         require(
             keccak256(abi.encodePacked(destinationChain)) ==

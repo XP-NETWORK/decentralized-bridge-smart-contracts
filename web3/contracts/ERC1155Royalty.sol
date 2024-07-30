@@ -10,7 +10,14 @@ contract ERC1155Royalty is ERC1155, Ownable, IERC2981 {
     mapping(uint256 => uint256) private _royalties;
     mapping(uint256 => string) private _tokenURIs;
 
+    address public bridge;
+
     constructor(address owner) ERC1155("") Ownable(owner) {}
+
+    modifier onlyBridge() {
+        require(msg.sender == bridge, "Not bridge!");
+        _;
+    }
 
     function setTokenURI(
         uint256 tokenId,
@@ -31,7 +38,7 @@ contract ERC1155Royalty is ERC1155, Ownable, IERC2981 {
         uint256 royalty,
         address royaltyReceiver,
         string memory tokenURI
-    ) public onlyOwner {
+    ) public onlyBridge {
         require(royalty <= 10000, "Royalty too high");
 
         _mint(account, id, amount, "");

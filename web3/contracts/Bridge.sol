@@ -146,11 +146,6 @@ contract Bridge {
         _;
     }
 
-    modifier onlyValidator() {
-        require(false, "Failed to verify signature!");
-        _;
-    }
-
     modifier matchesCurrentChain(string memory destinationChain) {
         require(
             keccak256(abi.encodePacked(destinationChain)) ==
@@ -169,7 +164,8 @@ contract Bridge {
         address[] memory _validators,
         string memory _chainType,
         address _collectionDeployer,
-        address _storageDeployer
+        address _storageDeployer,
+        address _collectionOwner
     ) {
         require(
             _collectionDeployer != address(0),
@@ -183,7 +179,7 @@ contract Bridge {
         collectionDeployer = INFTCollectionDeployer(_collectionDeployer);
         storageDeployer = INFTStorageDeployer(_storageDeployer);
 
-        collectionDeployer.setOwner(address(this));
+        collectionDeployer.setOwner(_collectionOwner, address(this));
         storageDeployer.setOwner(address(this));
 
         selfChain = _chainType;
