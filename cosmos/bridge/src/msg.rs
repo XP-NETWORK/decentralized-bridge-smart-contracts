@@ -1,6 +1,5 @@
 use crate::structs::{
-    AddValidatorMsg, ClaimMsg, ClaimValidatorRewardsMsg, DuplicateToOriginalContractInfo,
-    Lock721Msg, OriginalToDuplicateContractInfo, Validator, VerifyMsg,
+    AddValidatorMsg, BlacklistValidatorMsg, ClaimMsg, ClaimValidatorRewardsMsg, DuplicateToOriginalContractInfo, Lock721Msg, OriginalToDuplicateContractInfo, Validator, VerifyMsg
 };
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
@@ -10,6 +9,7 @@ use cosmwasm_std::{Addr, Binary};
 #[cw_serde]
 pub enum BridgeExecuteMsg {
     AddValidator { data: AddValidatorMsg },
+    BlacklistValidator {data: BlacklistValidatorMsg},
     ClaimValidatorRewards { data: ClaimValidatorRewardsMsg },
     Lock721 { data: Lock721Msg },
     Claim721 { data: ClaimMsg },

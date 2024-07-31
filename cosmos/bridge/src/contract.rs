@@ -24,18 +24,18 @@ use crate::msg::{
 };
 
 use crate::state::{
-    COLLECTION_DEPLOYER_721_REPLY_ID, COLLECTION_DEPLOYER_REPLY_ID, COLLETION_DEPLOYER_CODE,
-    CONFIG, DUPLICATE_STORAGE_721, DUPLICATE_TO_ORIGINAL_STORAGE, NFT_COLLECTION_OWNER,
-    ORIGINAL_STORAGE_721, ORIGINAL_TO_DUPLICATE_STORAGE, STORAGE_DEPLOYER_721_REPLY_ID,
-    STORAGE_DEPLOYER_CODE, STORAGE_DEPLOYER_REPLY_ID, UNIQUE_IDENTIFIER_STORAGE,
-    VALIDATORS_STORAGE,
+    BLACKLISTED_VALIDATORS, COLLECTION_DEPLOYER_721_REPLY_ID, COLLECTION_DEPLOYER_REPLY_ID,
+    COLLETION_DEPLOYER_CODE, CONFIG, DUPLICATE_STORAGE_721, DUPLICATE_TO_ORIGINAL_STORAGE,
+    NFT_COLLECTION_OWNER, ORIGINAL_STORAGE_721, ORIGINAL_TO_DUPLICATE_STORAGE,
+    STORAGE_DEPLOYER_721_REPLY_ID, STORAGE_DEPLOYER_CODE, STORAGE_DEPLOYER_REPLY_ID,
+    UNIQUE_IDENTIFIER_STORAGE, VALIDATORS_STORAGE,
 };
 
 use crate::structs::{
-    AddValidatorMsg, BridgeInstantiateMsg, ClaimData, ClaimMsg, ClaimValidatorRewardsMsg,
-    DuplicateToOriginalContractInfo, Lock721Msg, OriginalToDuplicateContractInfo,
-    ReplyCollectionDeployerInfo, ReplyCollectionInfo, ReplyStorageDeployerInfo, ReplyStorageInfo,
-    SignerAndSignature, State, Validator, VerifyMsg,
+    AddValidatorMsg, BlacklistValidatorMsg, BridgeInstantiateMsg, ClaimData, ClaimMsg,
+    ClaimValidatorRewardsMsg, DuplicateToOriginalContractInfo, Lock721Msg,
+    OriginalToDuplicateContractInfo, ReplyCollectionDeployerInfo, ReplyCollectionInfo,
+    ReplyStorageDeployerInfo, ReplyStorageInfo, SignerAndSignature, State, Validator, VerifyMsg,
 };
 use cosm_nft::NftExecuteMsg;
 use nft_store::msg::NftStoreExecuteMsg;
@@ -123,6 +123,7 @@ pub fn execute(
     match msg {
         BridgeExecuteMsg::AddValidator { data } => add_validator(deps, data),
         BridgeExecuteMsg::ClaimValidatorRewards { data } => claim_validator_rewards(deps, data),
+        BridgeExecuteMsg::BlacklistValidator { data } => blacklist_validator(deps, data),
         BridgeExecuteMsg::Lock721 { data } => lock721(deps, env, data),
         BridgeExecuteMsg::Claim721 { data } => claim721(deps, env, info, data),
         BridgeExecuteMsg::VerifySig { data } => verify_sig(deps, data),
@@ -174,7 +175,34 @@ fn has_correct_fee(fee: u128, info: MessageInfo) -> StdResult<Response> {
     }
 }
 
+fn blacklist_validator(deps: DepsMut, blacklist_msg: BlacklistValidatorMsg) -> StdResult<Response> {
+    if (blacklist_msg.signatures.len() <= 0) {
+        return Err(StdError::generic_err("Must have signatures!"));
+    }
+    if (!VALIDATORS_STORAGE.has(&deps.storage, blacklist_msg.validator.0 .0)) {
+        return Err(StdError::generic_err("Validator is not added"));
+    }
+    let percentage = validate_signatures(
+        deps.api,
+        &add_validator_msg.validator.0.clone(),
+        &add_validator_msg.signatures,
+    )?;
+    if percentage < required_threshold(state.validators_count as u128) {
+        return Err(StdError::generic_err("Threshold not reached!"));
+    }
+    VALIDATORS_STORAGE.remove(&mut deps.storage, blacklist_msg.validator.0 .0);
+    CONFIG.update(storage, |mut state| -> Result<_, StdError> {
+        state.validators_count -= 1;
+        Ok(state) // Return the modified state
+    })?;
+    BLACKLISTED_VALIDATORS.save(&mut deps.storage, blacklist_msg.validator.0 .0, &true);
+}
+
 fn add_validator(deps: DepsMut, add_validator_msg: AddValidatorMsg) -> StdResult<Response> {
+    if BLACKLISTED_VALIDATORS.has(&deps.storage, add_validator_msg.validator.0 .0) {
+        return Err(StdError::generic_err("validator blacklisted"));
+    }
+
     if add_validator_msg.signatures.is_empty() {
         return Err(StdError::generic_err("Must have signatures!"));
     }
@@ -213,7 +241,7 @@ fn validate_signatures(
     let mut unique = BTreeMap::new();
 
     for ele in sigs {
-        if unique.contains_key(&ele.signer_address)  {
+        if unique.contains_key(&ele.signer_address) {
             continue;
         }
         unique.insert(ele.signer_address.clone(), true);
@@ -388,7 +416,10 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
 
     let original_collection_address_option = DUPLICATE_TO_ORIGINAL_STORAGE.may_load(
         deps.storage,
-        (Addr::unchecked(msg.source_nft_contract_address.clone()), self_chain.clone()),
+        (
+            Addr::unchecked(msg.source_nft_contract_address.clone()),
+            self_chain.clone(),
+        ),
     )?;
 
     match original_collection_address_option {
@@ -436,7 +467,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 deps,
                 self_chain,
                 &ORIGINAL_STORAGE_721,
-                Addr::unchecked(msg.source_nft_contract_address.clone(),),
+                Addr::unchecked(msg.source_nft_contract_address.clone()),
                 msg.token_id,
                 msg.collection_code_id,
                 env.contract.address,
@@ -533,7 +564,7 @@ fn deploy_collection_721(
     royalty_receiver: Addr,
     metadata: String,
     transaction_hash: String,
-    lock_tx_chain: String
+    lock_tx_chain: String,
 ) -> StdResult<Response> {
     let create_collection_msg = CollectionDeployerExecuteMsg::CreateCollection721 {
         owner,
@@ -548,7 +579,7 @@ fn deploy_collection_721(
         royalty_receiver,
         metadata,
         transaction_hash,
-        lock_tx_chain
+        lock_tx_chain,
     };
 
     let init_wasm_msg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -780,7 +811,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
             msg.data.royalty_receiver,
             msg.data.metadata,
             msg.data.transaction_hash,
-            msg.data.lock_tx_chain
+            msg.data.lock_tx_chain,
         )
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================

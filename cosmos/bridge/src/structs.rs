@@ -56,6 +56,12 @@ pub struct AddValidatorMsg {
     pub validator: (Binary, Addr),
     pub signatures: Vec<SignerAndSignature>,
 }
+
+#[cw_serde]
+pub struct BlacklistValidatorMsg {
+    pub validator: (Binary, Addr),
+    pub signatures: Vec<SignerAndSignature>,
+}
 #[cw_serde]
 pub struct ClaimValidatorRewardsMsg {
     pub validator: Binary,
