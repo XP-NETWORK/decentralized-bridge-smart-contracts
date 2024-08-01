@@ -16,6 +16,8 @@ import "./interfaces/IERC1155Royalty.sol";
 import "./interfaces/INFTStorageDeployer.sol";
 import "./interfaces/INFTCollectionDeployer.sol";
 import "./AddressUtilityLib.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 /**
  * @dev Stucture to store signature with signer public address
  */
@@ -39,12 +41,13 @@ struct Validator {
     uint pendingReward;
 }
 
-contract Bridge {
+contract Bridge is Initializable, UUPSUpgradeable {
     using ECDSA for bytes32;
     using AddressUtilityLib for string;
 
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
+    mapping(bytes => bool) public uniqueByteCode;
 
     mapping(address => bool) public blackListedValidators;
 
@@ -52,7 +55,8 @@ contract Bridge {
     INFTStorageDeployer public storageDeployer;
 
     uint256 public validatorsCount = 0;
-
+    uint256 public contractNonce = 0;
+    bool private upgradeable = false;
     // address[] validatorsArray;
 
     // originalCollectionAddress => destinationCollectionAddress
@@ -104,6 +108,7 @@ contract Bridge {
     event AddNewValidator(address _validator);
     event BlackListValidator(address _validator);
     event RewardValidator(address _validator);
+    event UpgradeContract(uint256 _contractNonce, address _contractAddress);
 
     event Locked(
         uint256 tokenId, // Unique ID for the NFT transfer
@@ -160,13 +165,17 @@ contract Bridge {
         _;
     }
 
-    constructor(
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address[] memory _validators,
         string memory _chainType,
         address _collectionDeployer,
         address _storageDeployer,
-        address _collectionOwner
-    ) {
+        address _collectionOwner) initializer public {
+
         require(
             _collectionDeployer != address(0),
             "Address cannot be zero address!"
@@ -187,6 +196,34 @@ contract Bridge {
             validators[_validators[i]].added = true;
             validatorsCount += 1;
         }
+        __UUPSUpgradeable_init();
+    }
+
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        override
+    {
+        require(upgradeable, "Cannot upgrade!");
+        upgradeable = false;
+        emit UpgradeContract(contractNonce, newImplementation);
+    }
+
+    function upgrade(
+        bytes memory _bytecode,
+        SignerAndSignature[] memory signatures
+    ) external {
+        require(!uniqueByteCode[_bytecode], "Data already processed!");
+
+        bytes[] memory signaturesArr = new bytes[](signatures.length);
+
+        for (uint256 i = 0; i < signatures.length; i++) {
+            signaturesArr[i] = signatures[i].signature;
+        }
+
+        verifySignature(keccak256(abi.encode(_bytecode)), signaturesArr);
+
+        uniqueByteCode[_bytecode] = true;
+        upgradeable = true;
     }
 
     function addValidator(
