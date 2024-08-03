@@ -1,6 +1,5 @@
 use crate::structs::{
-    AddValidatorMsg, ClaimMsg, ClaimValidatorRewardsMsg, DuplicateToOriginalContractInfo,
-    Lock1155Msg, Lock721Msg, OriginalToDuplicateContractInfo, Validator, VerifyMsg,
+    AddValidatorMsg, ClaimMsg, ClaimValidatorRewardsMsg, DuplicateToOriginalContractInfo, Lock1155Msg, Lock721Msg, OriginalToDuplicateContractInfo, SignerAndSignature, Validator, VerifyMsg
 };
 
 use cosmwasm_std::{Addr, Binary, SubMsg};
@@ -13,11 +12,18 @@ use serde::{Deserialize, Serialize};
 pub enum BridgeExecuteMsg {
     AddValidator { data: AddValidatorMsg },
     ClaimValidatorRewards { data: ClaimValidatorRewardsMsg },
+    BlacklistValidator {data: BlacklistValidatorMsg },
     Lock721 { data: Lock721Msg },
     Lock1155 { data: Lock1155Msg },
     Claim721 { data: ClaimMsg },
     Claim1155 { data: ClaimMsg },
     VerifySig { data: VerifyMsg },
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct BlacklistValidatorMsg {
+    pub validator: (Binary, Addr),
+    pub signatures: Vec<SignerAndSignature>,
 }
 
 /// Queries
