@@ -75,6 +75,7 @@ export namespace Bridge {
     }
     export type storage = {
         validators: big_map<address, rewards>,
+        blacklisted_validators: big_map<address, bool>,
         unique_identifiers: big_map<bytes, bool>,
         collection_deployer: address,
         storage_deployer: address,
@@ -95,6 +96,9 @@ export namespace Bridge {
     type ret = [list<operation>, storage];
     function emit_add_new_validator_ev(validator: address): operation {
         return Tezos.emit("%added_new_validator", validator);
+    }
+    function emit_blacklisted_validator_ev(validator: address): operation {
+        return Tezos.emit("%blacklisted_new_validator", validator);
     }
     function emit_reward_validator_ev(validator: address): operation {
         return Tezos.emit("%rewarded_validator", validator);
@@ -200,6 +204,34 @@ export namespace Bridge {
                 ...store,
                 validators: new_validator,
                 validators_count: store.validators_count + 1n
+            }
+        ];
+    }
+    type blacklist_validator_parms = {
+        validator: address,
+        sigs: list<signer_and_signature>
+    };
+    @entry
+    function blacklist_validator(p: blacklist_validator_parms, store: storage): ret {
+        Assert.Error.assert(List.length(p.sigs) > 0n, "No signatures provided");
+        Assert.Error.some(
+            Big_map.find_opt(p.validator, store.validators),
+            "Validator is not added"
+        );
+        const percent = verify_signatures(Bytes.pack(p.validator), p.sigs);
+        Assert.Error.assert(
+            percent >= (((store.validators_count * 2) / 3)) + 1,
+            "Insufficient signatures"
+        );
+        const updated_validators = Big_map.remove(p.validator, store.validators)
+        const updated_blacklisted_validator = Big_map.add(p.validator, true, store.blacklisted_validators);
+        return [
+            list([emit_blacklisted_validator_ev(p.validator)]),
+            {
+                ...store,
+                validators: updated_validators,
+                validators_count: abs(store.validators_count - 1n),
+                blacklisted_validators: updated_blacklisted_validator
             }
         ];
     }
