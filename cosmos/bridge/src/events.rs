@@ -38,6 +38,20 @@ impl AddNewValidatorEventInfo {
     }
 }
 
+
+#[cw_serde]
+pub struct BlacklistValidatorEventInfo {
+    pub validator: Addr,
+}
+bridge_event!(BlacklistValidatorEventInfo);
+
+impl BlacklistValidatorEventInfo {
+    pub fn new(validator: Addr) -> Self {
+        Self { validator }
+    }
+}
+
+
 #[cw_serde]
 pub struct RewardValidatorEventInfo {
     pub validator: Addr,

@@ -2,11 +2,8 @@ use std::collections::BTreeMap;
 
 use collection_deployer::msg::{CollectionDeployerExecuteMsg, CollectionDeployerInstantiateMsg};
 use cosm_nft::royalty::RoyaltyData;
-use cosmwasm_schema::schemars::Set;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg,
-    Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg,
-    SubMsgResult, Uint128, WasmMsg,
+    entry_point, from_json, to_json_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg, SubMsgResult, Uint128, WasmMsg
 };
 
 use cw0::{parse_execute_response_data, parse_reply_instantiate_data};
@@ -14,8 +11,7 @@ use cw_storage_plus::Map;
 
 use crate::error::ContractError;
 use crate::events::{
-    AddNewValidatorEventInfo, ClaimedEventInfo, LockedEventInfo, RewardValidatorEventInfo,
-    UnLock721EventInfo,
+    AddNewValidatorEventInfo, BlacklistValidatorEventInfo, ClaimedEventInfo, LockedEventInfo, RewardValidatorEventInfo, UnLock721EventInfo
 };
 use crate::msg::{
     BridgeExecuteMsg, BridgeQueryMsg, GetCollectionDeployerResponse,
@@ -176,30 +172,33 @@ fn has_correct_fee(fee: u128, info: MessageInfo) -> StdResult<Response> {
 }
 
 fn blacklist_validator(deps: DepsMut, blacklist_msg: BlacklistValidatorMsg) -> StdResult<Response> {
-    if (blacklist_msg.signatures.len() <= 0) {
+    if blacklist_msg.signatures.len() <= 0 {
         return Err(StdError::generic_err("Must have signatures!"));
     }
-    if (!VALIDATORS_STORAGE.has(&deps.storage, blacklist_msg.validator.0 .0)) {
+    if !VALIDATORS_STORAGE.has( deps.storage, blacklist_msg.validator.0 .0.clone()) {
         return Err(StdError::generic_err("Validator is not added"));
     }
     let percentage = validate_signatures(
         deps.api,
-        &add_validator_msg.validator.0.clone(),
-        &add_validator_msg.signatures,
+        &blacklist_msg.validator.0.clone(),
+        &blacklist_msg.signatures,
     )?;
+    let state = CONFIG.load(deps.storage)?;
     if percentage < required_threshold(state.validators_count as u128) {
         return Err(StdError::generic_err("Threshold not reached!"));
     }
-    VALIDATORS_STORAGE.remove(&mut deps.storage, blacklist_msg.validator.0 .0);
-    CONFIG.update(storage, |mut state| -> Result<_, StdError> {
+    VALIDATORS_STORAGE.remove(deps.storage, blacklist_msg.validator.0 .0.clone());
+    CONFIG.update(deps.storage, |mut state| -> Result<_, StdError> {
         state.validators_count -= 1;
         Ok(state) // Return the modified state
     })?;
-    BLACKLISTED_VALIDATORS.save(&mut deps.storage, blacklist_msg.validator.0 .0, &true);
+    BLACKLISTED_VALIDATORS.save(deps.storage, blacklist_msg.validator.0 .0, &true)?;
+    let log: Vec<Attribute> = vec![BlacklistValidatorEventInfo::new(blacklist_msg.validator.1).try_into()?];
+    Ok(Response::new().add_attributes(log))
 }
 
 fn add_validator(deps: DepsMut, add_validator_msg: AddValidatorMsg) -> StdResult<Response> {
-    if BLACKLISTED_VALIDATORS.has(&deps.storage, add_validator_msg.validator.0 .0) {
+    if BLACKLISTED_VALIDATORS.has(deps.storage, add_validator_msg.validator.0 .0.clone()) {
         return Err(StdError::generic_err("validator blacklisted"));
     }
 
@@ -292,8 +291,6 @@ fn add_validator_to_state(
 }
 
 fn claim_validator_rewards(deps: DepsMut, data: ClaimValidatorRewardsMsg) -> StdResult<Response> {
-    let state = CONFIG.load(deps.storage)?;
-
     let rewards_option = VALIDATORS_STORAGE.may_load(deps.storage, data.validator.clone().0)?;
     let res;
     match rewards_option {
