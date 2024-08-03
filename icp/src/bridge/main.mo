@@ -58,6 +58,7 @@ actor class XPBridge(
   private stable var singular = "singular";
   private stable var _multiple = "multiple";
   private var validators : HashMap.HashMap<Text, Validator> = validatorsArrayToHashMap(_args.validators);
+  private var blacklisted_validators: HashMap.HashMap<Text, Bool> = HashMap.fromIter([].vals(), 0, Text.equal, Text.hash);
   private var original_to_duplicate_mapping = HashMap.fromIter<OriginalToDuplicateMappingKey, Principal>([].vals(), 0, OriginalToDuplicateMappingKey.equal, OriginalToDuplicateMappingKey.hash);
   private var duplicate_to_original_mapping = HashMap.fromIter<DuplicateToOriginalMappingKey, Principal>([].vals(), 0, DuplicateToOriginalMappingKey.equal, DuplicateToOriginalMappingKey.hash);
   private var unique_identifiers = HashMap.fromIter<Text, Bool>([].vals(), 0, Text.equal, Text.hash);
@@ -119,6 +120,20 @@ actor class XPBridge(
         pending_rewards = 0;
       },
     );
+  };
+
+  public func blacklist_validator((pubk, princ) : (Text, Principal), sigs : [SignerAndSignature]): async () {
+    let present = Option.isSome(validators.get(pubk));
+    if (not present) {
+      throw Error.reject("Validator is not added");
+    };
+    let (percent, _) = verify_signatures(Lib.Utils.hexToBytes(pubk), sigs);
+    if (percent < required_threshold()) {
+      throw Error.reject("Threshold not reached.");
+    };
+    validators.delete(pubk);
+    validators_count -= 1;
+    blacklisted_validators.put(pubk, true);
   };
 
   public shared (msg) func lock_nft(source_nft_contract_address : Principal, tid : Nat, destination_chain : Text, destination_user_address : Text) : async Text {
@@ -389,6 +404,10 @@ actor class XPBridge(
 
   public query func get_claimed_data(hash: Text): async ?ClaimedEvent {
     return claimed_events.get(hash);
+  };
+
+  public query func get_blacklisted_validators(pubk: Text): async ?Bool {
+    return blacklisted_validators.get(pubk);
   };
 
   public query func get_validator_count(): async Nat {
