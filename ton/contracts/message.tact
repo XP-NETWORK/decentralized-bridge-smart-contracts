@@ -59,6 +59,7 @@ message HiFromDeployNFT721Storage {
     sourceNftContractAddressLock: Slice;
     sourceChain: String;
     nftItemAddress: Address;
+    metaDataUri: Cell;
 }
 
 message HiFromDeployNFT721Collection{
@@ -83,4 +84,5 @@ message StorageDeploy {
     sourceNftContractAddressLock: Slice;
     sourceChain: String;
     nftItemAddress: Address;
+    metaDataUri: Cell;
 }

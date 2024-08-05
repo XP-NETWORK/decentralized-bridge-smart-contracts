@@ -10,6 +10,7 @@ message DeployNFT721Storage {
     sourceNftContractAddressLock: Slice;
     sourceChain: String;
     nftItemAddress: Address;
+    metaDataUri: Cell;
 }
 
 contract NFTStorageDeployer {
@@ -44,7 +45,8 @@ contract NFTStorageDeployer {
                     destinationUserAddress: msg.destinationUserAddress,
                     sourceNftContractAddressLock: msg.sourceNftContractAddressLock,
                     sourceChain: msg.sourceChain,
-                    nftItemAddress: msg.nftItemAddress
+                    nftItemAddress: msg.nftItemAddress,
+                    metaDataUri: msg.metaDataUri,
                 }.toCell()
             }
         );

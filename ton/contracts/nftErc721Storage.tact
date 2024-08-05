@@ -35,7 +35,8 @@ contract NFTStorageERC721 {
                     destinationUserAddress: msg.destinationUserAddress,
                     sourceNftContractAddressLock: msg.sourceNftContractAddressLock,
                     sourceChain: msg.sourceChain,
-                    nftItemAddress: msg.nftItemAddress
+                    nftItemAddress: msg.nftItemAddress,
+                    metaDataUri: msg.metaDataUri
                 }.toCell()
             }
         );

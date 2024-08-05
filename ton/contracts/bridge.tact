@@ -83,6 +83,7 @@ message Lock721 {
     destinationChain: Cell;
     destinationUserAddress: Cell;
     sourceNftContractAddress: Address;
+    metaDataUri: Cell;
 }
 message ClaimNFT721 {
     data: ClaimData;
@@ -109,6 +110,7 @@ message LockedEvent {
     tokenAmount: Int as uint256; // Token amount is 1 incase it is ERC721
     nftType: String; // NFT type is either 721 or 1155.
     sourceChain: String; // Name of the chain emitting
+    metaDataUri: Cell;
 }
 message UnLock721Event {
     to: Address;
@@ -167,7 +169,7 @@ contract Bridge {
         require(ctx.value >= fee,"data.fee LESS THAN sent amount!");
     }
 
-    fun checkStorage721(storageMapping721: map<Int,Address>, sourceNftContractAddress: Address, tokenId: Int, destinationChain: Cell, destinationUserAddress: Cell, sourceNftContractAddressLock: Slice, sourceChain: String, isOriginal: Bool, nftItemAddress: Address) {
+    fun checkStorage721(storageMapping721: map<Int,Address>, sourceNftContractAddress: Address, tokenId: Int, destinationChain: Cell, destinationUserAddress: Cell, sourceNftContractAddressLock: Slice, sourceChain: String, isOriginal: Bool, nftItemAddress: Address, metaDataUri: Cell) {
         let key: Int = beginCell().storeAddress(sourceNftContractAddress).storeSlice(self.selfChain.asSlice()).endCell().hash();
         let storageAddress: Address? = storageMapping721.get(key);
         if(storageAddress == null){
@@ -185,17 +187,18 @@ contract Bridge {
                         destinationUserAddress: destinationUserAddress, 
                         sourceNftContractAddressLock: sourceNftContractAddressLock, 
                         sourceChain: sourceChain,
-                        nftItemAddress: nftItemAddress
+                        nftItemAddress: nftItemAddress,
+                        metaDataUri: metaDataUri,
                     }.toCell()
                 }
             );
         }
         else{
-            self.transferToStorage721(sourceNftContractAddress, storageAddress!!, tokenId, destinationChain, destinationUserAddress, sourceNftContractAddressLock, sourceChain, nftItemAddress);
+            self.transferToStorage721(sourceNftContractAddress, storageAddress!!, tokenId, destinationChain, destinationUserAddress, sourceNftContractAddressLock, sourceChain, nftItemAddress, metaDataUri);
         }
     }
 
-    fun transferToStorage721(sourceNftContractAddress: Address, storageAddress: Address, tokenId: Int, destinationChain: Cell, destinationUserAddress: Cell, sourceNftContractAddressLock: Slice, sourceChain: String, nftItemAddress: Address) {
+    fun transferToStorage721(sourceNftContractAddress: Address, storageAddress: Address, tokenId: Int, destinationChain: Cell, destinationUserAddress: Cell, sourceNftContractAddressLock: Slice, sourceChain: String, nftItemAddress: Address, metaDataUri: Cell) {
         send(SendParameters{
                 value: ton("0.07"),
                 to: nftItemAddress,
@@ -219,7 +222,8 @@ contract Bridge {
                     sourceNftContractAddress: sourceNftContractAddressLock,
                     tokenAmount: 1,
                     nftType: self.TYPEERC721,
-                    sourceChain: sourceChain
+                    sourceChain: sourceChain,
+                    metaDataUri: metaDataUri,
                 }.toCell());
     }
 
@@ -388,7 +392,7 @@ contract Bridge {
             self.duplicateStorageMapping721.set(msg.key, msg.storageAddress);
         }
 
-        self.transferToStorage721(msg.sourceNftContractAddress, msg.storageAddress, msg.tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddressLock, msg.sourceChain, msg.nftItemAddress);
+        self.transferToStorage721(msg.sourceNftContractAddress, msg.storageAddress, msg.tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddressLock, msg.sourceChain, msg.nftItemAddress, msg.metaDataUri);
     }
 
     receive(msg: HiFromDeployNFT721Collection){
@@ -402,6 +406,7 @@ contract Bridge {
             sourceNftContractAddress: oa.forward_payload.loadAddress(),
             destinationChain: oa.forward_payload.loadRef(),
             destinationUserAddress: oa.forward_payload.loadRef(),
+            metaDataUri: oa.forward_payload.loadRef(),
         };
         let nftItemAddress: Address = context().sender;
         let sCollectionAddress: Address = msg.sourceNftContractAddress;
@@ -437,14 +442,14 @@ contract Bridge {
 
         if(self.convertStringToCell(originalCollectionInfoNotNull.keyChain) == self.selfChainCell) {
             // isOriginal
-            self.checkStorage721(self.originalStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, originalCollectionInfoNotNull.contractAddress, originalCollectionInfoNotNull.chain, true, nftItemAddress);
+            self.checkStorage721(self.originalStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, originalCollectionInfoNotNull.contractAddress, originalCollectionInfoNotNull.chain, true, nftItemAddress, msg.metaDataUri);
         }
         else if(isOriginal){
-            self.checkStorage721(self.originalStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddress.asSlice(), self.selfChain, true, nftItemAddress);
+            self.checkStorage721(self.originalStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddress.asSlice(), self.selfChain, true, nftItemAddress, msg.metaDataUri);
         }
         else{
             // notOriginal
-            self.checkStorage721(self.duplicateStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddress.asSlice(), self.selfChain, false, nftItemAddress);
+            self.checkStorage721(self.duplicateStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddress.asSlice(), self.selfChain, false, nftItemAddress, msg.metaDataUri);
         }
     }
 
