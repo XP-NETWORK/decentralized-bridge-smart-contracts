@@ -76,36 +76,6 @@ const config: HardhatUserConfig = {
       gas: 5000000,
       timeout: 50000000000
     },
-    bscMainnet: {
-      url: "https://bsc-pokt.nodies.app", // BSC Mainnet RPC URL
-      accounts: [
-        "bdc6d05d061c7bb43fb931b9c4e9b04e0b15ecdcf513f9787b2143f596da0cf0",
-      ],
-    },
-    ethMainnet: {
-      url: "https://eth.llamarpc.com", // ETH Mainnet RPC URL
-      accounts: [
-        "bdc6d05d061c7bb43fb931b9c4e9b04e0b15ecdcf513f9787b2143f596da0cf0",
-      ],
-    },
-    maticMainnet: {
-      url: "https://polygon-pokt.nodies.app", // Polygon Mainnet RPC URL
-      accounts: [
-        "bdc6d05d061c7bb43fb931b9c4e9b04e0b15ecdcf513f9787b2143f596da0cf0",
-      ],
-    },
-    hederaMainnet: {
-      url: "https://mainnet.hashio.io/api", // Hedera Mainnet RPC URL
-      accounts: [
-        "bdc6d05d061c7bb43fb931b9c4e9b04e0b15ecdcf513f9787b2143f596da0cf0",
-      ],
-    },
-    optMainnet: {
-      url: "https://optimism-mainnet.public.blastapi.io", // Optimism Mainnet RPC URL
-      accounts: [
-        "bdc6d05d061c7bb43fb931b9c4e9b04e0b15ecdcf513f9787b2143f596da0cf0",
-      ],
-    },
   },
   typechain: {
     outDir: "contractsTypes",

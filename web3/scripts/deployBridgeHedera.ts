@@ -9,18 +9,20 @@ async function main() {
   //   `StorageDeployerContract contract deployed at ${await sd.getAddress()}`
   // );
 
+
+  // return
   
   let res = false;
   while (!res) {
     try {
-      const bootstrapValidator = ["0xe9dFDea6Da1Dc1906027f5412Dc137E7D9E2A9e4"];
+      const bootstrapValidator = ["0xe7D463DFf4E8c01040DafD137598d006292A7Aa3"];
       const chainSymbol = "HEDERA";
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 5000));
       const bf = await ethers.getContractFactory("HederaBridge");
       const bridge = await bf.deploy(
         bootstrapValidator,
         chainSymbol,
-        "0xb11aa122633A8104B1A655C3a12e296e8634926c",
+        "0xbFDdaF774a3690a44852c70694E05cDaeadae792",
         {
           // gasLimit: 9500000,
           gasLimit: 15000000,
