@@ -117,7 +117,8 @@ contract HederaBridge is
         string sourceNftContractAddress, // Address of the NFT contract in the source chain
         uint256 tokenAmount, // Token amount is 1 incase it is ERC721
         string nftType, // NFT type is either 721 or 1155.
-        string sourceChain // Name of the chain emitting
+        string sourceChain, // Name of the chain emitting,
+        string metaDataUri // Metadata uri of nft 
     );
 
     event UnLock721(address to, uint256 tokenId, address contractAddr);
@@ -218,7 +219,8 @@ contract HederaBridge is
         uint256 tokenId, // Unique ID for the NFT transfer
         string memory destinationChain, // Chain to where the NFT is being transferred
         string memory destinationUserAddress, // User's address in the destination chain
-        address sourceNftContractAddress // Address of the NFT contract in the source chain
+        address sourceNftContractAddress, // Address of the NFT contract in the source chain
+        string memory metaDataUri
     ) external {
         require(
             sourceNftContractAddress != address(0),
@@ -301,7 +303,8 @@ contract HederaBridge is
                 addressToString(sourceNftContractAddress),
                 1,
                 TYPEERC721,
-                selfChain
+                selfChain,
+                metaDataUri
             );
         } else {
             transferToStorage721(
@@ -317,7 +320,8 @@ contract HederaBridge is
                 originalCollectionAddress.contractAddress,
                 1,
                 TYPEERC721,
-                originalCollectionAddress.chain
+                originalCollectionAddress.chain,
+                metaDataUri
             );
         }
     }
