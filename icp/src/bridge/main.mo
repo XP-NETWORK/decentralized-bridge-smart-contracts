@@ -306,19 +306,13 @@ actor class XPBridge(
     };
   };
 
-  public func claim_validator_rewards(publicKey : Text, sigs : [SignerAndSignature]) : async () {
-    assert sigs.size() > 0;
+  public func claim_validator_rewards(publicKey : Text) : async () {
     switch (validators.get(publicKey)) {
       case (null) {
         throw Error.reject("No Such Validator Found.");
       };
       case (?v) {
         let pr = v.pending_rewards;
-        let (percent, _) = verify_signatures(Lib.Utils.hexToBytes(publicKey), sigs);
-        if (percent > required_threshold()) {
-          throw Error.reject("Threshold not reached!");
-        };
-        validators.put(publicKey, { pending_rewards = 0; address = v.address });
         try {
           let result = await Ledger.transfer({
             from = Principal.fromActor(self);
@@ -333,7 +327,9 @@ actor class XPBridge(
             case (#Err(transferError)) {
               throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
             };
-            case (_) {};
+            case (_) {
+              validators.put(publicKey, { pending_rewards = 0; address = v.address });
+            };
           };
         } catch (e) {
           throw Error.reject("Failed to transfer ICP to Validator." # Error.message(e));

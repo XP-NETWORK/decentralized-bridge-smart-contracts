@@ -290,8 +290,6 @@ module bridge::aptos_nft_bridge {
     admin: signer,
     to: address,
     validator: vector<u8>, 
-    signatures: vector<vector<u8>>, 
-    public_keys: vector<vector<u8>>
   ) acquires Bridge {
     
     let admin_addr = signer::address_of(&admin);
@@ -301,9 +299,6 @@ module bridge::aptos_nft_bridge {
     let bridge_data = borrow_global_mut<Bridge>(@bridge);
 
     assert!(simple_map::contains_key(&mut bridge_data.validators, &validator), E_VALIDATOR_DOESNOT_EXIST);
-
-    assert_meets_validator_thershold(signatures, &public_keys, validator, &mut bridge_data.validators);
-
     let validator_reward = simple_map::borrow_mut(&mut bridge_data.validators, &validator);
     
     assert!(validator_reward.pending_reward > 0, E_VALIDATOR_PENDING_REWARD_IS_ZERO);

@@ -1,5 +1,5 @@
 # Array of chain symbols
-declare -a chains=("BSC" "ETH" "MATIC")
+declare -a chains=("BSC" "MATIC")
 
 # Bootstrap validator address
 BOOTSTRAP_VALIDATOR_ADDRESS="0xdca3EB00DfaDeD529691736c4c7Ee386BFAE7c23"

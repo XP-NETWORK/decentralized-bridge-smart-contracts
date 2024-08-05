@@ -204,42 +204,12 @@ pub trait BridgeContract {
     #[endpoint(claimValidatorRewards)]
     fn claim_validator_rewards(
         &self,
-        validator: ManagedAddress,
-        signatures: ManagedVec<SignatureInfo<Self::Api>>,
+        validator: ManagedAddress
     ) {
-        // require!(args.new_validator_address., "Address cannot be zero address!");
-        require!(signatures.len() > 0, "Must have signatures!");
 
         if self.validators(&validator).is_empty() == true {
             require!(false, "Validator does not exist!");
         };
-
-        let mut percentage: u64 = 0;
-
-        for arg in signatures.into_iter() {
-            let mut dest_slice = [0u8; 64];
-            let _ = arg.sig.load_slice(0, &mut dest_slice);
-
-            let res = self.verify_ed25519(
-                &arg.public_key.to_byte_array(),
-                &validator.to_byte_array(),
-                &dest_slice,
-            );
-            if res {
-                let lene = self.validators(&arg.public_key).is_empty();
-                if lene == false && self.validators(&arg.public_key).get(1).added {
-                    percentage = percentage + 1;
-                }
-            }
-        }
-
-        let validators_count = self.validators_count().get();
-
-        require!(
-            percentage >= (((validators_count * 2) / 3) + 1),
-            "Threshold not reached!"
-        );
-
         self.reward_validator_event(validator.clone());
         let rewards = self.validators(&validator).get(1).pending_reward;
 

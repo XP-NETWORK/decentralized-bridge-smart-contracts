@@ -20,6 +20,7 @@ pub const COLLECTION_DEPLOYER_721_REPLY_ID: u64 = 3;
 pub const COLLECTION_DEPLOYER_1155_REPLY_ID: u64 = 4;
 
 pub static VALIDATORS_STORAGE: Map<Vec<u8>, Validator> = Map::new("v_s");
+pub static BLACKLISTED_VALIDATORS: Map<Vec<u8>, bool> = Map::new("bvs");
 
 pub static UNIQUE_IDENTIFIER_STORAGE: Map<[u8; 32], bool> = Map::new("ui_s");
 

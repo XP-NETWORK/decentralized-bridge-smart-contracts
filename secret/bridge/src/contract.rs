@@ -19,17 +19,11 @@ use crate::error::ContractError;
 use crate::events::{
     AddNewValidatorEventInfo, Claimed1155EventInfo, Claimed721EventInfo, LockedEventInfo, RewardValidatorEventInfo, UnLock1155EventInfo, UnLock721EventInfo
 };
-use crate::msg::{BridgeExecuteMsg, BridgeQueryAnswer, BridgeQueryMsg};
+use crate::msg::{BlacklistValidatorMsg, BridgeExecuteMsg, BridgeQueryAnswer, BridgeQueryMsg};
 use snip1155::msg::Snip1155ExecuteMsg;
 use snip1155::msg::Snip1155QueryMsg;
 use crate::state::{
-    config, config_read, CODEHASHES, COLLECTION_DEPLOYER_1155_REPLY_ID,
-    COLLECTION_DEPLOYER_721_REPLY_ID, COLLECTION_DEPLOYER_REPLY_ID, COLLETION_DEPLOYER_CODE,
-    DUPLICATE_STORAGE_1155, DUPLICATE_STORAGE_721, DUPLICATE_TO_ORIGINAL_STORAGE,
-    NFT_COLLECTION_OWNER, ORIGINAL_STORAGE_1155, ORIGINAL_STORAGE_721,
-    ORIGINAL_TO_DUPLICATE_STORAGE, STORAGE_DEPLOYER_1155_REPLY_ID, STORAGE_DEPLOYER_721_REPLY_ID,
-    STORAGE_DEPLOYER_CODE, STORAGE_DEPLOYER_REPLY_ID, UNIQUE_IDENTIFIER_STORAGE,
-    VALIDATORS_STORAGE,
+    config, config_read, BLACKLISTED_VALIDATORS, CODEHASHES, COLLECTION_DEPLOYER_1155_REPLY_ID, COLLECTION_DEPLOYER_721_REPLY_ID, COLLECTION_DEPLOYER_REPLY_ID, COLLETION_DEPLOYER_CODE, DUPLICATE_STORAGE_1155, DUPLICATE_STORAGE_721, DUPLICATE_TO_ORIGINAL_STORAGE, NFT_COLLECTION_OWNER, ORIGINAL_STORAGE_1155, ORIGINAL_STORAGE_721, ORIGINAL_TO_DUPLICATE_STORAGE, STORAGE_DEPLOYER_1155_REPLY_ID, STORAGE_DEPLOYER_721_REPLY_ID, STORAGE_DEPLOYER_CODE, STORAGE_DEPLOYER_REPLY_ID, UNIQUE_IDENTIFIER_STORAGE, VALIDATORS_STORAGE
 };
 use crate::structs::{
     AddValidatorMsg, ClaimData, ClaimMsg, ClaimValidatorRewardsMsg,
@@ -159,6 +153,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: BridgeExecuteMsg
     match msg {
         BridgeExecuteMsg::AddValidator { data } => add_validator(deps, data),
         BridgeExecuteMsg::ClaimValidatorRewards { data } => claim_validator_rewards(deps, data),
+        BridgeExecuteMsg::BlacklistValidator { data } => blacklist_validator(deps, data),
         BridgeExecuteMsg::Lock721 { data } => lock721(deps, env, data),
         BridgeExecuteMsg::Lock1155 { data } => lock1155(deps, env, info, data),
         BridgeExecuteMsg::Claim721 { data } => claim721(deps, env, info, data),
@@ -236,6 +231,34 @@ fn add_validator(deps: DepsMut, add_validator_msg: AddValidatorMsg) -> StdResult
         &add_validator_msg.validator,
     )?)
 }
+
+
+fn blacklist_validator(deps: DepsMut, blacklist_msg: BlacklistValidatorMsg) -> StdResult<Response> {
+    if blacklist_msg.signatures.len() <= 0 {
+        return Err(StdError::generic_err("Must have signatures!"));
+    }
+    if !VALIDATORS_STORAGE.contains(deps.storage, &blacklist_msg.validator.0){
+        return Err(StdError::generic_err("Validator is not added"));
+    }
+    let percentage = validate_signatures(
+        deps.api,
+        &blacklist_msg.validator.0.clone(),
+        &blacklist_msg.signatures,
+    )?;
+    let state = config_read(deps.storage).load()?;
+    if percentage < required_threshold(state.validators_count as u128) {
+        return Err(StdError::generic_err("Threshold not reached!"));
+    }
+    VALIDATORS_STORAGE.remove(deps.storage, &blacklist_msg.validator.0)?;
+
+    config(deps.storage).update(|mut state| {
+        state.validators_count -= 1;
+        Result::<State, StdError>::Ok(state) // Return the modified state
+    })?;
+    BLACKLISTED_VALIDATORS.insert(deps.storage, &blacklist_msg.validator.0, &true)?;
+    Ok(Response::new())
+}
+
 
 fn validate_signatures(
     api: &dyn Api,
@@ -322,10 +345,6 @@ fn add_validator_to_state(
 }
 
 fn claim_validator_rewards(deps: DepsMut, data: ClaimValidatorRewardsMsg) -> StdResult<Response> {
-    if data.signatures.is_empty() {
-        return Err(StdError::generic_err("Must have signatures!"));
-    }
-
     let state = config_read(deps.storage).load()?;
 
     if !VALIDATORS_STORAGE
@@ -333,11 +352,6 @@ fn claim_validator_rewards(deps: DepsMut, data: ClaimValidatorRewardsMsg) -> Std
         .is_some()
     {
         return Err(StdError::generic_err("Validator does not exist!"));
-    }
-
-    let percentage = validate_signatures(deps.api, &data.validator, &data.signatures)?;
-    if percentage < required_threshold(state.validators_count as u128) {
-        return Err(StdError::generic_err("Threshold not reached!"));
     }
 
     let rewards_option = VALIDATORS_STORAGE.get(deps.storage, &data.validator.clone());
@@ -2105,7 +2119,7 @@ fn register_collection_721_impl(
         funds: vec![],
     });
     let emit: Vec<Attribute> = vec![Claimed721EventInfo::new(
-        msg.data.lock_tx_chain,
+        reply_info.lock_tx_chain,
         reply_info.source_chain,
         reply_info.transaction_hash,
         reply_info.address.to_string(),

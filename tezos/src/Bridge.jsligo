@@ -212,17 +212,11 @@ export namespace Bridge {
         p: claim_validator_rewards_params,
         s: storage
     ): ret {
-        assert_with_error(List.length(p.sigs) > 0n, "No signatures provided");
         const validator_rewards_opt =
             Big_map.find_opt(p.validator, s.validators);
         assert_some_with_error(
             validator_rewards_opt, // Dont have to check for added as it will fail if it doesnt exist (Not Solidity :P)
             "Validator does not exist"
-        );
-        const percent = verify_signatures(Bytes.pack(p.validator), p.sigs);
-        assert_with_error(
-            percent >= (((s.validators_count * 2) / 3)) + 1,
-            "Insufficient signatures"
         );
         let event_op = emit_reward_validator_ev(p.validator);
         let validator_rewards = Option.unopt(validator_rewards_opt);
