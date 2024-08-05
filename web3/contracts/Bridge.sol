@@ -47,16 +47,15 @@ contract Bridge is Initializable, UUPSUpgradeable {
 
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
-    mapping(bytes => bool) public uniqueByteCode;
+    mapping(address => bool) public uniqueImplementations;
+    mapping(address => bool) public upgradeables;
 
     mapping(address => bool) public blackListedValidators;
 
     INFTCollectionDeployer public collectionDeployer;
     INFTStorageDeployer public storageDeployer;
 
-    uint256 public validatorsCount = 0;
-    uint256 public contractNonce = 0;
-    bool private upgradeable = false;
+    uint256 public validatorsCount;
     // address[] validatorsArray;
 
     // originalCollectionAddress => destinationCollectionAddress
@@ -83,7 +82,7 @@ contract Bridge is Initializable, UUPSUpgradeable {
 
     mapping(address validator => bool signed) private uniqueValidators;
 
-    string public selfChain = "";
+    string public selfChain;
     string constant TYPEERC721 = "singular"; // a more general term to accomodate non-evm chains
     string constant TYPEERC1155 = "multiple"; // a more general term to accomodate non-evm chains
 
@@ -108,7 +107,7 @@ contract Bridge is Initializable, UUPSUpgradeable {
     event AddNewValidator(address _validator);
     event BlackListValidator(address _validator);
     event RewardValidator(address _validator);
-    event UpgradeContract(uint256 _contractNonce, address _contractAddress);
+    event UpgradedContract(address _contractAddress);
 
     event Locked(
         uint256 tokenId, // Unique ID for the NFT transfer
@@ -164,7 +163,7 @@ contract Bridge is Initializable, UUPSUpgradeable {
         require(msg.value >= fee, "data.fee LESS THAN sent amount!");
         _;
     }
-
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -192,6 +191,8 @@ contract Bridge is Initializable, UUPSUpgradeable {
         storageDeployer.setOwner(address(this));
 
         selfChain = _chainType;
+        validatorsCount = 0;
+
         for (uint256 i = 0; i < _validators.length; i++) {
             validators[_validators[i]].added = true;
             validatorsCount += 1;
@@ -203,16 +204,18 @@ contract Bridge is Initializable, UUPSUpgradeable {
         internal
         override
     {
-        require(upgradeable, "Cannot upgrade!");
-        upgradeable = false;
-        emit UpgradeContract(contractNonce, newImplementation);
+        require(uniqueImplementations[newImplementation], "Cannot upgrade!");
+        require(upgradeables[newImplementation], "Already upgraded!");
+
+        emit UpgradedContract(newImplementation);
+        upgradeables[newImplementation] = false;
     }
 
     function upgrade(
-        bytes memory _bytecode,
+        address newImplementation,
         SignerAndSignature[] memory signatures
     ) external {
-        require(!uniqueByteCode[_bytecode], "Data already processed!");
+        require(!uniqueImplementations[newImplementation], "Data already processed!");
 
         bytes[] memory signaturesArr = new bytes[](signatures.length);
 
@@ -220,10 +223,10 @@ contract Bridge is Initializable, UUPSUpgradeable {
             signaturesArr[i] = signatures[i].signature;
         }
 
-        verifySignature(keccak256(abi.encode(_bytecode)), signaturesArr);
+        verifySignature(keccak256(abi.encode(newImplementation)), signaturesArr);
 
-        uniqueByteCode[_bytecode] = true;
-        upgradeable = true;
+        uniqueImplementations[newImplementation] = true;
+        upgradeables[newImplementation] = true;
     }
 
     function addValidator(
@@ -986,4 +989,8 @@ contract Bridge is Initializable, UUPSUpgradeable {
     }
 
     receive() external payable {}
+
+    // function getData() external pure returns (string memory) {
+    //     return "Hello World";
+    // }
 }
