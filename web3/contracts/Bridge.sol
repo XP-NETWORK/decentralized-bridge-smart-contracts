@@ -16,6 +16,8 @@ import "./interfaces/IERC1155Royalty.sol";
 import "./interfaces/INFTStorageDeployer.sol";
 import "./interfaces/INFTCollectionDeployer.sol";
 import "./AddressUtilityLib.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 /**
  * @dev Stucture to store signature with signer public address
  */
@@ -39,20 +41,21 @@ struct Validator {
     uint pendingReward;
 }
 
-contract Bridge {
+contract Bridge is Initializable, UUPSUpgradeable {
     using ECDSA for bytes32;
     using AddressUtilityLib for string;
 
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
+    mapping(address => bool) public uniqueImplementations;
+    mapping(address => bool) public upgradeables;
 
     mapping(address => bool) public blackListedValidators;
 
     INFTCollectionDeployer public collectionDeployer;
     INFTStorageDeployer public storageDeployer;
 
-    uint256 public validatorsCount = 0;
-
+    uint256 public validatorsCount;
     // address[] validatorsArray;
 
     // originalCollectionAddress => destinationCollectionAddress
@@ -79,7 +82,7 @@ contract Bridge {
 
     mapping(address validator => bool signed) private uniqueValidators;
 
-    string public selfChain = "";
+    string public selfChain;
     string constant TYPEERC721 = "singular"; // a more general term to accomodate non-evm chains
     string constant TYPEERC1155 = "multiple"; // a more general term to accomodate non-evm chains
 
@@ -104,6 +107,7 @@ contract Bridge {
     event AddNewValidator(address _validator);
     event BlackListValidator(address _validator);
     event RewardValidator(address _validator);
+    event UpgradedContract(address _contractAddress);
 
     event Locked(
         uint256 tokenId, // Unique ID for the NFT transfer
@@ -160,14 +164,18 @@ contract Bridge {
         require(msg.value >= fee, "data.fee LESS THAN sent amount!");
         _;
     }
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
-    constructor(
+    function initialize(
         address[] memory _validators,
         string memory _chainType,
         address _collectionDeployer,
         address _storageDeployer,
-        address _collectionOwner
-    ) {
+        address _collectionOwner) initializer public {
+
         require(
             _collectionDeployer != address(0),
             "Address cannot be zero address!"
@@ -184,10 +192,42 @@ contract Bridge {
         storageDeployer.setOwner(address(this));
 
         selfChain = _chainType;
+        validatorsCount = 0;
+
         for (uint256 i = 0; i < _validators.length; i++) {
             validators[_validators[i]].added = true;
             validatorsCount += 1;
         }
+        __UUPSUpgradeable_init();
+    }
+
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        override
+    {
+        require(uniqueImplementations[newImplementation], "Cannot upgrade!");
+        require(upgradeables[newImplementation], "Already upgraded!");
+
+        emit UpgradedContract(newImplementation);
+        upgradeables[newImplementation] = false;
+    }
+
+    function upgrade(
+        address newImplementation,
+        SignerAndSignature[] memory signatures
+    ) external {
+        require(!uniqueImplementations[newImplementation], "Data already processed!");
+
+        bytes[] memory signaturesArr = new bytes[](signatures.length);
+
+        for (uint256 i = 0; i < signatures.length; i++) {
+            signaturesArr[i] = signatures[i].signature;
+        }
+
+        verifySignature(keccak256(abi.encode(newImplementation)), signaturesArr);
+
+        uniqueImplementations[newImplementation] = true;
+        upgradeables[newImplementation] = true;
     }
 
     function addValidator(
@@ -956,4 +996,8 @@ contract Bridge {
     }
 
     receive() external payable {}
+
+    // function getData() external pure returns (string memory) {
+    //     return "Hello World";
+    // }
 }
