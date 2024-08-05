@@ -1,0 +1,315 @@
+{
+  "manifestVersion": "3.2",
+  "proxies": [
+    {
+      "address": "0x9ED1D37E27561fD416bec704402DA5295084deff",
+      "txHash": "0x4a8af90f58cf3ae3d369b6bd2df202ef3ae583ac1c0e1290eb8313c328539ef0",
+      "kind": "uups"
+    }
+  ],
+  "impls": {
+    "7b2853ed03802df44e9aa06ae41359df6613e940a6a4f6e2a67e49de90c8ca20": {
+      "address": "0xe82247af177202C48513eb77185173802b3e83DE",
+      "txHash": "0xaa440173e87a04129ca38fc26bb4c961c1fde39f661eb0cca1a11cfcae408c50",
+      "layout": {
+        "solcVersion": "0.8.21",
+        "storage": [
+          {
+            "label": "validators",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_mapping(t_address,t_struct(Validator)6529_storage)",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:48"
+          },
+          {
+            "label": "uniqueIdentifier",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_mapping(t_bytes32,t_bool)",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:49"
+          },
+          {
+            "label": "uniqueImplementations",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:50"
+          },
+          {
+            "label": "upgradeables",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:51"
+          },
+          {
+            "label": "blackListedValidators",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:53"
+          },
+          {
+            "label": "collectionDeployer",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_contract(INFTCollectionDeployer)11235",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:55"
+          },
+          {
+            "label": "storageDeployer",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_contract(INFTStorageDeployer)11266",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:56"
+          },
+          {
+            "label": "validatorsCount",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:58"
+          },
+          {
+            "label": "originalToDuplicateMapping",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_string_memory_ptr,t_mapping(t_string_memory_ptr,t_struct(OriginalToDuplicateContractInfo)6524_storage))",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:62"
+          },
+          {
+            "label": "duplicateToOriginalMapping",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_mapping(t_address,t_mapping(t_string_memory_ptr,t_struct(DuplicateToOriginalContractInfo)6519_storage))",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:66"
+          },
+          {
+            "label": "originalStorageMapping721",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_string_memory_ptr,t_mapping(t_string_memory_ptr,t_address))",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:70"
+          },
+          {
+            "label": "originalStorageMapping1155",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_mapping(t_string_memory_ptr,t_mapping(t_string_memory_ptr,t_address))",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:73"
+          },
+          {
+            "label": "duplicateStorageMapping721",
+            "offset": 0,
+            "slot": "12",
+            "type": "t_mapping(t_string_memory_ptr,t_mapping(t_string_memory_ptr,t_address))",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:77"
+          },
+          {
+            "label": "duplicateStorageMapping1155",
+            "offset": 0,
+            "slot": "13",
+            "type": "t_mapping(t_string_memory_ptr,t_mapping(t_string_memory_ptr,t_address))",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:80"
+          },
+          {
+            "label": "uniqueValidators",
+            "offset": 0,
+            "slot": "14",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:83"
+          },
+          {
+            "label": "selfChain",
+            "offset": 0,
+            "slot": "15",
+            "type": "t_string_storage",
+            "contract": "Bridge",
+            "src": "contracts/Bridge.sol:85"
+          }
+        ],
+        "types": {
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)10_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_contract(INFTCollectionDeployer)11235": {
+            "label": "contract INFTCollectionDeployer",
+            "numberOfBytes": "20"
+          },
+          "t_contract(INFTStorageDeployer)11266": {
+            "label": "contract INFTStorageDeployer",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_string_memory_ptr,t_struct(DuplicateToOriginalContractInfo)6519_storage))": {
+            "label": "mapping(address => mapping(string => struct DuplicateToOriginalContractInfo))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(Validator)6529_storage)": {
+            "label": "mapping(address => struct Validator)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_bool)": {
+            "label": "mapping(bytes32 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_address)": {
+            "label": "mapping(string => address)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_mapping(t_string_memory_ptr,t_address))": {
+            "label": "mapping(string => mapping(string => address))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_mapping(t_string_memory_ptr,t_struct(OriginalToDuplicateContractInfo)6524_storage))": {
+            "label": "mapping(string => mapping(string => struct OriginalToDuplicateContractInfo))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_struct(DuplicateToOriginalContractInfo)6519_storage)": {
+            "label": "mapping(string => struct DuplicateToOriginalContractInfo)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_struct(OriginalToDuplicateContractInfo)6524_storage)": {
+            "label": "mapping(string => struct OriginalToDuplicateContractInfo)",
+            "numberOfBytes": "32"
+          },
+          "t_string_memory_ptr": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(DuplicateToOriginalContractInfo)6519_storage": {
+            "label": "struct DuplicateToOriginalContractInfo",
+            "members": [
+              {
+                "label": "chain",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "contractAddress",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(OriginalToDuplicateContractInfo)6524_storage": {
+            "label": "struct OriginalToDuplicateContractInfo",
+            "members": [
+              {
+                "label": "chain",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "contractAddress",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Validator)6529_storage": {
+            "label": "struct Validator",
+            "members": [
+              {
+                "label": "added",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "pendingReward",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
