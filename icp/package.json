@@ -11,6 +11,7 @@
   "dependencies": {
     "@dfinity/agent": "^2.0.0",
     "@dfinity/candid": "^2.0.0",
+    "@dfinity/identity": "^2.0.0",
     "@dfinity/principal": "^2.0.0",
     "@noble/ed25519": "^1.6.0",
     "isomorphic-fetch": "^3.0.0",

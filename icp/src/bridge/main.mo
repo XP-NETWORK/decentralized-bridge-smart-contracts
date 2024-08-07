@@ -235,7 +235,7 @@ actor class XPBridge(
         amount = { e8s = claim_data.fee };
         fee = { e8s = 10_000 };
         from_subaccount = null;
-        to = Blob.toArray(Principal.toLedgerAccount(Principal.fromActor(self), null));
+        to = Principal.toLedgerAccount(Principal.fromActor(self), null);
         created_at_time = null;
       });
       // check if the transfer was successfull
@@ -332,7 +332,7 @@ actor class XPBridge(
           let result = await Ledger.transfer({
             from = Principal.fromActor(self);
             created_at_time = null;
-            to = Blob.toArray(Principal.toLedgerAccount(v.address, null));
+            to = Principal.toLedgerAccount(v.address, null);
             memo = 0;
             fee = { e8s = 10_000 };
             amount = { e8s = pr };

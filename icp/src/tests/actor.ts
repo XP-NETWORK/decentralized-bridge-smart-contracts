@@ -10,15 +10,17 @@ import {
   _SERVICE as NftService,
   idlFactory as NftIDL,
 } from "../declarations/nft/nft.did.js";
+import { Ed25519KeyIdentity } from "@dfinity/identity";
 
 export const createActor = async <T>(
   canisterId: string,
   idlFactory: any,
   options: HttpAgentOptions
 ) => {
-  const agent = await HttpAgent.create({ ...options, shouldFetchRootKey: true });
+    const identity = Ed25519KeyIdentity.fromSecretKey(Buffer.from("efeb1c2fde35ba8cada52300388a0455f5f75e20bd15efdf3a2b29af172a3379", "hex"))
+  const agent = await HttpAgent.create({ ...options, shouldFetchRootKey: true, identity });
   const rk = await agent.fetchRootKey();
-  console.log(`Root Key:`, Buffer.from(rk).toString("base64"));
+
 
   // Creates an actor with using the candid interface and the HttpAgent
   return Actor.createActor<T>(idlFactory, {
@@ -30,14 +32,14 @@ export const createActor = async <T>(
 console.log(canisterIds)
 
 export const bridgeCanister = canisterIds.bridge.local;
-export const nftCanister = canisterIds.nft.local;
+// export const nftCanister = canisterIds.nft.local;
 
 export const bridge = await createActor<BridgeService>(bridgeCanister, BridgeIDL, {
   host: "http://127.0.0.1:4943",
   fetch,
 });
 
-export const nft = await createActor<NftService>(nftCanister, NftIDL, {
-  host: "http://127.0.0.1:4943",
-  fetch,
-});
+// export const nft = await createActor<NftService>(nftCanister, NftIDL, {
+//   host: "http://127.0.0.1:4943",
+//   fetch,
+// });

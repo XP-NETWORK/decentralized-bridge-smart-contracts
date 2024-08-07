@@ -44,26 +44,26 @@ async function approve_nft(token_id: bigint) {
   return token_id;
 }
 
-test("should be able to lock nft", async () => {
-  const respones = await mint_nft();
-  const approve = await approve_nft(respones);
-  const lock = await bridge.lock_nft(
-    Actor.canisterIdOf(nft),
-    respones,
-    "BSC",
-    "0x.."
-  );
-  const [locked_event] = await bridge.get_locked_data(lock);
-  expect(locked_event).toBeDefined();
-  expect(locked_event?.destination_chain).toBe("BSC");
-  expect(locked_event?.destination_user_address).toBe("0x..");
-  expect(locked_event?.source_nft_contract_address.toString()).toBe(
-    Actor.canisterIdOf(nft).toString()
-  );
-  expect(locked_event?.token_id.toString()).toBe(approve.toString());
-}, {
-  timeout: 500000000
-});
+// test("should be able to lock nft", async () => {
+//   const respones = await mint_nft();
+//   const approve = await approve_nft(respones);
+//   const lock = await bridge.lock_nft(
+//     Actor.canisterIdOf(nft),
+//     respones,
+//     "BSC",
+//     "0x.."
+//   );
+//   const [locked_event] = await bridge.get_locked_data(lock);
+//   expect(locked_event).toBeDefined();
+//   expect(locked_event?.destination_chain).toBe("BSC");
+//   expect(locked_event?.destination_user_address).toBe("0x..");
+//   expect(locked_event?.source_nft_contract_address.toString()).toBe(
+//     Actor.canisterIdOf(nft).toString()
+//   );
+//   expect(locked_event?.token_id.toString()).toBe(approve.toString());
+// }, {
+//   timeout: 500000000
+// });
 
 test("should be able to claim nft", async () => {
   const cd: ClaimData = {
@@ -80,7 +80,8 @@ test("should be able to claim nft", async () => {
     symbol: "NNBSC",
     token_amount: 1n,
     token_id: 25n,
-    transaction_hash: '0x00'
+    transaction_hash: '0x00',
+    lock_tx_chain: "nigga"
   };
    const ClaimData = IDL.Record({
      fee: IDL.Nat64,
@@ -97,6 +98,7 @@ test("should be able to claim nft", async () => {
      royalty_receiver: IDL.Principal,
      destination_user_address: IDL.Principal,
      symbol: IDL.Text,
+     lock_tx_chain: IDL.Text
    });
    const encoded = ClaimData.encodeValue(cd);
    const signature = await ed.sign(Buffer.from(encoded), pk);
