@@ -19,6 +19,10 @@ pub trait BridgeContract {
     #[storage_mapper("validators")]
     fn validators(&self, address: &ManagedAddress) -> VecMapper<Validator<Self::Api>>;
 
+    #[view(blacklistedValidators)]
+    #[storage_mapper("blacklistedValidators")]
+    fn blacklisted_validators(&self, address: &ManagedAddress) -> SingleValueMapper<bool>;
+
     #[view(validatorsCount)]
     #[storage_mapper("validatorsCount")]
     fn validators_count(&self) -> SingleValueMapper<u64>;
@@ -137,22 +141,7 @@ pub trait BridgeContract {
     fn verify_ed25519(&self, key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> bool {
         let public_key = VerifyingKey::from_bytes(key);
         let signatures = Signature::from(signature);
-        // Convert bytes to a PublicKey. This can fail if the byte slice has an incorrect length.
-        // let public_key1 = match VerifyingKey::from_bytes(key) {
-        //     Ok(pk) => pk,
-        //     Err(_) => return false, // If the public key is invalid, return false.
-        // };
-
-        // // Convert bytes to a Signature. This can fail if the byte slice has an incorrect length.
-        // let signature = match Signature::from_bytes(signature) {
-        //     Ok(sig) => sig,
-        //     Err(_) => return false, // If the signature is invalid, return false.
-        // };
-
-        // // Verify the signature. This returns `true` if it's valid, and `false` if not.
-
-        let rese = public_key.unwrap().verify(message, &signatures).is_ok();
-        rese
+        public_key.unwrap().verify(message, &signatures).is_ok()
     }
 
     #[endpoint(addValidator)]
@@ -163,6 +152,7 @@ pub trait BridgeContract {
     ) {
         // require!(args.new_validator_address., "Address cannot be zero address!");
         require!(signatures.len() > 0, "Must have signatures!");
+        let mut uv = ManagedMap::new();
 
         let mut percentage: u64 = 0;
 
@@ -170,15 +160,19 @@ pub trait BridgeContract {
             let mut dest_slice = [0u8; 64];
             let _ = arg.sig.load_slice(0, &mut dest_slice);
 
-            let res = self.verify_ed25519(
+            let valid = self.verify_ed25519(
                 &arg.public_key.to_byte_array(),
                 &new_validator_public_key.to_byte_array(),
                 &dest_slice,
             );
-            if res {
-                let lene = self.validators(&arg.public_key).is_empty();
-                if lene == false && self.validators(&arg.public_key).get(1).added {
+            if valid {
+                let validator_exists = self.validators(&arg.public_key).is_empty();
+                if !validator_exists && !uv.contains(&arg.public_key.as_managed_buffer()) {
                     percentage = percentage + 1;
+                    uv.put(
+                        &arg.public_key.as_managed_buffer(),
+                        &ManagedBuffer::new_from_bytes(b"true"),
+                    );
                 }
             }
         }
@@ -201,12 +195,55 @@ pub trait BridgeContract {
         });
     }
 
-    #[endpoint(claimValidatorRewards)]
-    fn claim_validator_rewards(
+    #[endpoint(blacklistValidator)]
+    fn blacklist_validator(
         &self,
-        validator: ManagedAddress
+        address: ManagedAddress,
+        signatures: ManagedVec<SignatureInfo<Self::Api>>,
     ) {
+        // require!(args.new_validator_address., "Address cannot be zero address!");
+        require!(signatures.len() > 0, "Must have signatures!");
+        let mut uv = ManagedMap::new();
+        let mut percentage: u64 = 0;
 
+        for arg in signatures.into_iter() {
+            let mut dest_slice = [0u8; 64];
+            let _ = arg.sig.load_slice(0, &mut dest_slice);
+
+            let valid = self.verify_ed25519(
+                &arg.public_key.to_byte_array(),
+                &address.to_byte_array(),
+                &dest_slice,
+            );
+            if valid {
+                let validator_exists = self.validators(&arg.public_key).is_empty();
+                if !validator_exists && !uv.contains(&arg.public_key.as_managed_buffer()) {
+                    percentage = percentage + 1;
+                    uv.put(
+                        &arg.public_key.as_managed_buffer(),
+                        &ManagedBuffer::new_from_bytes(b"true"),
+                    );
+                }
+            }
+        }
+
+        let validators_count = self.validators_count().get();
+
+        require!(
+            percentage >= (((validators_count * 2) / 3) + 1),
+            "Threshold not reached!"
+        );
+
+        self.validators(&address).clear();
+        self.validators_count().update(|val| {
+            *val -= 1u64;
+            *val
+        });
+        self.blacklisted_validators(&address).set(true);
+    }
+
+    #[endpoint(claimValidatorRewards)]
+    fn claim_validator_rewards(&self, validator: ManagedAddress) {
         if self.validators(&validator).is_empty() == true {
             require!(false, "Validator does not exist!");
         };
@@ -500,7 +537,7 @@ pub trait BridgeContract {
                             &BigUint::from(1u64),
                         );
                         self.claimed721(
-                        data.lock_tx_chain,
+                            data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             TokenIdentifier::from(v.address.clone()),
@@ -519,7 +556,7 @@ pub trait BridgeContract {
                             data.source_nft_contract_address.clone().into(),
                         );
                         self.claimed721(
-                                  data.lock_tx_chain,
+                            data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             data.source_nft_contract_address.into(),
@@ -613,7 +650,7 @@ pub trait BridgeContract {
                                 data.token_amount.clone(),
                             );
                             self.claimed1155(
-                                   data.lock_tx_chain,
+                                data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 data.source_nft_contract_address.into(),
@@ -645,7 +682,7 @@ pub trait BridgeContract {
                                 &data.token_amount,
                             );
                             self.claimed1155(
-                                   data.lock_tx_chain,
+                                data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 TokenIdentifier::from(v.address.clone()),
@@ -672,7 +709,7 @@ pub trait BridgeContract {
                             &data.token_amount,
                         );
                         self.claimed1155(
-                               data.lock_tx_chain,
+                            data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             TokenIdentifier::from(v.address.clone()),
@@ -731,7 +768,7 @@ pub trait BridgeContract {
                                 &to_mint,
                             );
                             self.claimed1155(
-                                   data.lock_tx_chain,
+                                data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 data.source_nft_contract_address.into(),
@@ -942,7 +979,7 @@ pub trait BridgeContract {
                 );
                 if data.token_amount == 1 {
                     self.claimed721(
-                           data.lock_tx_chain,
+                        data.lock_tx_chain,
                         data.source_chain,
                         data.transaction_hash,
                         tid,
@@ -950,7 +987,7 @@ pub trait BridgeContract {
                     )
                 } else {
                     self.claimed1155(
-                           data.lock_tx_chain,
+                        data.lock_tx_chain,
                         data.source_chain,
                         data.transaction_hash,
                         tid,

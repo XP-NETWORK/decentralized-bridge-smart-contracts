@@ -5,9 +5,9 @@
 ////////////////////////////////////////////////////
 
 // Init:                                 1
-// Endpoints:                           13
+// Endpoints:                           15
 // Async Callback:                       1
-// Total number of exported functions:  15
+// Total number of exported functions:  17
 
 #![no_std]
 
@@ -20,11 +20,13 @@ multiversx_sc_wasm_adapter::endpoints! {
         init => init
         tokens => tokens
         validators => validators
+        blacklistedValidators => blacklisted_validators
         validatorsCount => validators_count
         uniqueIdentifier => unique_identifier
         originalToDuplicateMapping => original_to_duplicate_mapping
         duplicateToOriginalMapping => duplicate_to_original_mapping
         addValidator => add_validator
+        blacklistValidator => blacklist_validator
         claimValidatorRewards => claim_validator_rewards
         lock721 => lock721
         lock1155 => lock1155
