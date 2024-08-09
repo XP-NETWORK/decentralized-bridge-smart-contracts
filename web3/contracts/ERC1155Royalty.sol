@@ -12,7 +12,9 @@ contract ERC1155Royalty is ERC1155, Ownable, IERC2981 {
 
     address public bridge;
 
-    constructor(address owner) ERC1155("") Ownable(owner) {}
+    constructor(address _owner, address _bridge) ERC1155("") Ownable(_owner) {
+        bridge = _bridge;
+    }
 
     modifier onlyBridge() {
         require(msg.sender == bridge, "Not bridge!");

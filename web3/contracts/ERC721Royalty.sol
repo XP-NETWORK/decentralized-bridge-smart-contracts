@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "hardhat/console.sol";
 
 contract ERC721Royalty is ERC721URIStorage, Ownable, IERC2981 {
     mapping(uint256 => address) private _royalityRecievers;
@@ -13,8 +14,11 @@ contract ERC721Royalty is ERC721URIStorage, Ownable, IERC2981 {
     constructor(
         string memory name,
         string memory symbol,
-        address owner
-    ) ERC721(name, symbol) Ownable(owner) {}
+        address _owner,
+        address _bridge
+    ) ERC721(name, symbol) Ownable(_owner) {
+        bridge = _bridge;
+    }
 
     modifier onlyBridge() {
         require(msg.sender == bridge, "Not bridge!");

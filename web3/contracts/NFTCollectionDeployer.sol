@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "./ERC1155Royalty.sol";
 import "./ERC721Royalty.sol";
+import "hardhat/console.sol";
 
 contract NFTCollectionDeployer {
     address public owner;
@@ -11,6 +12,9 @@ contract NFTCollectionDeployer {
     constructor() {}
 
     modifier onlyBridge() {
+        console.log("msg.sender",msg.sender);
+        console.log("bridge",bridge);
+        console.log(msg.sender == bridge, "condition");
         require(msg.sender == bridge, "Not bridge!");
         _;
     }
@@ -31,7 +35,8 @@ contract NFTCollectionDeployer {
         ERC721Royalty newERC721CollectionAddress = new ERC721Royalty(
             name,
             symbol,
-            owner
+            owner,
+            msg.sender
         );
 
         address collectionAddress = address(newERC721CollectionAddress);
@@ -42,7 +47,7 @@ contract NFTCollectionDeployer {
     }
 
     function deployNFT1155Collection() external onlyBridge returns (address) {
-        ERC1155Royalty newERC1155CollectionAddress = new ERC1155Royalty(owner);
+        ERC1155Royalty newERC1155CollectionAddress = new ERC1155Royalty(owner, msg.sender);
 
         address collectionAddress = address(newERC1155CollectionAddress);
 
