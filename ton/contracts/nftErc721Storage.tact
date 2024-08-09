@@ -19,9 +19,10 @@ contract NFTStorageERC721 {
     }
 
     receive(msg: StorageDeploy){
+        let msgValue: Int = (context().value - (minTonsForStorage + gasConsumption));
         self.nftItemAddresses.set(msg.tokenId, msg.nftItemAddress);
         send(SendParameters{
-                value: ton("0.1"),
+                value: msgValue,
                 to: self.owner,
                 bounce: true,
                 mode: SendIgnoreErrors,
@@ -36,7 +37,8 @@ contract NFTStorageERC721 {
                     sourceNftContractAddressLock: msg.sourceNftContractAddressLock,
                     sourceChain: msg.sourceChain,
                     nftItemAddress: msg.nftItemAddress,
-                    metaDataUri: msg.metaDataUri
+                    metaDataUri: msg.metaDataUri,
+                    sender: msg.sender,
                 }.toCell()
             }
         );
@@ -45,30 +47,13 @@ contract NFTStorageERC721 {
     receive(msg: Excesses) {
         
     }
- 
-    receive("DepositTokens"){
-        send(SendParameters{
-                value: ton("0.07"),
-                to: self.collectionAddress,
-                bounce: true,
-                mode: SendIgnoreErrors,
-                body: Transfer{
-                    query_id: 0,
-                    new_owner: myAddress(),
-                    response_destination: myAddress(),
-                    custom_payload: emptyCell(),
-                    forward_amount: 0,
-                    forward_payload: emptySlice()
-                }.toCell()
-            }
-        );
-    }
 
     receive(msg: UnlockToken){
         self.onlyOwner(context().sender);
+        let msgValue: Int = (context().value - (minTonsForStorage + gasConsumption));
         let nftItemAddress: Address = self.nftItemAddresses.get(msg.token_id)!!;
         send(SendParameters{
-                value: ton("0.07"),
+                value: msgValue,
                 to: nftItemAddress,
                 bounce: true,
                 mode: SendIgnoreErrors,

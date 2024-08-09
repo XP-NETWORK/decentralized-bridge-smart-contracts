@@ -29,10 +29,11 @@ contract NFTCollectionDeployer {
 
     receive(msg: DeployNFT721Collection){
         self.onlyOwner(context().sender);
+        let msgValue: Int = (context().value - (minTonsForStorage + gasConsumption)) - ton("0.07");
         let collectionInit: StateInit = initOf NftCollection(self.owner, msg.collection_content, msg.royalty_params);
         let collectionAddress: Address = contractAddress(collectionInit);
         send(SendParameters{
-                value: ton("0.8"), // pay for message and potential deployment
+                value: msgValue, // pay for message and potential deployment
                 to: collectionAddress,
                 mode: SendIgnoreErrors,
                 bounce: true,

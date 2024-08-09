@@ -1,17 +1,6 @@
 import "@stdlib/deploy";
+import "./message.tact";
 import "./nftErc721Storage.tact";
-message DeployNFT721Storage {
-    collectionAddress: Address;
-    isOriginal: Bool;
-    key: Int;
-    tokenId: Int;
-    destinationChain: Cell;
-    destinationUserAddress: Cell;
-    sourceNftContractAddressLock: Slice;
-    sourceChain: String;
-    nftItemAddress: Address;
-    metaDataUri: Cell;
-}
 
 contract NFTStorageDeployer {
     owner: Address;
@@ -27,10 +16,11 @@ contract NFTStorageDeployer {
 
     receive(msg: DeployNFT721Storage){
         self.onlyOwner(context().sender);
+        let msgValue: Int = (context().value - (minTonsForStorage + gasConsumption));
         let nftStorageERC721Init: StateInit = initOf NFTStorageERC721(msg.collectionAddress, self.owner);
         let nftStorageERC721Address: Address = contractAddress(nftStorageERC721Init);
         send(SendParameters{
-                value: ton("0.2"), // pay for message and potential deployment
+                value: msgValue, // pay for message and potential deployment
                 to: nftStorageERC721Address,
                 mode: SendIgnoreErrors,
                 bounce: true,
@@ -47,6 +37,7 @@ contract NFTStorageDeployer {
                     sourceChain: msg.sourceChain,
                     nftItemAddress: msg.nftItemAddress,
                     metaDataUri: msg.metaDataUri,
+                    sender: msg.sender,
                 }.toCell()
             }
         );

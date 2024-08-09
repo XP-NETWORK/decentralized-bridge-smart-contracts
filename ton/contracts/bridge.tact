@@ -1,6 +1,8 @@
 import "@stdlib/deploy";
+import "./message.tact";
 import "./nftErc721StorageDeployer.tact";
 import "./nftErc721CollectionDeployer.tact";
+
 struct Validator {
     address: Address;
     added: Bool;
@@ -126,7 +128,6 @@ message ClaimedEvent {
 }
 
 contract Bridge {
-    const MinTonForStorage: Int = ton("0.01"); // enough for 1 KB of storage for 2.5 years
 
     validators: map<Int, Validator>;
 
@@ -169,19 +170,19 @@ contract Bridge {
         require(ctx.value >= fee,"data.fee LESS THAN sent amount!");
     }
 
-    fun checkStorage721(storageMapping721: map<Int,Address>, sourceNftContractAddress: Address, tokenId: Int, destinationChain: Cell, destinationUserAddress: Cell, sourceNftContractAddressLock: Slice, sourceChain: String, isOriginal: Bool, nftItemAddress: Address, metaDataUri: Cell) {
+    fun checkStorage721(storageMapping721: map<Int,Address>, sourceNftContractAddress: Address, tokenId: Int, destinationChain: Cell, destinationUserAddress: Cell, sourceNftContractAddressLock: Slice, sourceChain: String, isOriginal: Bool, nftItemAddress: Address, metaDataUri: Cell, msgValue: Int, sender: Address) {
         let key: Int = beginCell().storeAddress(sourceNftContractAddress).storeSlice(self.selfChain.asSlice()).endCell().hash();
         let storageAddress: Address? = storageMapping721.get(key);
         if(storageAddress == null){
             send(SendParameters{
-                    value: ton("0.3"),
+                    value: msgValue,
                     to: self.storageDeployer,
                     mode: SendIgnoreErrors,
                     bounce: true,
                     body: DeployNFT721Storage{
                         collectionAddress: sourceNftContractAddress,
                         isOriginal: isOriginal,
-                        key:key,
+                        key: key,
                         tokenId: tokenId, 
                         destinationChain: destinationChain, 
                         destinationUserAddress: destinationUserAddress, 
@@ -189,25 +190,26 @@ contract Bridge {
                         sourceChain: sourceChain,
                         nftItemAddress: nftItemAddress,
                         metaDataUri: metaDataUri,
+                        sender: sender,
                     }.toCell()
                 }
             );
         }
         else{
-            self.transferToStorage721(sourceNftContractAddress, storageAddress!!, tokenId, destinationChain, destinationUserAddress, sourceNftContractAddressLock, sourceChain, nftItemAddress, metaDataUri);
+            self.transferToStorage721(sourceNftContractAddress, storageAddress!!, tokenId, destinationChain, destinationUserAddress, sourceNftContractAddressLock, sourceChain, nftItemAddress, metaDataUri, msgValue, sender);
         }
     }
 
-    fun transferToStorage721(sourceNftContractAddress: Address, storageAddress: Address, tokenId: Int, destinationChain: Cell, destinationUserAddress: Cell, sourceNftContractAddressLock: Slice, sourceChain: String, nftItemAddress: Address, metaDataUri: Cell) {
+    fun transferToStorage721(sourceNftContractAddress: Address, storageAddress: Address, tokenId: Int, destinationChain: Cell, destinationUserAddress: Cell, sourceNftContractAddressLock: Slice, sourceChain: String, nftItemAddress: Address, metaDataUri: Cell, msgValue: Int, sender: Address) {
         send(SendParameters{
-                value: ton("0.07"),
+                value: msgValue,
                 to: nftItemAddress,
                 mode: SendIgnoreErrors,
                 bounce: true,
                 body: Transfer{
                     query_id: 0,
                     new_owner: storageAddress,
-                    response_destination: context().sender,
+                    response_destination: sender,
                     custom_payload: emptyCell(),
                     forward_amount: 0,
                     forward_payload: emptySlice()
@@ -273,10 +275,10 @@ contract Bridge {
         }
     }
 
-    fun unlock721(to: Address, tokenId: Int, contractAddress: Address){
-        let nftStorageERC721Init: StateInit = initOf NFTStorageERC721(contractAddress, myAddress());
+    fun unlock721(to: Address, tokenId: Int, contractAddress: Address, msgValue: Int){
+        // let nftStorageERC721Init: StateInit = initOf NFTStorageERC721(contractAddress, myAddress());
         send(SendParameters{
-                value: ton("0.08"),
+                value: msgValue,
                 to: contractAddress,
                 mode: SendIgnoreErrors,
                 bounce: true,
@@ -341,19 +343,26 @@ contract Bridge {
 
         let length: Int = msg.len;
 
-        require(length > 0,"Must have signatures!");
+        require(length > 0, "Must have signatures!");
         let percentage: Int = 0;
         let counter: Int = 0;
+        let requireUnique: map<Int, Bool> = emptyMap();
 
         repeat(length) {
             let sig: SignerAndSignature = msg.sigs.get(counter)!!;
-            let op_hash: Int = msg.newValidatorPublicKey.toCell().hash();
-            let ok: Bool = checkSignature(op_hash, sig.signature, sig.key);
-            let v: Validator = self.Validator(sig.key)!!;
-            if(ok && v.added){
-                percentage = percentage + 1;
+            let alreadySigned: Bool? = requireUnique.get(sig.key);
+            if (alreadySigned == null) {
+                requireUnique.set(sig.key, true);
+                let op_hash: Int = msg.newValidatorPublicKey.toCell().hash();
+                let ok: Bool = checkSignature(op_hash, sig.signature, sig.key);
+                let v: Validator? = self.Validator(sig.key);
+                if(ok && v != null){
+                    if((v!!).added){
+                    percentage = percentage + 1;
+                    }
+                }
+                counter = counter + 1;
             }
-            counter = counter + 1;
         }
 
         require(percentage >= (((self.validatorsCount * 2)/3)+1),"Threshold not reached!");
@@ -365,14 +374,14 @@ contract Bridge {
     }
 
     receive(msg: RewardValidator){
-        let v_o: Validator? = self.Validator(msg.validator.key)!!;
+        let v_o: Validator? = self.Validator(msg.validator.key);
         require(v_o != null,"Validator does not exist!");
         let v: Validator = v_o!!;
         let reward: Int = v.pendingRewards;
         v.pendingRewards = 0;
         self.validators.set(msg.validator.key,v);
 
-        let amount: Int = min(reward, myBalance() - context().value - self.MinTonForStorage);
+        let amount: Int = min(reward, myBalance() - context().value - minTonsForStorage);
         require(amount > 0, "Insufficient balance");
         send(SendParameters{
             to: v.address,
@@ -384,6 +393,7 @@ contract Bridge {
 
     receive(msg: HiFromDeployNFT721Storage){
         let sender: Address = contractAddress(initOf NFTStorageERC721(msg.sourceNftContractAddress, myAddress()));
+        let msgValue: Int = (context().value - (minTonsForStorage + gasConsumption));
         require(sender == context().sender, "Only Storage Contract can call");
         if(msg.isOriginal){
             self.originalStorageMapping721.set(msg.key, msg.storageAddress);
@@ -392,7 +402,7 @@ contract Bridge {
             self.duplicateStorageMapping721.set(msg.key, msg.storageAddress);
         }
 
-        self.transferToStorage721(msg.sourceNftContractAddress, msg.storageAddress, msg.tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddressLock, msg.sourceChain, msg.nftItemAddress, msg.metaDataUri);
+        self.transferToStorage721(msg.sourceNftContractAddress, msg.storageAddress, msg.tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddressLock, msg.sourceChain, msg.nftItemAddress, msg.metaDataUri, msgValue, msg.sender);
     }
 
     receive(msg: HiFromDeployNFT721Collection){
@@ -408,6 +418,8 @@ contract Bridge {
             destinationUserAddress: oa.forward_payload.loadRef(),
             metaDataUri: oa.forward_payload.loadRef(),
         };
+        let sender: Address = oa.prev_owner;
+        let msgValue: Int = (context().value - (minTonsForStorage + gasConsumption));
         let nftItemAddress: Address = context().sender;
         let sCollectionAddress: Address = msg.sourceNftContractAddress;
         let isOriginal: Bool = false;
@@ -439,17 +451,16 @@ contract Bridge {
         else{
             isOriginal = true;
         }
-
         if(self.convertStringToCell(originalCollectionInfoNotNull.keyChain) == self.selfChainCell) {
             // isOriginal
-            self.checkStorage721(self.originalStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, originalCollectionInfoNotNull.contractAddress, originalCollectionInfoNotNull.chain, true, nftItemAddress, msg.metaDataUri);
+            self.checkStorage721(self.originalStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, originalCollectionInfoNotNull.contractAddress, originalCollectionInfoNotNull.chain, isOriginal, nftItemAddress, msg.metaDataUri, msgValue, sender);
         }
         else if(isOriginal){
-            self.checkStorage721(self.originalStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddress.asSlice(), self.selfChain, true, nftItemAddress, msg.metaDataUri);
+            self.checkStorage721(self.originalStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddress.asSlice(), self.selfChain, true, nftItemAddress, msg.metaDataUri, msgValue, sender);
         }
         else{
             // notOriginal
-            self.checkStorage721(self.duplicateStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddress.asSlice(), self.selfChain, false, nftItemAddress, msg.metaDataUri);
+            self.checkStorage721(self.duplicateStorageMapping721, sCollectionAddress, tokenId, msg.destinationChain, msg.destinationUserAddress, msg.sourceNftContractAddress.asSlice(), self.selfChain, false, nftItemAddress, msg.metaDataUri, msgValue, sender);
         }
     }
 
@@ -457,12 +468,14 @@ contract Bridge {
         let sourceNftContractAddressSlice: Slice = msg.data.data3.sourceNftContractAddress;
         self.hasCorrectFee(msg.data.data3.fee);
         self.matchesCurrentChain(msg.data.data1.destinationChain);
+        let msgValue: Int = (context().value - (msg.data.data3.fee + minTonsForStorage + gasConsumption));
         require(self.convertStringToCell(msg.data.data2.nftType) == self.convertStringToCell(self.TYPEERC721), "Invalid NFT type!");
         let hash: Int = msg.data.toCell().hash();
         require(self.uniqueIdentifier.get(hash) == null,"Data already processed!");
         self.uniqueIdentifier.set(hash, true);
         let validatorsToReward: ValidatorsToRewards = self.verifySignature(hash, msg.signatures, msg.len);
         self.rewardValidators(msg.data.data3.fee, validatorsToReward);
+        
         let key1: Int = beginCell().storeSlice(msg.data.data3.sourceNftContractAddress).storeSlice(msg.data.data1.sourceChain.asSlice()).endCell().hash();
 
         let duplicateCollectionAddress: OriginalToDuplicateContractInfo? = self.originalToDuplicateMapping.get(key1);
@@ -490,15 +503,14 @@ contract Bridge {
         if(storageContract != null){
             hasStorage = true;
         }
-
         if(hasDuplicate && hasStorage){
             if(isTokenExists != null){
-                self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!);
+                self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!, msgValue);
                 emit(ClaimedEvent{lockTxChain: msg.data.data4.lockTxChain, tokenId: msg.data.data1.tokenId, newlyDeployCollection: storageContract!!, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
             }
             else{
                 send(SendParameters{
-                    value: ton("0.07"),
+                    value: msgValue,
                     to: duplicateCollectionAddressNotNull.contractAddress,
                     mode: SendIgnoreErrors,
                     bounce: true,
@@ -516,7 +528,7 @@ contract Bridge {
         }
         else if (hasDuplicate && !hasStorage){
             send(SendParameters{
-                    value: ton("0.1"),
+                    value: msgValue,
                     to: duplicateCollectionAddressNotNull.contractAddress,
                     mode: SendIgnoreErrors,
                     bounce: true,
@@ -535,7 +547,7 @@ contract Bridge {
         }
         else if (!hasDuplicate && !hasStorage){
                 send(SendParameters{
-                    value: ton("0.9"),
+                    value: msgValue,
                     to: self.collectionDeployer,
                     mode: SendIgnoreErrors,
                     bounce: true,
@@ -562,8 +574,12 @@ contract Bridge {
                 let nftAddress: Address = contractAddress(nftStateInit);
 
                 self.originalToDuplicateMapping.set(key1, OriginalToDuplicateContractInfo{keyChain: msg.data.data1.sourceChain, chain: self.selfChain, contractAddress: collectionAddress, lastIndex: 0, collectionContent: emptyCell()});
+                
+                // self.originalToDuplicateMapping.set(key1, OriginalToDuplicateContractInfo{keyChain: msg.data.data1.sourceChain, chain: self.selfChain, contractAddress: nftAddress, lastIndex: 0, collectionContent: emptyCell()});
 
                 self.duplicateToOriginalMapping.set(collectionAddress, DuplicateToOriginalContractInfo{keyChain: self.selfChain, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress, lastIndex: 0, collectionContent: emptyCell()});
+                
+                // self.duplicateToOriginalMapping.set(nftAddress, DuplicateToOriginalContractInfo{keyChain: self.selfChain, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress, lastIndex: 0, collectionContent: emptyCell()});
 
                 self.tokenInfoKeySelf.set(nftAddress, Token{tokenId: msg.data.data1.tokenId, chain: msg.data.data1.sourceChain, contractAddress: msg.data.data3.sourceNftContractAddress});
                 self.tokenInfoGetSelf.set(tokenKey, nftAddress);
@@ -576,14 +592,14 @@ contract Bridge {
             lastTokenId = msg.data.data1.tokenId;
 
             if(isTokenExists != null){
-               self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!);
+               self.unlock721(msg.data.data1.destinationUserAddress, msg.data.data1.tokenId, storageContract!!, msgValue);
                emit(ClaimedEvent{lockTxChain: msg.data.data4.lockTxChain, tokenId: msg.data.data1.tokenId, newlyDeployCollection: originalCollection, sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
             }
             
             else{
                 // ============= This could be wrong. Need verification ============
                  send(SendParameters{
-                    value: ton("0.08"),
+                    value: msgValue,
                     to: originalCollection,
                     mode: SendIgnoreErrors,
                     bounce: true,
@@ -598,10 +614,6 @@ contract Bridge {
         else{
             require(false, "Invalid bridge state");
         }
-        // if (lastCollectionAddress != null && lastTokenId != null){
-          
-        // }
-        // emit(ClaimedEvent{sourceChain: msg.data.data1.sourceChain, transactionHash: msg.data.data4.transactionHash}.toCell());
     }
 
     get fun Original721Mapping(sourceNftContractAddress: Address, sourceChain: String): Address?{

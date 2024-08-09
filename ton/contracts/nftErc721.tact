@@ -1,7 +1,5 @@
 import "./message.tact";
 import "@stdlib/deploy";
-const minTonsForStorage: Int = ton("0.03");
-const gasConsumption: Int = ton("0.03");
 
 contract NftCollection {
     next_item_index: Int as uint32 = 0;
@@ -15,14 +13,6 @@ contract NftCollection {
     }
 
     receive(msg: CollectionDeploy){
-        // send(SendParameters{
-        //         value: ton("1.5"),
-        //         to: myAddress(),
-        //         mode: SendIgnoreErrors,
-        //         bounce: false,
-        //         body: "Mint".asComment()
-        //     }
-        // );
         let ctx: Context = context(); // get sender Info
         let msgValue: Int = ctx.value;
         let tonBalanceBeforeMsg: Int = (myBalance() - msgValue);

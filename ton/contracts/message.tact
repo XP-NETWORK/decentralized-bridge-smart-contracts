@@ -60,6 +60,7 @@ message HiFromDeployNFT721Storage {
     sourceChain: String;
     nftItemAddress: Address;
     metaDataUri: Cell;
+    sender: Address;
 }
 
 message HiFromDeployNFT721Collection{
@@ -85,4 +86,22 @@ message StorageDeploy {
     sourceChain: String;
     nftItemAddress: Address;
     metaDataUri: Cell;
+    sender: Address;
 }
+
+message DeployNFT721Storage {
+    collectionAddress: Address;
+    isOriginal: Bool;
+    key: Int;
+    tokenId: Int;
+    destinationChain: Cell;
+    destinationUserAddress: Cell;
+    sourceNftContractAddressLock: Slice;
+    sourceChain: String;
+    nftItemAddress: Address;
+    metaDataUri: Cell;
+    sender: Address;
+}
+
+const minTonsForStorage: Int = ton("0.03");
+const gasConsumption: Int = ton("0.03");
