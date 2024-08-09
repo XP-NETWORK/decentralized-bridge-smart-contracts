@@ -197,32 +197,31 @@ contract BridgeStorage {
         bool _status
     ) internal {
         uint256 _validatorEpoch = validatorEpoch[_validatorAddress];
-        require(
-            validatorVoted[_validatorAddress][msg.sender][_validatorEpoch] ==
-                false,
-            "Already voted for this validator"
-        );
+        if(
+            !validatorVoted[_validatorAddress][msg.sender][_validatorEpoch]
+        ){
 
-        validatorVoted[_validatorAddress][msg.sender][_validatorEpoch] = true;
+            validatorVoted[_validatorAddress][msg.sender][_validatorEpoch] = true;
 
-        validatorStatusChangeVotes[_validatorAddress][_status][
-            _validatorEpoch
-        ]++;
+            validatorStatusChangeVotes[_validatorAddress][_status][
+                _validatorEpoch
+            ]++;
 
-        uint256 twoByThreeValidators = (2 * validatorCount) / 3;
+            uint256 twoByThreeValidators = (2 * validatorCount) / 3;
 
-        uint256 votes = validatorStatusChangeVotes[_validatorAddress][_status][
-            _validatorEpoch
-        ];
+            uint256 votes = validatorStatusChangeVotes[_validatorAddress][_status][
+                _validatorEpoch
+            ];
 
-        if (votes >= twoByThreeValidators + 1) {
-            // console.log("INSIDE");
-            if (_status && validators[_validatorAddress] == false)
-                validatorCount++;
-            else if (_status == false && validators[_validatorAddress])
-                validatorCount--;
-            validators[_validatorAddress] = _status;
-            validatorEpoch[_validatorAddress]++;
+            if (votes >= twoByThreeValidators + 1) {
+                // console.log("INSIDE");
+                if (_status && validators[_validatorAddress] == false)
+                    validatorCount++;
+                else if (_status == false && validators[_validatorAddress])
+                    validatorCount--;
+                validators[_validatorAddress] = _status;
+                validatorEpoch[_validatorAddress]++;
+            }
         }
     }
 
