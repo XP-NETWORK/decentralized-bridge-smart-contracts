@@ -265,12 +265,13 @@ contract Bridge {
 
         require(totalRewards >= fee, "No rewards available");
 
-        let feePerValidator: Int = totalRewards / validatorsToRewards.len;
-
+        let feePerValidator: Int = fee / validatorsToRewards.len;
         repeat(validatorsToRewards.len){
             let pk: Int = validatorsToRewards.publicKeys.get(counter)!!;
             let v: Validator = self.Validator(pk)!!;
-            v.pendingRewards = v.pendingRewards + feePerValidator;
+            v.pendingRewards = (v.pendingRewards + feePerValidator);
+            self.validators.set(pk, v);
+
             counter = counter + 1;
         }
     }
@@ -381,13 +382,12 @@ contract Bridge {
         v.pendingRewards = 0;
         self.validators.set(msg.validator.key,v);
 
-        let amount: Int = min(reward, myBalance() - context().value - minTonsForStorage);
-        require(amount > 0, "Insufficient balance");
+        require(reward < (myBalance() - context().value - minTonsForStorage - gasConsumption), "Insufficient balance");
         send(SendParameters{
             to: v.address,
             bounce: true,
-            value: amount,
-            mode: SendRemainingValue + SendIgnoreErrors
+            value: reward,
+            mode: SendIgnoreErrors
         });
     }
 
