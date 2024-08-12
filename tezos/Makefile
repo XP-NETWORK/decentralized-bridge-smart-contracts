@@ -16,8 +16,8 @@ build-storage-factory: build-nft-storage build-sft-storage
 build-tokens:
 	@echo "Building tokens..."
 	@echo "Building nft -"
-	ligo compile contract src/NFT.jsligo -m NFT -o build/NFT.tz 
-	ligo compile contract src/NFT.jsligo -m NFT -o build/NFT.json --michelson-format json
+	ligo compile contract src/NFTv2.jsligo -m NFT -o build/NFT.tz 
+	ligo compile contract src/NFTv2.jsligo -m NFT -o build/NFT.json --michelson-format json
 	@echo "Building sft -"
 	ligo compile contract src/SFT.jsligo -m MultiAsset -o build/SFT.tz 
 	ligo compile contract src/SFT.jsligo -m MultiAsset -o build/SFT.json --michelson-format json
