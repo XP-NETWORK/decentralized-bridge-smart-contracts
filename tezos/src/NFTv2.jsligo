@@ -1,7 +1,7 @@
 #import "@ligo/fa/lib/fa2.1/data/ledger.jsligo" "Ledger"
 
 #import "@ligo/fa/lib/fa2.1/fa2.1-generic.jsligo" "Generic"
-#import "@ligo/fa/lib/fa2.1/entrypoints/mint.jsligo" "Mint"
+#import "./Mint.jsligo" "Mint"
 
 //// This is an NFT marketplace derived from the generic FA2.1 implementation.
 /// The main customisation happens in the two declarations below.
@@ -22,7 +22,10 @@ export namespace NFT {
     /// specialised implementation:
 
     @entry
-    const mint_fn = (p, s) => Mint.mint(p, s, Ledger.NFT.ledger_module(s.assets))
+    const mint_fn = (p, s) => {
+        let a: [list<operation>, Storage] = Mint.mint(p, s, Ledger.NFT.ledger_module(s.assets));
+        return a;
+    };
 
     @entry
     const transfer = (p, s) => specialised.transfer([p, s]);
