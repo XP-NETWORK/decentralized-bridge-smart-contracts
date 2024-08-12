@@ -49,11 +49,10 @@ export const mint = <A, L>(
 ): [list<operation>, Storage<A, L>] => {
     let operations = list([]);
     let finalOperations = list([]);
-  // assert_with_error(storage.extension.admin == Tezos.get_sender(), Errors.not_admin);
 
   let oldSupply = Ledger.get_supply(ledger, mint.token_id);
   const balance = Ledger.get_for_user(ledger, mint.to_, mint.token_id);
-  let new_total_supply = Option.unopt(oldSupply) + mint.amount;
+  let new_total_supply = (Option.is_some(oldSupply) ? Option.unopt(oldSupply) : 0n) + mint.amount;
   const supply_update: total_supply_update_type =
                 {
                    token_id: mint.token_id,
@@ -74,6 +73,9 @@ export const mint = <A, L>(
     when (None): do { return Map.empty; };
   };
   let token_info = TokenMetadata.get_token_info(storage.token_metadata, mint.token_id);
+  if (Map.size(token_info) != 0n) {
+    failwith("Token Already Exists. Mint with Another ID");
+  }
   let newTokenMetadata = TokenMetadata.set_token_info(storage.token_metadata, mint.token_id, token_info);
   if (Map.size(token_info) == (0 as nat) && Map.size(new_token_info) == (0 as nat)) {
     token_info = Option.unopt_with_error(mint.token_info, "Token info must be provided");

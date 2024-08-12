@@ -4,37 +4,62 @@ import { address, BigMap, bytes, key, mutez, nat, signature } from './type-alias
 
 export type Storage = {
     validators: BigMap<address, mutez>;
+    blacklisted_validators: BigMap<address, boolean>;
     unique_identifiers: BigMap<bytes, boolean>;
     collection_deployer: address;
     storage_deployer: address;
     original_to_duplicate_mapping: BigMap<{
-        0: address;
+        0: (
+            { addr: address }
+            | { str: string }
+        );
         1: string;
     }, {
         chain: string;
-        contract: bytes;
+        contract: (
+            { addr: address }
+            | { str: string }
+        );
     }>;
     duplicate_to_original_mapping: BigMap<{
-        0: address;
+        0: (
+            { addr: address }
+            | { str: string }
+        );
         1: string;
     }, {
         chain: string;
-        contract: bytes;
+        contract: (
+            { addr: address }
+            | { str: string }
+        );
     }>;
     original_storage_mapping_nft: BigMap<{
-        0: address;
+        0: (
+            { addr: address }
+            | { str: string }
+        );
         1: string;
     }, address>;
     original_storage_mapping_sft: BigMap<{
-        0: address;
+        0: (
+            { addr: address }
+            | { str: string }
+        );
         1: string;
     }, address>;
     duplicate_storage_mapping_nft: BigMap<{
-        0: address;
+        0: (
+            { addr: address }
+            | { str: string }
+        );
         1: string;
     }, address>;
     duplicate_storage_mapping_sft: BigMap<{
-        0: address;
+        0: (
+            { addr: address }
+            | { str: string }
+        );
         1: string;
     }, address>;
     validators_count: nat;
@@ -46,7 +71,10 @@ type Methods = {
         source_chain: string,
         dest_chain: string,
         dest_address: address,
-        source_nft_contract_address: bytes,
+        source_nft_contract_address: (
+            { addr: address }
+            | { str: string }
+        ),
         name: string,
         symbol: string,
         royalty: nat,
@@ -56,6 +84,7 @@ type Methods = {
         token_amount: nat,
         nft_type: string,
         fee: mutez,
+        lock_tx_chain: string,
         sigs: Array<{
             signer: key;
             sig: signature;
@@ -66,34 +95,56 @@ type Methods = {
         token_id: nat,
         dest_chain: string,
         dest_address: address,
-        collection: address,
+        collection: (
+            { addr: address }
+            | { str: string }
+        ),
         token_amount: nat,
         source_chain: string,
         md: string,
         transaction_hash: string,
+        lock_tx_chain: string,
     ) => Promise<void>;
     lock_sft: (
         token_id: nat,
         dest_chain: string,
         dest_address: string,
-        source_nft_address: address,
+        source_nft_address: (
+            { addr: address }
+            | { str: string }
+        ),
         token_amount: nat,
     ) => Promise<void>;
     lock_internal: (
         to: string,
         token_id: nat,
-        collection: address,
+        collection: (
+            { addr: address }
+            | { str: string }
+        ),
         original: boolean,
         amt: nat,
         new_deploy: boolean,
+        dest_chain: string,
     ) => Promise<void>;
     lock_nft: (
         token_id: nat,
         dest_chain: string,
         dest_address: string,
-        source_nft_address: address,
+        source_nft_address: (
+            { addr: address }
+            | { str: string }
+        ),
     ) => Promise<void>;
     claim_validator_rewards: (
+        validator: address,
+        sigs: Array<{
+            signer: key;
+            sig: signature;
+            addr: address;
+        }>,
+    ) => Promise<void>;
+    blacklist_validator: (
         validator: address,
         sigs: Array<{
             signer: key;
@@ -117,7 +168,10 @@ type MethodsObject = {
         source_chain: string,
         dest_chain: string,
         dest_address: address,
-        source_nft_contract_address: bytes,
+        source_nft_contract_address: (
+            { addr: address }
+            | { str: string }
+        ),
         name: string,
         symbol: string,
         royalty: nat,
@@ -127,6 +181,7 @@ type MethodsObject = {
         token_amount: nat,
         nft_type: string,
         fee: mutez,
+        lock_tx_chain: string,
         sigs: Array<{
             signer: key;
             sig: signature;
@@ -137,34 +192,56 @@ type MethodsObject = {
         token_id: nat,
         dest_chain: string,
         dest_address: address,
-        collection: address,
+        collection: (
+            { addr: address }
+            | { str: string }
+        ),
         token_amount: nat,
         source_chain: string,
         md: string,
         transaction_hash: string,
+        lock_tx_chain: string,
     }) => Promise<void>;
     lock_sft: (params: {
         token_id: nat,
         dest_chain: string,
         dest_address: string,
-        source_nft_address: address,
+        source_nft_address: (
+            { addr: address }
+            | { str: string }
+        ),
         token_amount: nat,
     }) => Promise<void>;
     lock_internal: (params: {
         to: string,
         token_id: nat,
-        collection: address,
+        collection: (
+            { addr: address }
+            | { str: string }
+        ),
         original: boolean,
         amt: nat,
         new_deploy: boolean,
+        dest_chain: string,
     }) => Promise<void>;
     lock_nft: (params: {
         token_id: nat,
         dest_chain: string,
         dest_address: string,
-        source_nft_address: address,
+        source_nft_address: (
+            { addr: address }
+            | { str: string }
+        ),
     }) => Promise<void>;
     claim_validator_rewards: (params: {
+        validator: address,
+        sigs: Array<{
+            signer: key;
+            sig: signature;
+            addr: address;
+        }>,
+    }) => Promise<void>;
+    blacklist_validator: (params: {
         validator: address,
         sigs: Array<{
             signer: key;

@@ -766,7 +766,7 @@ export namespace Bridge {
         const ctr: option<
             contract<
                 list<
-                    { token_id: nat, token_uri: string, to: address, amt: nat }
+                    { token_id: nat, token_info: option<big_map<string, bytes>>, to: address, amt: nat }
                 >
             >
         > =
@@ -774,10 +774,12 @@ export namespace Bridge {
         assert_some_with_error(ctr, "Contract does not have mint entrypoint");
         const params: {
             token_id: nat,
-            token_uri: string,
+            token_info: option<big_map<string, bytes>>,
             to: address,
             amt: nat
-        } = { to, token_uri: md, token_id: token_id, amt: 1n };
+        } = { to, token_info: Some(Big_map.literal([
+            ["", Bytes.pack(md)]
+        ])), token_id: token_id, amt: 1n };
         const transfer_nft_op =
             Tezos.transaction(list([params]), 0mutez, Option.unopt(ctr))
         return transfer_nft_op;

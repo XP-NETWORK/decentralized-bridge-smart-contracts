@@ -5,6 +5,7 @@ import { address, nat } from './type-aliases';
 export type Storage = {
     owner: address;
     collection: address;
+    locked: Array<nat>;
 };
 
 type Methods = {
@@ -12,7 +13,7 @@ type Methods = {
         token_id: nat,
         to: address,
     ) => Promise<void>;
-    deposit_token: (param: nat) => Promise<void>;
+    add_deposited_token: (param: nat) => Promise<void>;
 };
 
 type MethodsObject = {
@@ -20,7 +21,7 @@ type MethodsObject = {
         token_id: nat,
         to: address,
     }) => Promise<void>;
-    deposit_token: (param: nat) => Promise<void>;
+    add_deposited_token: (param: nat) => Promise<void>;
 };
 
 type contractTypes = { methods: Methods, methodsObject: MethodsObject, storage: Storage, code: { __type: 'NFTStorageCode', protocol: string, code: object[] } };

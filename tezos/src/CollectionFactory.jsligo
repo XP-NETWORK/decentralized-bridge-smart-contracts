@@ -58,7 +58,9 @@ export namespace CollectionFactory {
             operators: None(),
             approvals: Big_map.empty,
             proxy: Option.value_with_error("Unreachable", store.owner),
-            extension: unit
+            extension: {
+                admin: Option.value_with_error("Unreachable", store.owner)
+            }
         }
         let createMyContract = (
             op: option<key_hash>,

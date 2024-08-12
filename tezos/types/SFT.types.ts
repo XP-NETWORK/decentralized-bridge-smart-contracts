@@ -87,6 +87,6 @@ type MethodsObject = {
         }>) => Promise<void>;
 };
 
-type contractTypes = { methods: Methods, methodsObject: MethodsObject, storage: Storage, code: { __type: 'MultiAssetCode', protocol: string, code: object[] } };
-export type MultiAssetContractType = ContractAbstractionFromContractType<contractTypes>;
-export type MultiAssetWalletType = WalletContractAbstractionFromContractType<contractTypes>;
+type contractTypes = { methods: Methods, methodsObject: MethodsObject, storage: Storage, code: { __type: 'SFTCode', protocol: string, code: object[] } };
+export type SFTContractType = ContractAbstractionFromContractType<contractTypes>;
+export type SFTWalletType = WalletContractAbstractionFromContractType<contractTypes>;

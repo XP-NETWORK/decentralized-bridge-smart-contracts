@@ -1,4 +1,5 @@
 #import "@ligo/fa/lib/fa2.1/data/ledger.jsligo" "Ledger"
+#import "@ligo/fa/lib/fa2.1/data/admin.jsligo" "Admin"
 
 #import "@ligo/fa/lib/fa2.1/fa2.1-generic.jsligo" "Generic"
 #import "./Mint.jsligo" "Mint"
@@ -13,16 +14,20 @@
 /// the ledger type and module would keep track of the amount owned by
 /// each "shareholder-like" account.
 export namespace NFT {
-    export type Storage = Generic.Storage<unit, Ledger.NFT.L>;
-    const specialised: Generic.Interface<unit, Ledger.NFT.L> =
+    export type Extension = { admin: Admin.T };
+    export type Storage = Generic.Storage<Extension, Ledger.NFT.L>;
+    const specialised: Generic.Interface<Extension, Ledger.NFT.L> =
         Generic.make(Ledger.NFT.ledger_module);
-    const specialisedViews: Generic.InterfaceViews<unit, Ledger.NFT.L> =
+    const specialisedViews: Generic.InterfaceViews<Extension, Ledger.NFT.L> =
         Generic.makeViews(Ledger.NFT.ledger_module);
     /// Following that, the entry points and views are exported from the
     /// specialised implementation:
 
     @entry
-    const mint_fn = (p, s) => {
+    const mint_fn = (p, s: Storage) => {
+        if (s.extension.admin != Tezos.get_sender()) {
+            failwith("Caller is not owner.");
+        }
         let a: [list<operation>, Storage] = Mint.mint(p, s, Ledger.NFT.ledger_module(s.assets));
         return a;
     };

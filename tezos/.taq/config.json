@@ -1,7 +1,7 @@
 {
     "version": "v2",
     "language": "en",
-    "artifactsDir": "artifacts",
+    "artifactsDir": "build",
     "contractsDir": "src",
     "accounts": {
         "bob": {
@@ -39,7 +39,8 @@
     "environments": {
         "development": {
             "type": "flextesa",
-            "label": "Local Tezos Sandbox"
+            "label": "Local Tezos Sandbox",
+            "rpcUrl": "https://ghostnet.ecadinfra.com"
         },
         "testing": {
             "type": "simple",

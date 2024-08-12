@@ -1,34 +1,64 @@
 
 import { ContractAbstractionFromContractType, WalletContractAbstractionFromContractType } from './type-utils';
-import { address, BigMap, bytes, contract, MMap, nat } from './type-aliases';
+import { address, BigMap, bytes, contract, Instruction, MMap, nat, ticket } from './type-aliases';
 
 export type Storage = {
-    ledger: BigMap<nat, address>;
-    operators: BigMap<{
-        0: address;
-        1: address;
-    }, Array<nat>>;
+    metadata: BigMap<string, bytes>;
+    assets: BigMap<nat, address>;
     token_metadata: BigMap<nat, {
         token_id: nat;
         token_info: MMap<string, bytes>;
     }>;
-    metadata: BigMap<string, bytes>;
-    admin: address;
+    operators: {Some: BigMap<{
+        0: address;
+        1: nat;
+    }, Array<address>>} | null;
+    approvals: BigMap<{
+        0: address;
+        1: address;
+        2: nat;
+    }, nat>;
+    proxy: address;
+    extension: address;
 };
 
 type Methods = {
-    mint: (param: Array<{
-            token_id: nat;
-            token_uri: string;
-            to: address;
-            amt: nat;
+    import_ticket: (param: Array<{
+            to_: address;
+            tickets_to_import: Array<ticket>;
         }>) => Promise<void>;
-    add_operator: (
+    lambda_export: (
+        ticketsToExport: Array<{
+            from_: address;
+            token_id: nat;
+            amount: nat;
+        }>,
+        destination: Instruction[],
+    ) => Promise<void>;
+    export_ticket: (
+        destination: {Some: address} | null,
+        requests: Array<{
+            to_: address;
+            ticketsToExport: Array<{
+                from_: address;
+                token_id: nat;
+                amount: nat;
+            }>;
+        }>,
+    ) => Promise<void>;
+    approve: (param: Array<{
+            owner: address;
+            spender: address;
+            token_id: nat;
+            old_value: nat;
+            new_value: nat;
+        }>) => Promise<void>;
+    addOperator: (
         owner: address,
         operator: address,
         token_id: nat,
     ) => Promise<void>;
-    remove_operator: (
+    removeOperator: (
         owner: address,
         operator: address,
         token_id: nat,
@@ -44,25 +74,55 @@ type Methods = {
             from_: address;
             txs: Array<{
                 to_: address;
-                token_id: nat;
                 amount: nat;
+                token_id: nat;
             }>;
         }>) => Promise<void>;
+    mint_fn: (
+        to_: address,
+        token_id: nat,
+        amount: nat,
+        token_info: {Some: MMap<string, bytes>} | null,
+    ) => Promise<void>;
 };
 
 type MethodsObject = {
-    mint: (param: Array<{
-            token_id: nat;
-            token_uri: string;
-            to: address;
-            amt: nat;
+    import_ticket: (param: Array<{
+            to_: address;
+            tickets_to_import: Array<ticket>;
         }>) => Promise<void>;
-    add_operator: (params: {
+    lambda_export: (params: {
+        ticketsToExport: Array<{
+            from_: address;
+            token_id: nat;
+            amount: nat;
+        }>,
+        destination: Instruction[],
+    }) => Promise<void>;
+    export_ticket: (params: {
+        destination: {Some: address} | null,
+        requests: Array<{
+            to_: address;
+            ticketsToExport: Array<{
+                from_: address;
+                token_id: nat;
+                amount: nat;
+            }>;
+        }>,
+    }) => Promise<void>;
+    approve: (param: Array<{
+            owner: address;
+            spender: address;
+            token_id: nat;
+            old_value: nat;
+            new_value: nat;
+        }>) => Promise<void>;
+    addOperator: (params: {
         owner: address,
         operator: address,
         token_id: nat,
     }) => Promise<void>;
-    remove_operator: (params: {
+    removeOperator: (params: {
         owner: address,
         operator: address,
         token_id: nat,
@@ -78,10 +138,16 @@ type MethodsObject = {
             from_: address;
             txs: Array<{
                 to_: address;
-                token_id: nat;
                 amount: nat;
+                token_id: nat;
             }>;
         }>) => Promise<void>;
+    mint_fn: (params: {
+        to_: address,
+        token_id: nat,
+        amount: nat,
+        token_info: {Some: MMap<string, bytes>} | null,
+    }) => Promise<void>;
 };
 
 type contractTypes = { methods: Methods, methodsObject: MethodsObject, storage: Storage, code: { __type: 'NFTCode', protocol: string, code: object[] } };
