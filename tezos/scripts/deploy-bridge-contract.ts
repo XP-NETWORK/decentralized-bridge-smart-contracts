@@ -35,11 +35,12 @@ export async function deployBridge(validators_str: string[]) {
     console.log("Error deploying storage factory");
     return;
   }
-  const collection_deployer = await deployCollectionFactory(undefined);
-  if (!collection_deployer) {
+  const collection_factories = await deployCollectionFactory(undefined);
+  if (!collection_factories) {
     console.log("Error deploying collection factory");
     return;
   }
+  const [nft_collection_address, sft_collection_address] = collection_factories;
 
   try {
     const originated = await Tezos.contract.originate({
@@ -47,7 +48,8 @@ export async function deployBridge(validators_str: string[]) {
       storage: {
         validators,
         storage_deployer,
-        collection_deployer,
+        nft_collection_deployer: nft_collection_address,
+        sft_collection_deployer: sft_collection_address,
         unique_identifiers: new MichelsonMap(),
         original_to_duplicate_mapping: new MichelsonMap(),
         duplicate_to_original_mapping: new MichelsonMap(),
@@ -56,6 +58,7 @@ export async function deployBridge(validators_str: string[]) {
         duplicate_storage_mapping_nft: new MichelsonMap(),
         duplicate_storage_mapping_sft: new MichelsonMap(),
         validators_count: validators.size,
+        blacklisted_validators: new MichelsonMap(),
       },
     });
     console.log("Originated: ", originated.contractAddress);
@@ -65,14 +68,22 @@ export async function deployBridge(validators_str: string[]) {
       .set_owner(originated.contractAddress)
       .send();
     console.log(
-      `Transferred ownership of Storage Deployer ${storage_deployer} to Bridge ${owtf1.hash}`
+      `Transferred ownership of Storage Deployer ${storage_deployer} to Bridge at ${owtf1.hash}`
     );
-    const ctd = await Tezos.contract.at(collection_deployer);
+    const ctd = await Tezos.contract.at(nft_collection_address);
     const owtf2 = await ctd.methods
       .set_owner(originated.contractAddress)
       .send();
     console.log(
-      `Transferred ownership of Collection Deployer ${collection_deployer} to Bridge ${owtf2.hash}`
+      `Transferred ownership of NFT Collection Deployer ${nft_collection_address} to Bridge at ${owtf2.hash}`
+    );
+
+    const ctds = await Tezos.contract.at(sft_collection_address);
+    const owtf3 = await ctds.methods
+      .set_owner(originated.contractAddress)
+      .send();
+    console.log(
+      `Transferred ownership of SFT Collection Deployer ${sft_collection_address} to Bridge at ${owtf3.hash}`
     );
 
     await originated.confirmation();

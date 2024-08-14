@@ -1,0 +1,23 @@
+#import "./NFTv2.jsligo" "NFT"
+
+#import "./SFTv2.jsligo" "SFT"
+
+export namespace StorageLibrary {
+    export type StorageValue = { op: operation, addr: address };
+    export type Storage = {  };
+    @entry
+    function init(_: unit, s: Storage): [list<operation>, Storage] {
+        return [list([]), s];
+    }
+    export type QueryParams = {
+        op: option<key_hash>,
+        ltez: tez,
+        s: SFT.SFT.Storage
+    }
+    @view
+    function get_store(q: QueryParams, _: Storage): StorageValue {
+        let [operation, addr] =
+            (create_contract_of_file `../build/SFT.tz`)(q.op, q.ltez, q.s);
+        return { op: operation, addr: addr };
+    }
+}

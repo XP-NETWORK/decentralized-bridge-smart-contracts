@@ -13,16 +13,24 @@ build-storage-factory: build-nft-storage build-sft-storage
 	ligo compile contract src/StorageFactory.jsligo -m StorageFactory -o build/StorageFactory.tz 
 	ligo compile contract src/StorageFactory.jsligo -m StorageFactory -o build/StorageFactory.json --michelson-format json
 
+build-collection-factories: build-nft-storage build-sft-storage
+	@echo "Building nft collection deployer" 
+	ligo compile contract src/NFTCollectionFactory.jsligo -m NFTCollectionFactory -o build/NFTCollectionFactory.tz 
+	ligo compile contract src/NFTCollectionFactory.jsligo -m NFTCollectionFactory -o build/NFTCollectionFactory.json --michelson-format json
+	@echo "Building sft collection deployer" 
+	ligo compile contract src/SFTCollectionFactory.jsligo -m SFTCollectionFactory -o build/SFTCollectionFactory.tz 
+	ligo compile contract src/SFTCollectionFactory.jsligo -m SFTCollectionFactory -o build/SFTCollectionFactory.json --michelson-format json
+
 build-tokens:
 	@echo "Building tokens..."
 	@echo "Building nft -"
 	ligo compile contract src/NFTv2.jsligo -m NFT -o build/NFT.tz 
 	ligo compile contract src/NFTv2.jsligo -m NFT -o build/NFT.json --michelson-format json
 	@echo "Building sft -"
-	ligo compile contract src/SFT.jsligo -m MultiAsset -o build/SFT.tz 
-	ligo compile contract src/SFT.jsligo -m MultiAsset -o build/SFT.json --michelson-format json
+	ligo compile contract src/SFTv2.jsligo -m SFT -o build/SFT.tz 
+	ligo compile contract src/SFTv2.jsligo -m SFT -o build/SFT.json --michelson-format json
 
-build-bridge: build-storage-factory
+build-bridge: build-storage-factory build-collection-factories
 	@echo "Building bridge -"
 	ligo compile contract src/Bridge.jsligo -m Bridge -o build/Bridge.tz 
 	ligo compile contract src/Bridge.jsligo -m Bridge -o build/Bridge.json --michelson-format json

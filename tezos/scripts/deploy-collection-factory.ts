@@ -10,7 +10,8 @@ const stdio = createInterface({
 
 config();
 
-import CollectionFactory from "../build/CollectionFactory.json";
+import NFTCollectionFactory from "../build/NFTCollectionFactory.json"
+import SFTCollectionFactory from "../build/SFTCollectionFactory.json"
 
 const RPC_ENDPOINT = process.env.RPC_ENDPOINT!;
 const SK = process.env.SK!;
@@ -23,19 +24,29 @@ export async function deployCollectionFactory(owner: string | undefined) {
   });
 
   try {
-    const originated = await Tezos.contract.originate({
-      code: CollectionFactory,
+    const nftC = await Tezos.contract.originate({
+      code: NFTCollectionFactory,
       storage: {
         owner: owner,
         collection_to_store: new MichelsonMap(),
       },
     });
-    console.log(
-      `Waiting for Collection Factory Contract ${originated.contractAddress} to be confirmed...`
+     console.log(
+      `Waiting for NFT Collection Factory Contract ${nftC.contractAddress} to be confirmed...`
     );
-    await originated.confirmation(2);
-    console.log("Collection Factory Contract: ", originated.contractAddress);
-    return originated.contractAddress;
+    await nftC.confirmation(2);
+     const sftC = await Tezos.contract.originate({
+      code: SFTCollectionFactory,
+      storage: {
+        owner: owner,
+        collection_to_store: new MichelsonMap(),
+      },
+    });
+     console.log(
+      `Waiting for SFT Collection Factory Contract ${sftC.contractAddress} to be confirmed...`
+    );
+    await sftC.confirmation(2);
+    return [nftC.contractAddress!, sftC.contractAddress!];
   } catch (error: any) {
     console.log(error);
     return undefined;

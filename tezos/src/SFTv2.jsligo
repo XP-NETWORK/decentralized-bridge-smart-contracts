@@ -1,0 +1,53 @@
+#import "@ligo/fa/lib/fa2.1/data/ledger.jsligo" "Ledger"
+
+#import "@ligo/fa/lib/fa2.1/fa2.1-generic.jsligo" "Generic"
+
+#import "@ligo/fa/lib/fa2.1/data/admin.jsligo" "Admin"
+
+#import "./Mint.jsligo" "Mint"
+
+export namespace SFT {
+    export type Extension = { admin: Admin.T };
+    export type Storage = Generic.Storage<Extension, Ledger.Multi_asset.L>
+    const specialised: Generic.Interface<Extension, Ledger.Multi_asset.L> =
+        Generic.make(Ledger.Multi_asset.ledger_module)
+    const specialisedViews: Generic.InterfaceViews<
+        Extension,
+        Ledger.Multi_asset.L
+    > =
+        Generic.makeViews(Ledger.Multi_asset.ledger_module)
+    @entry
+    const mint = (p, s: Storage) => {
+        if (s.extension.admin != Tezos.get_sender()) {
+            failwith("Caller is not owner.");
+        }
+        return Mint.mint(p, s, Ledger.Multi_asset.ledger_module(s.assets), false)
+    };
+    @entry
+    const transfer = (p, s) => specialised.transfer([p, s])
+    @entry
+    const balance_of = (p, s) => specialised.balance_of([p, s])
+    @entry
+    const update_operators = (p, s) => specialised.update_operators([p, s])
+    @entry
+    const approve = (p, s) => specialised.approve([p, s])
+    @entry
+    const export_ticket = (p, s) => specialised.export_ticket([p, s])
+    @entry
+    const lambda_export = (p, s) => specialised.lambda_export([p, s])
+    @entry
+    const import_ticket = (p, s) => specialised.import_ticket([p, s])
+    @view
+    const get_balance = (p, s) => specialisedViews.get_balance([p, s])
+    @view
+    const get_total_supply = (p, s) => specialisedViews.get_total_supply([p, s])
+    @view
+    const is_operator = (p, s) => specialisedViews.is_operator([p, s])
+    @view
+    const get_allowance = (p, s) => specialisedViews.get_allowance([p, s])
+    @view
+    const get_token_metadata = (p, s) =>
+        specialisedViews.get_token_metadata([p, s])
+    @view
+    const is_token = (p, s) => specialisedViews.is_token([p, s]);
+}

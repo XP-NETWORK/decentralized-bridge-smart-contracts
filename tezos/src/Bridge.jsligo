@@ -1,8 +1,14 @@
-#import "@ligo/fa/lib/fa2/nft/nft.impl.jsligo" "NFT"
-
 #import "./StorageFactory.jsligo" "StorageFactory"
 
+#import "./NFTCollectionFactory.jsligo" "NFTCollectionFactory"
+#import "./SFTCollectionFactory.jsligo" "SFTCollectionFactory"
+
 #import "./SFTStorage.jsligo" "SFTStorage"
+
+#import "./NFTv2.jsligo" "NFT"
+
+#import "@ligo/fa/lib/fa2.1/entrypoints/transfer.jsligo" "Transfer"
+
 #import "./NFTStorage.jsligo" "NFTStorage"
 
 export namespace Bridge {
@@ -70,14 +76,15 @@ export namespace Bridge {
         const ctr: contract<{ token_id: nat }> =
             Tezos.get_entrypoint("%add_deposited_token", storage);
         const transfer_nft_op =
-            Tezos.transaction({ token_id: tid }, 0mutez, ctr)
+            Tezos.Next.Operation.transaction({ token_id: tid }, 0mutez, ctr)
         return transfer_nft_op;
     }
     export type storage = {
         validators: big_map<address, rewards>,
         blacklisted_validators: big_map<address, bool>,
         unique_identifiers: big_map<bytes, bool>,
-        collection_deployer: address,
+        nft_collection_deployer: address,
+        sft_collection_deployer: address,
         storage_deployer: address,
         original_to_duplicate_mapping: big_map<
             [AddrOrStr, string],
@@ -140,7 +147,7 @@ export namespace Bridge {
         nft_contract: address,
         token_id: nat
     ): operation {
-        return Tezos.emit(
+        return Tezos.Next.Operation.emit(
             "%claimed",
             {
                 source_chain: source_chain,
@@ -169,7 +176,7 @@ export namespace Bridge {
     function is_token_deposited(nft: address, tid: nat): bool {
         const opt = Tezos.call_view("has_locked_token", tid, nft);
         Assert.Error.some(opt, "Failed to check if token is deposited");
-        return Option.unopt(opt);
+        return Option.value_with_error("Unreachable", opt);
     }
     function balance_fa2(owner: address, tid: nat, nft: address): nat {
         const params = [owner, tid];
@@ -187,13 +194,13 @@ export namespace Bridge {
     }
     @entry
     function add_validator(p: add_validator_parms, store: storage): ret {
-        assert_with_error(List.length(p.sigs) > 0n, "No signatures provided");
-        assert_none_with_error(
+        Assert.Error.assert(List.length(p.sigs) > 0n, "No signatures provided");
+        Assert.Error.none(
             Big_map.find_opt(p.validator, store.validators),
             "Validator already exists"
         );
         const percent = verify_signatures(Bytes.pack(p.validator), p.sigs);
-        assert_with_error(
+        Assert.Error.assert(
             percent >= (((store.validators_count * 2) / 3)) + 1,
             "Insufficient signatures"
         );
@@ -224,7 +231,8 @@ export namespace Bridge {
             "Insufficient signatures"
         );
         const updated_validators = Big_map.remove(p.validator, store.validators)
-        const updated_blacklisted_validator = Big_map.add(p.validator, true, store.blacklisted_validators);
+        const updated_blacklisted_validator =
+            Big_map.add(p.validator, true, store.blacklisted_validators);
         return [
             list([emit_blacklisted_validator_ev(p.validator)]),
             {
@@ -246,16 +254,18 @@ export namespace Bridge {
     ): ret {
         const validator_rewards_opt =
             Big_map.find_opt(p.validator, s.validators);
-        assert_some_with_error(
+        Assert.Error.some(
             validator_rewards_opt, // Dont have to check for added as it will fail if it doesnt exist (Not Solidity :P)
             "Validator does not exist"
         );
         let event_op = emit_reward_validator_ev(p.validator);
-        let validator_rewards = Option.unopt(validator_rewards_opt);
+        let validator_rewards =
+            Option.value_with_error("Unreachable", validator_rewards_opt);
         let new_validator =
             Big_map.update(p.validator, Some(0mutez), s.validators)
         let receiver: contract<unit> = Tezos.get_contract(p.validator)
-        let transfer_op = Tezos.transaction(unit, validator_rewards, receiver);
+        let transfer_op =
+            Tezos.Next.Operation.transaction(unit, validator_rewards, receiver);
         return [
             list([transfer_op, event_op]),
             { ...s, validators: new_validator }
@@ -275,8 +285,7 @@ export namespace Bridge {
         nft: address,
         amount: nat
     ): operation {
-        const ctr: contract<NFT.TZIP12.transfer> =
-            Tezos.get_entrypoint("%transfer", nft);
+        const ctr: contract<Transfer.t> = Tezos.get_entrypoint("%transfer", nft);
         const params =
             list(
                 [
@@ -286,7 +295,8 @@ export namespace Bridge {
                     }
                 ]
             );
-        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        const transfer_nft_op =
+            Tezos.Next.Operation.transaction(params, 0mutez, ctr)
         return transfer_nft_op;
     };
     export type lock_internal = {
@@ -321,7 +331,7 @@ export namespace Bridge {
                         s.storage_deployer
                     );
                 let op_deploy_storage =
-                    Tezos.transaction(
+                    Tezos.Next.Operation.transaction(
                         { collection: extract_addr(p.source_nft_address) },
                         0mutez,
                         deploy_storage_ep
@@ -332,7 +342,7 @@ export namespace Bridge {
                         Tezos.get_self_address()
                     );
                 let op_lock_nft_internal =
-                    Tezos.transaction(
+                    Tezos.Next.Operation.transaction(
                         {
                             to: p.dest_address,
                             token_id: p.token_id,
@@ -350,7 +360,7 @@ export namespace Bridge {
             let lock_internal_op: contract<lock_internal> =
                 Tezos.get_entrypoint("%lock_internal", Tezos.get_self_address());
             let op_lock_nft_internal =
-                Tezos.transaction(
+                Tezos.Next.Operation.transaction(
                     {
                         to: p.dest_address,
                         token_id: p.token_id,
@@ -379,7 +389,7 @@ export namespace Bridge {
                         s.storage_deployer
                     );
                 let op_deploy_storage =
-                    Tezos.transaction(
+                    Tezos.Next.Operation.transaction(
                         { collection: extract_addr(p.source_nft_address) },
                         0mutez,
                         deploy_storage_ep
@@ -390,7 +400,7 @@ export namespace Bridge {
                         Tezos.get_self_address()
                     );
                 let op_lock_nft_internal =
-                    Tezos.transaction(
+                    Tezos.Next.Operation.transaction(
                         {
                             to: p.dest_address,
                             token_id: p.token_id,
@@ -408,7 +418,7 @@ export namespace Bridge {
             let lock_internal_op: contract<lock_internal> =
                 Tezos.get_entrypoint("%lock_internal", Tezos.get_self_address());
             let op_lock_nft_internal =
-                Tezos.transaction(
+                Tezos.Next.Operation.transaction(
                     {
                         to: p.dest_address,
                         token_id: p.token_id,
@@ -428,7 +438,7 @@ export namespace Bridge {
     @entry
     function lock_internal(p: lock_internal, s: storage): ret {
         let new_storage = { ...s,  };
-        assert_with_error(
+        Assert.Error.assert(
             Tezos.get_sender() == Tezos.get_self_address(),
             "Only Callable by Self"
         );
@@ -438,11 +448,9 @@ export namespace Bridge {
                 extract_addr(p.collection),
                 s.storage_deployer
             );
-        assert_some_with_error(
-            opt_storage_contract,
-            "Storage contract not deployed"
-        );
-        let storage_contract = Option.unopt(opt_storage_contract);
+        Assert.Error.some(opt_storage_contract, "Storage contract not deployed");
+        let storage_contract =
+            Option.value_with_error("Unreachable", opt_storage_contract);
         if (p.original) {
             if (p.new_deploy) {
                 let update_original_mapping =
@@ -549,7 +557,7 @@ export namespace Bridge {
                         Tezos.get_self_address()
                     );
                 let op_deploy_storage =
-                    Tezos.transaction(
+                    Tezos.Next.Operation.transaction(
                         { collection: extract_addr(p.source_nft_address) },
                         0mutez,
                         deploy_storage_ep
@@ -560,7 +568,7 @@ export namespace Bridge {
                         Tezos.get_self_address()
                     );
                 let op_lock_nft_internal =
-                    Tezos.transaction(
+                    Tezos.Next.Operation.transaction(
                         {
                             to: p.dest_address,
                             token_id: p.token_id,
@@ -578,7 +586,7 @@ export namespace Bridge {
             let lock_internal_op: contract<lock_internal> =
                 Tezos.get_entrypoint("%lock_internal", Tezos.get_self_address());
             let op_lock_nft_internal =
-                Tezos.transaction(
+                Tezos.Next.Operation.transaction(
                     {
                         to: p.dest_address,
                         token_id: p.token_id,
@@ -607,7 +615,7 @@ export namespace Bridge {
                         Tezos.get_self_address()
                     );
                 let op_deploy_storage =
-                    Tezos.transaction(
+                    Tezos.Next.Operation.transaction(
                         { collection: extract_addr(p.source_nft_address) },
                         0mutez,
                         deploy_storage_ep
@@ -618,7 +626,7 @@ export namespace Bridge {
                         Tezos.get_self_address()
                     );
                 let op_lock_nft_internal =
-                    Tezos.transaction(
+                    Tezos.Next.Operation.transaction(
                         {
                             to: p.dest_address,
                             token_id: p.token_id,
@@ -636,7 +644,7 @@ export namespace Bridge {
             let lock_internal_op: contract<lock_internal> =
                 Tezos.get_entrypoint("%lock_internal", Tezos.get_self_address());
             let op_lock_nft_internal =
-                Tezos.transaction(
+                Tezos.Next.Operation.transaction(
                     {
                         to: p.dest_address,
                         token_id: p.token_id,
@@ -679,7 +687,8 @@ export namespace Bridge {
                 return [signers, percent, duplicate];
             }
         }
-        const [signers, percent, duplicate] = List.fold(fold_fn, signatures, [list([]), 0, duplicateMap]);
+        const [signers, percent, _] =
+            List.fold(fold_fn, signatures, [list([]), 0, duplicateMap]);
         if (percent < (((s.validators_count * 2) / 3)) + 1) {
             failwith("Insufficient signatures");
         }
@@ -694,9 +703,9 @@ export namespace Bridge {
         vali_rewardable: list<address>,
         store: storage
     ): big_map<address, rewards> {
-        assert_with_error(fee > 0mutez, "Fee must be greater than 0");
+        Assert.Error.assert(fee > 0mutez, "Fee must be greater than 0");
         let total_rewards = Tezos.get_balance();
-        assert_with_error(
+        Assert.Error.assert(
             total_rewards >= fee,
             "Insufficient rewards to distribute"
         );
@@ -711,9 +720,10 @@ export namespace Bridge {
                 rewards
             > => {
                 let prev_rewards = Big_map.find_opt(v, stg);
-                assert_some_with_error(prev_rewards, "Validator does not exist");
+                Assert.Error.some(prev_rewards, "Validator does not exist");
                 let new_rewards =
-                    Option.unopt(prev_rewards) + reward_per_validator;
+                    Option.value_with_error("Unreachable", prev_rewards)
+                    + reward_per_validator;
                 return Big_map.update(v, Some(new_rewards), stg);
             }
             return List.fold(fold_fn, validators, stg);
@@ -732,7 +742,7 @@ export namespace Bridge {
         type_: string
     ): option<address> {
         if (has_duplicate) {
-            const mapping = Option.unopt(ogci);
+            const mapping = Option.value_with_error("Unreachable", ogci);
             let opt_contract = mapping.contract;
             return Big_map.find_opt(
                 [opt_contract, self_chain],
@@ -747,52 +757,56 @@ export namespace Bridge {
         }
     }
     function unlock_nft(to: address, token_id: nat, contract: address): operation {
-        const ctr: contract<
-            NFTStorage.NFTStorage.unlock_parameters
-        > =
+        const ctr: contract<NFTStorage.NFTStorage.unlock_parameters> =
             Tezos.get_entrypoint("%unlock_token", contract);
         const params = { token_id, to };
-        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        const transfer_nft_op =
+            Tezos.Next.Operation.transaction(params, 0mutez, ctr)
         return transfer_nft_op;
     };
     function unlock_sft(to: address, token_id: nat, amt: nat, contract: address): operation {
         const ctr: contract<SFTStorage.SFTStorage.unlock_parameters> =
             Tezos.get_entrypoint("%unlock_token", contract);
         const params = { token_id, to, amt };
-        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        const transfer_nft_op =
+            Tezos.Next.Operation.transaction(params, 0mutez, ctr)
         return transfer_nft_op;
     };
     function mint_nft(to: address, contract: address, md: string, token_id: nat): operation {
-        const ctr: option<
-            contract<
-                list<
-                    { token_id: nat, token_info: option<big_map<string, bytes>>, to: address, amt: nat }
-                >
-            >
-        > =
+        const ctr: option<contract<NFT.Mint.T>> =
             Tezos.get_entrypoint_opt("%mint", contract);
-        assert_some_with_error(ctr, "Contract does not have mint entrypoint");
-        const params: {
-            token_id: nat,
-            token_info: option<big_map<string, bytes>>,
-            to: address,
-            amt: nat
-        } = { to, token_info: Some(Big_map.literal([
-            ["", Bytes.pack(md)]
-        ])), token_id: token_id, amt: 1n };
+        Assert.Error.some(ctr, "Contract does not have mint entrypoint");
+        const params = {
+            to_: to,
+            token_info: Some(Map.literal([["", Bytes.pack(md)]])),
+            token_id: token_id,
+            amount: 1n
+        };
         const transfer_nft_op =
-            Tezos.transaction(list([params]), 0mutez, Option.unopt(ctr))
+            Tezos.Next.Operation.transaction(
+                params,
+                0mutez,
+                Option.value_with_error("Unreachable", ctr)
+            )
         return transfer_nft_op;
     };
-    function mint_sft(to: address, contract: address, amt: nat, md: string): operation {
-        const ctr: contract<{ to: address, amt: nat, metadata: string }> =
-            Tezos.get_entrypoint("%mint_token", contract);
-        const params: { to: address, amt: nat, metadata: string } = {
-            to,
-            amt,
-            metadata: md
+    function mint_sft(
+        to: address,
+        contract: address,
+        amt: nat,
+        md: string,
+        token_id: nat
+    ): operation {
+        const ctr: contract<NFT.Mint.T> =
+            Tezos.get_entrypoint("%mint", contract);
+        const params = {
+            to_: to,
+            token_info: Some(Map.literal([["", Bytes.pack(md)]])),
+            token_id: token_id,
+            amount: amt
         };
-        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        const transfer_nft_op =
+            Tezos.Next.Operation.transaction(params, 0mutez, ctr)
         return transfer_nft_op;
     };
     export type internal_ns_nd_params = {
@@ -801,6 +815,7 @@ export namespace Bridge {
         dest_address: address,
         collection: AddrOrStr,
         token_amount: nat,
+        token_type: string,
         source_chain: string,
         md: string,
         transaction_hash: string,
@@ -808,14 +823,16 @@ export namespace Bridge {
     }
     @entry
     function internal_ns_nd_part(p: internal_ns_nd_params, s: storage): ret {
-        assert_with_error(
+        Assert.Error.assert(
             Tezos.get_sender() == Tezos.get_self_address(),
             "Only Callable by Self"
         );
+        let cd = p.token_type == "singular" ? s.nft_collection_deployer : s.sft_collection_deployer;
         let opt_deployed: option<address> =
-            Tezos.call_view("get_store", p.collection, s.collection_deployer);
-        assert_some_with_error(opt_deployed, "Collection not deployed");
-        let deployed: address = Option.unopt(opt_deployed);
+            Tezos.call_view("get_store", p.collection, cd);
+        Assert.Error.some(opt_deployed, "Collection not deployed");
+        let deployed: address =
+            Option.value_with_error("Unreachable", opt_deployed);
         let new_original_to_duplicate_map =
             Big_map.add(
                 [p.collection, p.source_chain],
@@ -852,9 +869,9 @@ export namespace Bridge {
         let op = list([]) as list<operation>;
         modifier_has_correct_fee(p.data.fee);
         modifier_matches_current_chain(p.data.dest_chain, s);
-        assert_with_error(p.data.nft_type == nft_type, "Invalid NFT Type");
+        Assert.Error.assert(p.data.nft_type == nft_type, "Invalid NFT Type");
         const hash = create_claim_data_hash(p.data);
-        assert_none_with_error(
+        Assert.Error.none(
             Big_map.find_opt(hash, s.unique_identifiers),
             "Data already processed"
         );
@@ -879,8 +896,8 @@ export namespace Bridge {
             );
         const has_storage = Option.is_some(storage_address);
         if (has_duplicate && has_storage) {
-            const sc = Option.unopt(storage_address);
-            let cf = Option.unopt(opt_mapping);
+            const sc = Option.value_with_error("Unreachable", storage_address);
+            let cf = Option.value_with_error("Unreachable", opt_mapping);
             let contract: address = extract_addr(cf.contract)
             let is = is_token_deposited(sc, p.data.token_id);
             if (is) {
@@ -898,7 +915,7 @@ export namespace Bridge {
                 op
                 = List.cons(
                       emit_claimed_ev(
-                        p.data.lock_tx_chain,
+                          p.data.lock_tx_chain,
                           p.data.source_chain,
                           p.data.transaction_hash,
                           contract,
@@ -909,7 +926,7 @@ export namespace Bridge {
                 op = List.cons(mint_op, op);
             }
         } else if (has_duplicate && ! has_storage) {
-            let cf = Option.unopt(opt_mapping);
+            let cf = Option.value_with_error("Unreachable", opt_mapping);
             let contract: address = extract_addr(cf.contract)
             let mint_op =
                 mint_nft(
@@ -922,7 +939,7 @@ export namespace Bridge {
             op
             = List.cons(
                   emit_claimed_ev(
-                    p.data.lock_tx_chain,
+                      p.data.lock_tx_chain,
                       p.data.source_chain,
                       p.data.transaction_hash,
                       contract,
@@ -932,11 +949,11 @@ export namespace Bridge {
               )
         } else if (! has_duplicate && has_storage) {
             const oc: address = extract_addr(p.data.source_nft_contract_address);
-            assert_some_with_error(
+            Assert.Error.some(
                 storage_address,
                 "Storage not deployed for this collection"
             );
-            const sc = Option.unopt(storage_address);
+            const sc = Option.value_with_error("Unreachable", storage_address);
             let is = is_token_deposited(sc, p.data.token_id);
             if (is) {
                 let unlock_op =
@@ -955,7 +972,7 @@ export namespace Bridge {
             op
             = List.cons(
                   emit_claimed_ev(
-                    p.data.lock_tx_chain,
+                      p.data.lock_tx_chain,
                       p.data.source_chain,
                       p.data.transaction_hash,
                       oc,
@@ -965,17 +982,27 @@ export namespace Bridge {
               );
         } else if (! has_duplicate && ! has_storage) {
             let ctr = p.data.source_nft_contract_address;
-            let deploy_ep: contract<{ collection: AddrOrStr }> =
-                Tezos.get_entrypoint("%deploy_nft", s.collection_deployer);
+            let deploy_ep: contract<
+                NFTCollectionFactory.NFTCollectionFactory.deploy_params
+            > =
+                Tezos.get_entrypoint("%deploy_nft", s.nft_collection_deployer);
             let deploy_op =
-                Tezos.transaction({ collection: ctr }, 0mutez, deploy_ep);
+                Tezos.Next.Operation.transaction(
+                    {
+                        collection: ctr,
+                        name: p.data.name,
+                        symbol: p.data.symbol
+                    },
+                    0mutez,
+                    deploy_ep
+                );
             let ep =
                 Tezos.get_entrypoint(
                     "%internal_ns_nd_part",
                     Tezos.get_self_address()
                 );
             let handle_final_op =
-                Tezos.transaction(
+                Tezos.Next.Operation.transaction(
                     {
                         token_id: p.data.token_id,
                         dest_chain: p.data.dest_chain,
@@ -986,6 +1013,7 @@ export namespace Bridge {
                         md: p.data.metadata,
                         transaction_hash: p.data.transaction_hash,
                         lock_tx_chain: p.data.lock_tx_chain,
+                        token_type: p.data.nft_type
                     },
                     0mutez,
                     ep
@@ -1052,7 +1080,8 @@ export namespace Bridge {
                         p.data.dest_address,
                         contract,
                         abs(to_mint),
-                        p.data.metadata
+                        p.data.metadata,
+                        p.data.token_id
                     );
                 op_list = List.cons(mintop, List.cons(unlockop, op_list));
             }
@@ -1064,7 +1093,8 @@ export namespace Bridge {
                     p.data.dest_address,
                     contract,
                     p.data.token_amount,
-                    p.data.metadata
+                    p.data.metadata,
+                    p.data.token_id
                 );
             op_list = List.cons(mintop, op_list);
         } else if (! has_duplicate && has_storage) {
@@ -1090,13 +1120,51 @@ export namespace Bridge {
                         p.data.dest_address,
                         contract,
                         abs(to_mint),
-                        p.data.metadata
+                        p.data.metadata,
+                        p.data.token_id
                     );
                 op_list = List.cons(mintop, List.cons(unlockop, op_list));
             }
         } else if (! has_duplicate && ! has_storage) {
-            // Handle this case
-            failwith("Not implemented");
+            let ctr = p.data.source_nft_contract_address;
+            let deploy_ep: contract<
+                SFTCollectionFactory.SFTCollectionFactory.deploy_params
+            > =
+                Tezos.get_entrypoint("%deploy_sft", s.sft_collection_deployer);
+            let deploy_op =
+                Tezos.Next.Operation.transaction(
+                    {
+                        collection: ctr,
+                        name: p.data.name,
+                        symbol: p.data.symbol
+                    },
+                    0mutez,
+                    deploy_ep
+                );
+            let ep =
+                Tezos.get_entrypoint(
+                    "%internal_ns_nd_part",
+                    Tezos.get_self_address()
+                );
+            let handle_final_op =
+                Tezos.Next.Operation.transaction(
+                    {
+                        token_id: p.data.token_id,
+                        dest_chain: p.data.dest_chain,
+                        dest_address: p.data.dest_address,
+                        collection: ctr,
+                        token_amount: p.data.token_amount,
+                        source_chain: p.data.source_chain,
+                        md: p.data.metadata,
+                        transaction_hash: p.data.transaction_hash,
+                        lock_tx_chain: p.data.lock_tx_chain,
+                        token_type: p.data.nft_type
+                    },
+                    0mutez,
+                    ep
+                );
+            op_list = List.cons(deploy_op, List.cons(handle_final_op, op_list));
+            return [op_list, new_storage]
         }
         return [op_list, new_storage];
     }

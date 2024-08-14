@@ -1,10 +1,6 @@
-#import "./NFTStorage.jsligo" "NFTStorage"
+#import "./SFTv2.jsligo" "SFT"
 
-#import "./NFTv2.jsligo" "NFT"
-
-#import "./SFT.jsligo" "MultiAsset"
-
-export namespace CollectionFactory {
+export namespace SFTCollectionFactory {
     export type AddrOrStr = ["Addr", address] | ["Str", string]
     export type storage = {
         owner: option<address>,
@@ -26,7 +22,10 @@ export namespace CollectionFactory {
     function only_owner(store: storage): unit {
         require_initialized(store);
         // Unopt is fine  because we already checked that owner is not None in require_initialized
-        if (Option.value_with_error("Unreachable", store.owner) != Tezos.get_sender()) {
+        if (
+            Option.value_with_error("Unreachable", store.owner)
+            != Tezos.get_sender()
+        ) {
             failwith("Only owner can call this function");
         }
         return unit;
@@ -40,20 +39,11 @@ export namespace CollectionFactory {
         return [list([]), { ...store, owner: new_store }];
     }
     @entry
-    function deploy_nft(p: deploy_params, store: storage): ret {
+    function deploy_sft(p: deploy_params, store: storage): ret {
         only_owner(store);
-        // @bytes
-        let md =
-            Big_map.literal(
-                [
-                    ["", Bytes.pack("tezos-storage:data")],
-                    ["metadata", Bytes.pack(`{"name": ${p.name}}`)]
-                ]
-            );
-        // Unopt is fine  because we already checked that owner is not None in only_owner
-        let storage: NFT.NFT.Storage = {
-            metadata: md,
-            assets: Big_map.empty,
+        let storage: SFT.SFT.Storage = {
+            metadata: Big_map.empty,
+            assets: { ledger: Big_map.empty, supply: Big_map.empty },
             token_metadata: Big_map.empty,
             operators: None(),
             approvals: Big_map.empty,
@@ -65,9 +55,9 @@ export namespace CollectionFactory {
         let createMyContract = (
             op: option<key_hash>,
             ltez: tez,
-            s: NFT.NFT.Storage
+            s: SFT.SFT.Storage
         ): [operation, address] =>
-            (create_contract_of_file `../build/NFT.tz`)(op, ltez, s);
+            (create_contract_of_file `../build/SFT.tz`)(op, ltez, s);
         let originate: [operation, address] =
             createMyContract(None(), 0mutez, storage);
         let new_collection_to_store =
@@ -77,33 +67,6 @@ export namespace CollectionFactory {
             { ...store, collection_to_store: new_collection_to_store }
         ];
     }
-    // @entry
-    // function deploy_sft(p: deploy_params, store: storage): ret {
-    //     only_owner(store);
-    //     // Unopt is fine  because we already checked that owner is not None in only_owner
-    //     let storage: MultiAsset.MultiAsset.storage = {
-    //         ledger: Big_map.empty,
-    //         operators: Big_map.empty,
-    //         token_metadata: Big_map.empty,
-    //         metadata: Big_map.empty,
-    //         admin: Option.unopt(store.owner)
-    //     }
-    //     let createMyContract = (
-    //         op: option<key_hash>,
-    //         ltez: tez,
-    //         s: MultiAsset.MultiAsset.storage
-    //     ): [operation, address] =>
-    //         (create_contract_of_file `../build/SFT.tz`)(op, ltez, s);
-    //     let originate: [operation, address] =
-    //         createMyContract(None(), 0mutez, storage);
-    //     let new_collection_to_store =
-    //         Map.add(p.collection, originate[1], store.collection_to_store)
-    //     return [
-    //         list([originate[0]]),
-    //         { ...store, collection_to_store: new_collection_to_store }
-    //     ];
-    // }
-
     @view
     function get_store(collection: AddrOrStr, store: storage): address {
         return Map.find(collection, store.collection_to_store)

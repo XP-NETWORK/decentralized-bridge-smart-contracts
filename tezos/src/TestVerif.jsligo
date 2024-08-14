@@ -4,10 +4,12 @@
 
 #import "./CollectionFactory.jsligo" "CollectionFactory"
 
-#import "./NFT.jsligo" "NFT"
+#import "./NFTv2.jsligo" "NFT"
 
-const bootstrap_validator = "tz1NqGupPkw59EHtc6K1YfMqrmgHAjz4qWoB" as address;
-const bootstrap_validato_key = "edpktxsd1GCJAsKXmtJX6pUKNoHSvkC2NqxnojNacKL5gYpxufJp3x" as key;
+const bootstrap_validator = "tz1TXgTYPS69ACisXCztjyDps8aqzctFBBrT" as address;
+
+const bootstrap_validato_key =
+    "edpkutfTBFn3c4sSD9ef733ZPKEQMJ4MP48Dw45WUeEpcCJojqCEtz" as key;
 
 export type AddrOrStr = ["Addr", address] | ["Str", string];
 
@@ -47,15 +49,17 @@ const deploy_collection_deployer = (): typed_address<
 
 const deploy_nft_contract = (): typed_address<
     parameter_of NFT.NFT,
-    NFT.NFT.storage
+    NFT.NFT.Storage
 > => {
     let [admin, _b, _a] = Test.get_bootstrap_account(1n);
-    let initial_storage: NFT.NFT.storage = {
-        ledger: Big_map.empty,
-        operators: Big_map.empty,
-        token_metadata: Big_map.empty,
+    let initial_storage: NFT.NFT.Storage = {
         metadata: Big_map.empty,
-        admin,
+        assets: Big_map.empty,
+        token_metadata: Big_map.empty,
+        operators: None(),
+        approvals: Big_map.empty,
+        proxy: admin,
+        extension: { admin: admin }
     }
     let { addr, code, size } =
         Test.originate(contract_of(NFT.NFT), initial_storage, 0mutez);
@@ -78,6 +82,7 @@ const deploy_bridge_contracts = (cd: address, sd: address): typed_address<
         duplicate_storage_mapping_nft: Big_map.empty,
         duplicate_storage_mapping_sft: Big_map.empty,
         validators_count: 1n,
+        blacklisted_validators: Big_map.empty
     };
     let { addr, code, size } =
         Test.originate(contract_of(Bridge.Bridge), initial_storage, 0mutez);
@@ -141,16 +146,17 @@ function claim_nft() {
                     transaction_hash: "0xfc20f11690da4c77dbd9c2ab243c3c66d489ffb3f972646cfe88d237167a36fa",
                     token_amount: 1n,
                     nft_type: "singular",
-                    fee: 10000mutez
+                    fee: 10000mutez,
+                    lock_tx_chain: "BSC",
                 },
                 sigs: list(
                     [
                         {
-                            addr: "tz1NqGupPkw59EHtc6K1YfMqrmgHAjz4qWoB" as
+                            addr: "tz1TXgTYPS69ACisXCztjyDps8aqzctFBBrT" as
                                 address,
-                            sig: "sigXHDYECuD58kiYsvfMCyre6Vw7wZkXhWXQbNsW6kcMEkeEVHNQFizZz5xdgm47NdqXDjKj6Bar3XYPT8ZNuovXwXDaxHLQ" as
+                            sig: "sigfzpaCwoVHpS9kVRsXGGGybLZbjHHwgs8XpEQsECmnKutS4VPCaBMx8QKXSHrwgMaG2V4kXs61eUg3nUPK3vJPDNc8yiqs" as
                                 signature,
-                            signer: "edpktxsd1GCJAsKXmtJX6pUKNoHSvkC2NqxnojNacKL5gYpxufJp3x" as
+                            signer: "edpkutfTBFn3c4sSD9ef733ZPKEQMJ4MP48Dw45WUeEpcCJojqCEtz" as
                                 key
                         }
                     ]
@@ -158,8 +164,7 @@ function claim_nft() {
             }
         )
     let tfc = Test.transfer_exn(bridge, cd, 10000mutez);
-    // Test.println(Test.to_json(Test.get_storage(bridge)));
-    const events: list<{ source_chain: string, tx_hash: string }> =
+    const events: list<{ source_chain: string, tx_hash: string, nft_contract: address, token_id: nat, lock_tx_chain: string }> =
         Test.get_last_events_from(bridge, "claimed");
     Test.println(Test.to_string(events));
 };
@@ -168,29 +173,19 @@ function lock_nft(): unit {
     const nft = deploy_nft_contract();
     const pc: parameter_of NFT.NFT =
         Mint(
-            list(
-                [
                     {
-                        token_uri: "https://ipfs.io/ipfs/QmToNVaaxKDPZnJmBXXCcFXbTyBmVzmKtoRcQBzsfTNbUT",
-                        amt: 1n,
+                        token_info: Some(Map.literal([["", Bytes.pack("https://ipfs.io/ipfs/QmToNVaaxKDPZnJmBXXCcFXbTyBmVzmKtoRcQBzsfTNbUT")]])),
                         token_id: 1n,
-                        to: Test.nth_bootstrap_account(1),
-                    },
-                    {
-                        token_uri: "https://ipfs.io/ipfs/QmToNVaaxKDPZnJmBXXCcFXbTyBmVzmKtoRcQBzsfTNbUT",
-                        amt: 1n,
-                        token_id: 2n,
-                        to: Test.nth_bootstrap_account(1),
+                        amount: 1n,
+                        to_: Test.nth_bootstrap_account(1),
                     }
-                ]
-            )
         );
     const bridge = setup();
     const approve: parameter_of NFT.NFT =
         Update_operators(
             list(
                 [
-                    Add_operator(
+                    AddOperator(
                         {
                             owner: Test.nth_bootstrap_account(1),
                             operator: Test.to_address(bridge),
@@ -204,7 +199,7 @@ function lock_nft(): unit {
         Update_operators(
             list(
                 [
-                    Add_operator(
+                    AddOperator(
                         {
                             owner: Test.nth_bootstrap_account(1),
                             operator: Test.to_address(bridge),
@@ -255,24 +250,31 @@ function lock_nft(): unit {
 function add_validator(): unit {
     const bridge = setup();
     let [admin, key, sig] = Test.get_bootstrap_account(1n);
-        const add_p: parameter_of Bridge.Bridge =
+    const add_p: parameter_of Bridge.Bridge =
         Add_validator(
             {
-                sigs: list([
-                   { addr: admin, sig: "sigjYbYHRyfbBF5WK8MS8CRE8zxqXhHgA2Fd8CXpqJ3foeHiK7yhzgM1wHMNtgJwJa27GgeGoxo7LcP5Y1dKbwrr821nH9DK" as signature, signer: bootstrap_validato_key},
-                ]),
+                sigs: list(
+                    [
+                        {
+                            addr: admin,
+                            sig: "sigjYbYHRyfbBF5WK8MS8CRE8zxqXhHgA2Fd8CXpqJ3foeHiK7yhzgM1wHMNtgJwJa27GgeGoxo7LcP5Y1dKbwrr821nH9DK" as
+                                signature,
+                            signer: bootstrap_validato_key
+                        },
+                    ]
+                ),
                 validator: "tz1PPSVMDyKjqEPQaJfNfwbU2TKt6ywoU2UP" as address
             }
         );
     const tfc = Test.transfer_exn(bridge, add_p, 0mutez);
     const events: list<{ validator: address }> =
         Test.get_last_events_from(bridge, "added_new_validator");
-        assert(List.length(events) > 0n );
-        Test.println(Test.to_string(events));
+    assert(List.length(events) > 0n);
+    Test.println(Test.to_string(events));
 }
 
 const _ = claim_nft();
 
-const _a = lock_nft();
+// const _a = lock_nft();
 
-const _b = add_validator();
+// const _b = add_validator();

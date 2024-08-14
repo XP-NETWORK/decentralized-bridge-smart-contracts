@@ -2,7 +2,7 @@
 #import "@ligo/fa/lib/fa2.1/data/admin.jsligo" "Admin"
 
 #import "@ligo/fa/lib/fa2.1/fa2.1-generic.jsligo" "Generic"
-#import "./Mint.jsligo" "Mint"
+export #import "./Mint.jsligo" "Mint"
 
 //// This is an NFT marketplace derived from the generic FA2.1 implementation.
 /// The main customisation happens in the two declarations below.
@@ -24,11 +24,11 @@ export namespace NFT {
     /// specialised implementation:
 
     @entry
-    const mint_fn = (p, s: Storage) => {
+    const mint = (p, s: Storage) => {
         if (s.extension.admin != Tezos.get_sender()) {
             failwith("Caller is not owner.");
         }
-        let a: [list<operation>, Storage] = Mint.mint(p, s, Ledger.NFT.ledger_module(s.assets));
+        let a: [list<operation>, Storage] = Mint.mint(p, s, Ledger.NFT.ledger_module(s.assets), true);
         return a;
     };
 

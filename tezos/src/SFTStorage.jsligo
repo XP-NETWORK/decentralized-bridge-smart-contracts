@@ -25,7 +25,7 @@ export namespace SFTStorage {
                     }
                 ]
             );
-        const transfer_nft_op = Tezos.transaction(params, 0mutez, ctr)
+        const transfer_nft_op = Tezos.Next.Operation.transaction(params, 0mutez, ctr)
         return transfer_nft_op;
     };
     function only_owner(store: storage): unit {

@@ -1,0 +1,76 @@
+#import "./NFTv2.jsligo" "NFT"
+
+export namespace NFTCollectionFactory {
+    export type AddrOrStr = ["Addr", address] | ["Str", string]
+    export type storage = {
+        owner: option<address>,
+        collection_to_store: map<AddrOrStr, address>
+    };
+    export type ret = [list<operation>, storage];
+    export type deploy_params = {
+        collection: AddrOrStr,
+        name: string,
+        symbol: string
+    };
+    export type chown_params = { new_owner: address };
+    function require_initialized(store: storage): unit {
+        if (Option.is_none(store.owner)) {
+            failwith("Contract is not initialized");
+        }
+        return unit;
+    }
+    function only_owner(store: storage): unit {
+        require_initialized(store);
+        // Unopt is fine  because we already checked that owner is not None in require_initialized
+        if (Option.value_with_error("Unreachable", store.owner) != Tezos.get_sender()) {
+            failwith("Only owner can call this function");
+        }
+        return unit;
+    }
+    @entry
+    function set_owner(p: chown_params, store: storage): ret {
+        if (Option.is_some(store.owner)) {
+            failwith("Owner already set");
+        }
+        let new_store = Some(p.new_owner);
+        return [list([]), { ...store, owner: new_store }];
+    }
+    @entry
+    function deploy_nft(p: deploy_params, store: storage): ret {
+        only_owner(store);
+        let storage: NFT.NFT.Storage = {
+            metadata: Big_map.empty,
+            assets: Big_map.empty,
+            token_metadata: Big_map.empty,
+            operators: None(),
+            approvals: Big_map.empty,
+            proxy: Option.value_with_error("Unreachable", store.owner),
+            extension: {
+                admin: Option.value_with_error("Unreachable", store.owner)
+            }
+        }
+        let createMyContract = (
+            op: option<key_hash>,
+            ltez: tez,
+            s: NFT.NFT.Storage
+        ): [operation, address] =>
+            (create_contract_of_file `../build/NFT.tz`)(op, ltez, s);
+        let originate: [operation, address] =
+            createMyContract(None(), 0mutez, storage);
+        let new_collection_to_store =
+            Map.add(p.collection, originate[1], store.collection_to_store)
+        return [
+            list([originate[0]]),
+            { ...store, collection_to_store: new_collection_to_store }
+        ];
+    }
+    
+    @view
+    function get_store(collection: AddrOrStr, store: storage): address {
+        return Map.find(collection, store.collection_to_store)
+    }
+    @view
+    function get_owner(_: unit, store: storage): address {
+        return Option.unopt(store.owner)
+    }
+}
