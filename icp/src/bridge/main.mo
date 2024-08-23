@@ -12,6 +12,7 @@ import Blob "mo:base/Blob";
 import Iter "mo:base/Iter";
 import Nat64 "mo:base/Nat64";
 import ExperimentalCycles "mo:base/ExperimentalCycles";
+import Debug "mo:base/Debug";
 import Ledger "canister:icp_ledger_canister";
 import Map "mo:map/Map";
 import { thash } "mo:map/Map";
@@ -28,6 +29,8 @@ import LockedEvent "structures/locked_event";
 import SignerAndSignature "structures/signer_and_signature";
 import ClaimData "structures/claim_data";
 import ClaimedEvent "structures/claimed_event";
+import AddValidator "structures/add_validator";
+import BlacklistValidator "structures/blacklist_validator";
 
 actor class XPBridge(
   _args : {
@@ -85,9 +88,11 @@ actor class XPBridge(
     var percent = 0;
     let has_signer = Map.new<Text, Bool>();
     label signatures for (ss in signers_and_signatures.vals()) {
+      Debug.print(debug_show ss);
       if (Option.isSome(validators.get(ss.signer))) {
         if (not Map.has(has_signer, thash, ss.signer)) {
           let ok = Lib.ED25519.verify(Lib.Utils.hexToBytes(ss.signature), hash, Lib.Utils.hexToBytes(ss.signer));
+          Debug.print("Is OK: " # debug_show ok);
           if (ok) {
             Map.set(has_signer, thash, ss.signer, true);
             percent := percent + 1;
@@ -104,12 +109,15 @@ actor class XPBridge(
     return ((validators_count * 2) / 3) + 1;
   };
 
-  public func add_validator((pubk, princ) : (Text, Principal), sigs : [SignerAndSignature]) : async () {
+  public func add_validator(add_validator: AddValidator.AddValidator, sigs : [SignerAndSignature]) : async () {
+    let pubk = add_validator.public_key;
+    let princ = add_validator.principal;
     let present = Option.isSome(validators.get(pubk));
     if (present) {
       throw Error.reject("Validator already present.");
     };
-    let (percent, _) = verify_signatures(Lib.Utils.hexToBytes(pubk), sigs);
+    let ahash = AddValidator.hash(add_validator);
+    let (percent, _) = verify_signatures(Blob.toArray(ahash), sigs);
     if (percent < required_threshold()) {
       throw Error.reject("Threshold not reached.");
     };
@@ -120,14 +128,17 @@ actor class XPBridge(
         pending_rewards = 0;
       },
     );
+    validators_count += 1;
   };
 
-  public func blacklist_validator((pubk, princ) : (Text, Principal), sigs : [SignerAndSignature]): async () {
+  public func blacklist_validator(bv: BlacklistValidator.BlacklistValidator, sigs : [SignerAndSignature]): async () {
+    let pubk = bv.public_key;
     let present = Option.isSome(validators.get(pubk));
     if (not present) {
       throw Error.reject("Validator is not added");
     };
-    let (percent, _) = verify_signatures(Lib.Utils.hexToBytes(pubk), sigs);
+    let bhash = BlacklistValidator.hash(bv);
+    let (percent, _) = verify_signatures(Blob.toArray(bhash), sigs);
     if (percent < required_threshold()) {
       throw Error.reject("Threshold not reached.");
     };
@@ -229,14 +240,21 @@ actor class XPBridge(
       throw Error.reject("Invalid NFT type!");
     };
     try {
-      let transferResult = await Ledger.transfer({
-        from = caller;
-        memo = 0;
-        amount = { e8s = claim_data.fee };
-        fee = { e8s = 10_000 };
+      let transferResult = await Ledger.icrc2_transfer_from({
+        from = {
+          owner = caller;
+          subaccount = null;
+        };
+        memo = null;
+        amount = Nat64.toNat(claim_data.fee);
+        fee = null;
         from_subaccount = null;
-        to = Principal.toLedgerAccount(Principal.fromActor(self), null);
+        to = {
+          owner = Principal.fromActor(self);
+          subaccount = null;
+        };
         created_at_time = null;
+        spender_subaccount = null;
       });
       // check if the transfer was successfull
       switch (transferResult) {
@@ -255,8 +273,10 @@ actor class XPBridge(
     if (unique_identifiers.get(hash) != null) {
       throw Error.reject("Data already processed!");
     };
-    unique_identifiers.put(hash, true);
-    let (_, validators) = verify_signatures(Blob.toArray(chash), sigs);
+    let (percent, validators) = verify_signatures(Blob.toArray(chash), sigs);
+    if (percent < required_threshold()) {
+      throw Error.reject("Threshold not reached.");
+    };
     await reward_validators(claim_data.fee, validators);
     let duplicate_collection_address = original_to_duplicate_mapping.get({
       source_chain = claim_data.source_chain;
@@ -288,10 +308,12 @@ actor class XPBridge(
       } else {
         let _mint = collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       };
+      unique_identifiers.put(hash, true);
       emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
     } else if (has_duplicate and not has_storage) {
       let collection = actor (Principal.toText(o_unwrap(duplicate_collection_address))) : NFT.NFT;
       let _mint = await collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
+      unique_identifiers.put(hash, true);
       emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
       // Emit Claimed EV;
     } else if (not has_duplicate and not has_storage) {
@@ -305,6 +327,7 @@ actor class XPBridge(
       );
       let collection = actor (Principal.toText(new_collection_address)) : NFT.NFT;
       let _mint = await collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
+      unique_identifiers.put(hash, true);
       emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(new_collection_address), claim_data.token_id, claim_data.transaction_hash);
     } else if (not has_duplicate and has_storage) {
       let sc = o_unwrap(storage);
@@ -315,13 +338,14 @@ actor class XPBridge(
       } else {
         let _mint = collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       };
+      unique_identifiers.put(hash, true);
       emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, claim_data.source_nft_contract_address, claim_data.token_id, claim_data.transaction_hash);
     } else {
       Prelude.unreachable();
     };
   };
 
-  public func claim_validator_rewards(publicKey : Text) : async () {
+  public func claim_validator_rewards(publicKey : Text) : async (Nat64, Nat64) {
     switch (validators.get(publicKey)) {
       case (null) {
         throw Error.reject("No Such Validator Found.");
@@ -342,8 +366,9 @@ actor class XPBridge(
             case (#Err(transferError)) {
               throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
             };
-            case (_) {
+            case (#Ok(e)) {
               validators.put(publicKey, { pending_rewards = 0; address = v.address });
+              return (e, pr);
             };
           };
         } catch (e) {
@@ -408,6 +433,22 @@ actor class XPBridge(
 
   public query func get_blacklisted_validators(pubk: Text): async ?Bool {
     return blacklisted_validators.get(pubk);
+  };
+
+  public query func get_validator(pubk: Text): async ?Validator {
+    return validators.get(pubk);
+  };
+
+  public query func encode_claim_data(claim_data: ClaimData): async Blob {
+    return ClaimData.hash(claim_data);
+  };
+
+   public query func encode_add_validator(av: AddValidator.AddValidator): async Blob {
+    return AddValidator.hash(av);
+  };
+
+  public query func encode_blacklist_validator(bv: BlacklistValidator.BlacklistValidator): async Blob {
+    return BlacklistValidator.hash(bv);
   };
 
   public query func get_validator_count(): async Nat {

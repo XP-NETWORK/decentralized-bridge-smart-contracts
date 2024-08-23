@@ -6,6 +6,11 @@ import {
   _SERVICE as BridgeService,
   idlFactory as BridgeIDL,
 } from "../declarations/bridge/bridge.did.js";
+
+import {
+  _SERVICE as LedgerService,
+  idlFactory as LedgerIDL,
+} from "../declarations/icp_ledger_canister/icp_ledger_canister.did.js";
 import {
   _SERVICE as NftService,
   idlFactory as NftIDL,
@@ -18,6 +23,7 @@ export const createActor = async <T>(
   options: HttpAgentOptions
 ) => {
     const identity = Ed25519KeyIdentity.fromSecretKey(Buffer.from("efeb1c2fde35ba8cada52300388a0455f5f75e20bd15efdf3a2b29af172a3379", "hex"))
+    console.log(identity.getPrincipal().toString())
   const agent = await HttpAgent.create({ ...options, shouldFetchRootKey: true, identity });
   const rk = await agent.fetchRootKey();
 
@@ -32,14 +38,20 @@ export const createActor = async <T>(
 console.log(canisterIds)
 
 export const bridgeCanister = canisterIds.bridge.local;
-// export const nftCanister = canisterIds.nft.local;
+export const ledgerCanister = canisterIds.icp_ledger_canister.local;
+export const nftCanister = canisterIds.nft.local;
 
 export const bridge = await createActor<BridgeService>(bridgeCanister, BridgeIDL, {
   host: "http://127.0.0.1:4943",
   fetch,
 });
 
-// export const nft = await createActor<NftService>(nftCanister, NftIDL, {
-//   host: "http://127.0.0.1:4943",
-//   fetch,
-// });
+export const ledger = await createActor<LedgerService>(ledgerCanister, LedgerIDL ,{
+  host: "http://127.0.0.1:4943",
+  fetch,
+});
+
+export const nft = await createActor<NftService>(nftCanister, NftIDL, {
+  host: "http://127.0.0.1:4943",
+  fetch,
+});
