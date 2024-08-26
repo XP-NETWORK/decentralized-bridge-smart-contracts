@@ -43,6 +43,9 @@
         },
         "playground": {
           "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
+        },
+        "https___tools_xp_network_": {
+          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
         }
       }
     }
@@ -51,6 +54,20 @@
     "build": {
       "args": "",
       "packtool": "mops sources"
+    }
+  },
+  "networks": {
+    "testnet": {
+      "bind": "https://tools.xp.network/dfinity/:443",
+      "proxy": {
+        "domain":"https://tools.xp.network/dfinity/"
+      },
+      "type": "persistent"
+    },
+    "https___tools_xp_network_": {
+      "proxy": {
+        "domain": "https://tools.xp.network/"
+      }
     }
   },
   "output_env_file": ".env",

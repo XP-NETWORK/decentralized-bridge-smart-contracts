@@ -13,6 +13,7 @@ import Iter "mo:base/Iter";
 import Nat64 "mo:base/Nat64";
 import ExperimentalCycles "mo:base/ExperimentalCycles";
 import Debug "mo:base/Debug";
+import Hash "mo:base/Hash";
 import Ledger "canister:icp_ledger_canister";
 import Map "mo:map/Map";
 import { thash } "mo:map/Map";
@@ -73,6 +74,7 @@ actor class XPBridge(
   private var locked_events = HashMap.fromIter<Text, LockedEvent>([].vals(), 0, Text.equal, Text.hash);
   private var claimed_events = HashMap.fromIter<Text, ClaimedEvent>([].vals(), 0, Text.equal, Text.hash);
   private stable var nonce = 0;
+  private var nonce_to_hash = HashMap.fromIter<Nat, Text>([].vals(), 0, Nat.equal, Hash.hash);
 
   private stable var _init = false;
 
@@ -169,6 +171,7 @@ actor class XPBridge(
       };
       let hash = Nat32.toText(LockedEvent.hash(locked));
       locked_events.put(hash, locked);
+      nonce_to_hash.put(nonce, hash);
       nonce+=1;
       return hash;
     } else {
@@ -184,6 +187,7 @@ actor class XPBridge(
       };
       let hash = Nat32.toText(LockedEvent.hash(locked));
       locked_events.put(hash, locked);
+      nonce_to_hash.put(nonce, hash);
       nonce+=1;
       return hash;
     };
@@ -449,6 +453,14 @@ actor class XPBridge(
 
   public query func encode_blacklist_validator(bv: BlacklistValidator.BlacklistValidator): async Blob {
     return BlacklistValidator.hash(bv);
+  };
+
+  public query func get_nonce(): async Nat {
+    return nonce;
+  };
+
+  public query func get_hash_from_nonce(nonce: Nat): async ?Text {
+    return nonce_to_hash.get(nonce);
   };
 
   public query func get_validator_count(): async Nat {
