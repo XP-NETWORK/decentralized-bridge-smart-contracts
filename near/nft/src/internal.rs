@@ -1,5 +1,5 @@
 use crate::*;
-use near_sdk::CryptoHash;
+use near_sdk::{CryptoHash};
 use std::mem::size_of;
 
 //convert the royalty percentage and amount to pay into a payout

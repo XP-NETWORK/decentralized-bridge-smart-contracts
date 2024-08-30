@@ -3,8 +3,10 @@ members = ["nft", "storage"]
 resolver = "2"
 
 [workspace.dependencies]
-near-contract-standards = "5.3.0"
-near-sdk = { version = "5.3", features = ["unit-testing"] }
-near-workspaces = { version = "0.12.0", features = ["unstable"] }
-tokio = { version = "1.39.3", features = ["full"] }
+
+near-contract-standards = "5.1.0"
+near-sdk = { version = "5.1.0", features = ["unit-testing"] }
+near-workspaces = { version = "0.10.0", features = ["unstable"] }
+tokio = { version = "1.12.0", features = ["full"] }
 serde_json = "1"
+
