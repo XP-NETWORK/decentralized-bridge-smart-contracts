@@ -15,9 +15,9 @@ pub use crate::approval::*;
 pub use crate::royalty::*;
 pub use crate::events::*;
 
+pub mod metadata; 
 mod internal;
 mod enumeration; 
-mod metadata; 
 mod mint; 
 mod nft_core; 
 mod approval; 

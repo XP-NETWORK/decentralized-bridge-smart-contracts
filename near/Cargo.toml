@@ -1,5 +1,5 @@
 [workspace]
-members = ["nft", "storage", "storage-factory"]
+members = ["nft", "storage", "storage-factory", "collection-factory"]
 resolver = "2"
 
 [workspace.dependencies]
