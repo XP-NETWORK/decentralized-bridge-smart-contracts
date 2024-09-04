@@ -1,4 +1,5 @@
-use near_sdk::serde::{Deserialize, Serialize};
+use near_sdk::{serde::{Deserialize, Serialize}, AccountId};
+use nft::TokenId;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
@@ -19,7 +20,8 @@ pub struct EventLog {
 pub enum EventLogVariant {
     ValidatorAdded(NewValidatorAdded),
     ValidatorBlacklisted(ValidatorBlacklisted),
-    Locked(LockedEvent)
+    Locked(LockedEvent),
+    Claimed(ClaimedEvent)
 }
 
 
@@ -27,6 +29,15 @@ pub enum EventLogVariant {
 #[serde(crate = "near_sdk::serde")]
 pub struct NewValidatorAdded {
     pub validator: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct ClaimedEvent {
+    pub contract: AccountId,
+    pub token_id: TokenId,
+    pub transaction_hash: String,
+    pub source_chain: String
 }
 
 
