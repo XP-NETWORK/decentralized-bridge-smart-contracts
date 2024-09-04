@@ -18,7 +18,8 @@ pub struct EventLog {
 #[non_exhaustive]
 pub enum EventLogVariant {
     ValidatorAdded(NewValidatorAdded),
-    ValidatorBlacklisted(ValidatorBlacklisted)
+    ValidatorBlacklisted(ValidatorBlacklisted),
+    Locked(LockedEvent)
 }
 
 
@@ -26,6 +27,19 @@ pub enum EventLogVariant {
 #[serde(crate = "near_sdk::serde")]
 pub struct NewValidatorAdded {
     pub validator: String,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct LockedEvent {
+    pub token_id: String,
+    pub destination_chain: String,
+    pub destination_user_address: String,
+    pub source_nft_contract_address: String,
+    pub token_amount: u128,
+    pub nft_type: String,
+    pub source_chain: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

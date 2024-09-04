@@ -1,3 +1,4 @@
+#![allow(unused_imports, ambiguous_glob_reexports, dead_code)]
 use std::collections::HashMap;
 use near_sdk::borsh::{BorshSerialize, BorshDeserialize};
 use near_sdk::collections::{LazyOption, LookupMap, UnorderedMap, UnorderedSet};
@@ -6,6 +7,7 @@ use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
   near_bindgen, env, AccountId, NearToken, CryptoHash, PanicOnDefault, Promise, PromiseOrValue, BorshStorageKey, NearSchema
 };
+
 
 use crate::internal::*;
 pub use crate::metadata::*;

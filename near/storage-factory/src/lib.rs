@@ -37,8 +37,22 @@ impl StorageFactory {
             .deploy_contract(
                 include_bytes!("../../target/wasm32-unknown-unknown/release/storage.wasm").to_vec(),
             )
-            .then(external::storage::ext(aid).new(env::current_account_id(), collection));
+            .then(external::storage::ext(aid.clone()).new(env::current_account_id(), collection))
+            .then(Self::ext(env::current_account_id()).reply_storage_aid(aid));
         ctr
+    }
+
+    pub fn reply_storage_aid(
+        &self,
+        storage: AccountId,
+        #[callback] result: Result<(), Promise>,
+    ) -> AccountId {
+        match result {
+            Ok(_) => storage,
+            Err(_) => {
+                env::panic_str("Failed to deploy and initialize NFT storage contract");
+            }
+        }
     }
 
     pub fn owner(&self) -> AccountId {
