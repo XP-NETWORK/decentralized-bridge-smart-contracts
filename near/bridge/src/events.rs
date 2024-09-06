@@ -1,5 +1,5 @@
 use near_sdk::{serde::{Deserialize, Serialize}, AccountId};
-use nft::TokenId;
+use crate::external::nft_types:: TokenId;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(crate = "near_sdk::serde")]

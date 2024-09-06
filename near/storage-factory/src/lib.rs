@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use near_sdk::{env, near, AccountId, NearToken, Promise};
+use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
 
 mod external;
 #[near(contract_state)]
@@ -35,7 +35,7 @@ impl StorageFactory {
             .transfer(NearToken::from_near(5)) // 5e24yN, 5N
             .add_full_access_key(env::signer_account_pk())
             .deploy_contract(
-                include_bytes!("../../target/wasm32-unknown-unknown/release/storage.wasm").to_vec(),
+                include_bytes!("../../target/near/storage/storage.wasm").to_vec(),
             )
             .then(external::storage::ext(aid.clone()).new(env::current_account_id(), collection))
             .then(Self::ext(env::current_account_id()).reply_storage_aid(aid));
@@ -45,7 +45,7 @@ impl StorageFactory {
     pub fn reply_storage_aid(
         &self,
         storage: AccountId,
-        #[callback] result: Result<(), Promise>,
+        #[callback_result] result: Result<(), PromiseError>,
     ) -> AccountId {
         match result {
             Ok(_) => storage,

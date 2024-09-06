@@ -35,11 +35,11 @@ impl CollectionFactory {
             .transfer(NearToken::from_near(5)) // 5e24yN, 5N
             .add_full_access_key(env::signer_account_pk())
             .deploy_contract(
-                include_bytes!("../../target/wasm32-unknown-unknown/release/storage.wasm").to_vec(),
+                include_bytes!("../../target/near/nft/nft.wasm").to_vec(),
             )
             .then(external::collection::ext(collection_id).new(
                 env::current_account_id(),
-                nft::NFTContractMetadata {
+                external::NFTContractMetadata {
                     spec: "nep-171.0".to_string(),
                     name,
                     symbol,

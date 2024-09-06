@@ -2,6 +2,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use ed25519_dalek::{PublicKey, Verifier};
 use events::{EventLog, EventLogVariant, NewValidatorAdded, ValidatorBlacklisted};
+use external::nft_types::{TokenId, TokenMetadata};
 use near_sdk::{
     collections::{LookupMap, TreeMap},
     env::{self, sha256},
@@ -13,10 +14,9 @@ mod tests;
 
 mod types;
 
-use nft::{JsonToken, TokenId, TokenMetadata};
 use serde_json::to_string;
 use types::{ClaimData, ContractInfo, SignerAndSignature};
-mod external;
+pub mod external;
 #[near(contract_state)]
 pub struct Bridge {
     collection_factory: AccountId,
@@ -76,34 +76,13 @@ impl Bridge {
         self.validators.len() as u128
     }
 
-    // #[payable]
-    // pub fn deploy_nft_collection(&mut self, name: String, symbol: String) -> Promise {
-    //     let collection_id = AccountId::from_str(&format!(
-    //         "{name}-{symbol}.{}",
-    //         env::current_account_id().to_string()
-    //     ))
-    //     .unwrap();
-    //     let ctr = Promise::new(collection_id.clone())
-    //         .create_account()
-    //         .transfer(NearToken::from_near(5)) // 5e24yN, 5N
-    //         .add_full_access_key(env::signer_account_pk())
-    //         .deploy_contract(
-    //             include_bytes!("../../target/wasm32-unknown-unknown/release/storage.wasm").to_vec(),
-    //         )
-    //         .then(external::collection::ext(collection_id).new(
-    //             env::current_account_id(),
-    //             nft::NFTContractMetadata {
-    //                 spec: "nep-171.0".to_string(),
-    //                 name,
-    //                 symbol,
-    //                 icon: None,
-    //                 base_uri: None,
-    //                 reference: None,
-    //                 reference_hash: None,
-    //             },
-    //         ));
-    //     ctr
-    // }
+    pub fn collection_factory(&self) -> AccountId {
+        self.collection_factory.clone()
+    }
+
+    pub fn storage_factory(&self) -> AccountId {
+        self.storage_factory.clone()
+    }
 
     pub fn verify_signatures(
         &mut self,
@@ -152,7 +131,7 @@ impl Bridge {
     pub fn lock_nft(
         &mut self,
         source_nft_contract_address: AccountId,
-        token_id: TokenId,
+        token_id: external::nft_types::TokenId,
         destination_chain: String,
         destination_address: String,
     ) {
@@ -222,14 +201,14 @@ impl Bridge {
                 )),
         }
     }
-
+    #[private]
     pub fn transfer_to_storage(
         &mut self,
         source_nft_contract_address: AccountId,
         token_id: TokenId,
         destination_chain: String,
         destination_user_address: String,
-        #[callback] result: Result<AccountId, PromiseError>,
+        #[callback_result] result: Result<AccountId, PromiseError>,
     ) -> Promise {
         match result {
             Ok(storage_address) => external::ext_nft::ext(source_nft_contract_address.clone())
@@ -365,7 +344,7 @@ impl Bridge {
         &mut self,
         cd: ClaimData,
         identifier: String,
-        #[callback] result: Result<AccountId, PromiseError>,
+        #[callback_result] result: Result<AccountId, PromiseError>,
     ) -> Promise {
         if result.is_err() {
             env::panic_str(&format!("Failed to deploy Collection: {:?}", result));
@@ -422,8 +401,8 @@ impl Bridge {
 
     #[private]
     pub fn emit_claimed_event(
-        &self,
-        contract: AccountId,
+        &mut self,
+        collection: AccountId,
         token_id: TokenId,
         transaction_hash: String,
         source_chain: String,
@@ -431,7 +410,7 @@ impl Bridge {
     ) {
         require!(result.is_ok(), "Failed to emit claimed event");
         self.emit_event(EventLogVariant::Claimed(events::ClaimedEvent {
-            contract,
+            contract: collection,
             token_id,
             transaction_hash,
             source_chain,
@@ -458,7 +437,7 @@ impl Bridge {
         identifier: String,
         storage: AccountId,
         collection: AccountId,
-        #[callback_result] result: Result<Vec<JsonToken>, PromiseError>,
+        #[callback_result] result: Result<Vec<external::nft_types::JsonToken>, PromiseError>,
     ) -> Promise {
         let is_stored = {
             let is_ok = result.is_ok();
