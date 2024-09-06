@@ -70,5 +70,6 @@ pub struct ClaimData<M: ManagedTypeApi> {
     pub token_amount: BigUint<M>,
     pub nft_type: ManagedBuffer<M>,
     pub fee: BigUint<M>,
-    pub lock_tx_chain: ManagedBuffer<M>
+    pub lock_tx_chain: ManagedBuffer<M>,
+    pub img_uri: ManagedBuffer<M>
 }

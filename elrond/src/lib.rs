@@ -452,8 +452,7 @@ pub trait BridgeContract {
     fn claim_nft721(
         &self,
         data: ClaimData<Self::Api>,
-        signatures: ManagedVec<SignatureInfo<Self::Api>>,
-        uris: MultiValue2<ManagedBuffer, ManagedBuffer>,
+        signatures: ManagedVec<SignatureInfo<Self::Api>>
     ) {
         let _ = self.has_correct_fee(data.fee.clone());
         let _ = self.matches_current_chain(&data.destination_chain);
@@ -482,9 +481,8 @@ pub trait BridgeContract {
         ));
 
         let mut mvuri = ManagedVec::new();
-        let (img, metadata) = uris.into_tuple();
-        mvuri.push(img);
-        mvuri.push(metadata);
+        mvuri.push(data.img_uri.clone());
+        mvuri.push(data.attrs.clone());
 
         let is_token_exists = self
             .tokens()
@@ -581,8 +579,7 @@ pub trait BridgeContract {
     fn claim_nft1155(
         &self,
         data: ClaimData<Self::Api>,
-        signatures: ManagedVec<SignatureInfo<Self::Api>>,
-        uris: MultiValue2<ManagedBuffer, ManagedBuffer>,
+        signatures: ManagedVec<SignatureInfo<Self::Api>>
     ) {
         let _ = self.has_correct_fee(data.fee.clone());
         let _ = self.matches_current_chain(&data.destination_chain);
@@ -612,9 +609,8 @@ pub trait BridgeContract {
         ));
 
         let mut mvuri = ManagedVec::new();
-        let (img, metadata) = uris.into_tuple();
-        mvuri.push(img);
-        mvuri.push(metadata);
+        mvuri.push(data.img_uri.clone());
+        mvuri.push(data.attrs.clone());
 
         let is_token_exists = self
             .tokens()
