@@ -334,10 +334,18 @@ impl Bridge {
                         cd.source_chain,
                     ))
             }
-            (false, true) => {
-                todo!("unimplemented");
-            }
             (false, false) => {
+                let nft_factory =
+                    external::collection_factory::ext(self.collection_factory.clone());
+
+                nft_factory
+                    .deploy_nft_collection(cd.name.clone(), cd.symbol.clone())
+                    .then(
+                        Self::ext(env::current_account_id())
+                            .after_collection_deploy_callback(cd, hexeh),
+                    )
+            }
+            (false, true) => {
                 let dext = external::ext_nft::ext(
                     cd.source_nft_contract_address.clone().try_into().unwrap(),
                 );
@@ -350,6 +358,66 @@ impl Bridge {
                     ))
             }
         }
+    }
+
+    #[private]
+    pub fn after_collection_deploy_callback(
+        &mut self,
+        cd: ClaimData,
+        identifier: String,
+        #[callback] result: Result<AccountId, PromiseError>,
+    ) -> Promise {
+        if result.is_err() {
+            env::panic_str(&format!("Failed to deploy Collection: {:?}", result));
+        }
+        let collection = result.unwrap();
+        self.original_to_duplicate_mapping.insert(
+            &(
+                cd.source_nft_contract_address.clone(),
+                cd.source_chain.clone(),
+            ),
+            &ContractInfo {
+                contract_address: collection.clone().to_string(),
+                chain: self.self_chain.clone(),
+            },
+        );
+
+        self.duplicate_to_original_mapping.insert(
+            &(collection.clone(), self.self_chain.clone()),
+            &ContractInfo {
+                contract_address: cd.source_nft_contract_address.clone(),
+                chain: cd.source_chain.clone(),
+            },
+        );
+        let mut royalty = HashMap::new();
+        royalty.insert(cd.royalty_receiver, cd.royalty.into());
+        external::ext_nft::ext(collection.clone())
+            .nft_mint(
+                cd.token_id.clone(),
+                TokenMetadata {
+                    media: Some(cd.metadata),
+                    title: Some(cd.name),
+                    description: None,
+                    media_hash: None,
+                    copies: None,
+                    issued_at: None,
+                    expires_at: None,
+                    starts_at: None,
+                    updated_at: None,
+                    extra: None,
+                    reference: None,
+                    reference_hash: None,
+                },
+                cd.destination_user_address,
+                Some(royalty),
+            )
+            .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier))
+            .then(Self::ext(env::current_account_id()).emit_claimed_event(
+                collection,
+                cd.token_id,
+                cd.transaction_hash,
+                cd.source_chain,
+            ))
     }
 
     #[private]
