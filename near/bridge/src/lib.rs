@@ -223,10 +223,10 @@ impl Bridge {
             Err(e) => env::panic_str(&format!("Failed to deploy Collection: {:?}", e)),
         }
     }
-
-    pub fn claim_nft(&mut self, cd: ClaimData, sigs: Vec<SignerAndSignature>) -> Promise {
+    #[payable]
+    pub fn claim_nft(&mut self, cd: ClaimData, signatures: Vec<SignerAndSignature>) -> Promise {
         assert!(
-            env::attached_deposit() > NearToken::from_yoctonear(cd.fee),
+            env::attached_deposit() >= NearToken::from_yoctonear(cd.fee),
             "Insufficient fee"
         );
         assert!(
@@ -241,7 +241,7 @@ impl Bridge {
             self.unique_identifiers.get(&hexeh).is_none(),
             "Data already processed!"
         );
-        let validators_to_reward = self.verify_signatures(serialized, sigs);
+        let validators_to_reward = self.verify_signatures(serialized, signatures);
         self.reward_validators(cd.fee, validators_to_reward);
 
         let duplicate_collection_address = self.original_to_duplicate_mapping.get(&(
@@ -286,6 +286,7 @@ impl Bridge {
                 let mut royalty = HashMap::new();
                 royalty.insert(cd.royalty_receiver, cd.royalty.into());
                 nft_collection
+                .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
                     .nft_mint(
                         cd.token_id.clone(),
                         TokenMetadata {
@@ -371,6 +372,7 @@ impl Bridge {
         let mut royalty = HashMap::new();
         royalty.insert(cd.royalty_receiver, cd.royalty.into());
         external::ext_nft::ext(collection.clone())
+        .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
             .nft_mint(
                 cd.token_id.clone(),
                 TokenMetadata {
@@ -462,6 +464,7 @@ impl Bridge {
             let mut royalty = HashMap::new();
             royalty.insert(cd.royalty_receiver, cd.royalty.into());
             external::ext_nft::ext(collection.clone())
+            .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
                 .nft_mint(
                     cd.token_id.clone(),
                     TokenMetadata {

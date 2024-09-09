@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use near_sdk::{env, near, AccountId, NearToken, Promise};
+use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
 
 mod external;
 #[near(contract_state)]
@@ -25,8 +25,16 @@ impl CollectionFactory {
 
     #[payable]
     pub fn deploy_nft_collection(&mut self, name: String, symbol: String) -> Promise {
+        env::log_str(&format!(
+            "{}-{}.{}",
+            name.split_whitespace().collect::<String>().to_lowercase(),
+            symbol.to_lowercase(),
+            env::current_account_id().to_string()
+        ));
         let collection_id = AccountId::from_str(&format!(
-            "{name}-{symbol}.{}",
+            "{}-{}.{}",
+            name.split_whitespace().collect::<String>().to_lowercase(),
+            symbol.to_lowercase(),
             env::current_account_id().to_string()
         ))
         .unwrap();
@@ -37,7 +45,7 @@ impl CollectionFactory {
             .deploy_contract(
                 include_bytes!("../../target/near/nft/nft.wasm").to_vec(),
             )
-            .then(external::collection::ext(collection_id).new(
+            .then(external::collection::ext(collection_id.clone()).new(
                 env::current_account_id(),
                 external::NFTContractMetadata {
                     spec: "nep-171.0".to_string(),
@@ -48,8 +56,23 @@ impl CollectionFactory {
                     reference: None,
                     reference_hash: None,
                 },
-            ));
+            ))
+            .then(Self::ext(env::current_account_id()).reply_collection_aid(collection_id));
         ctr
+    }
+
+    #[private]
+     pub fn reply_collection_aid(
+        &self,
+        collection: AccountId,
+        #[callback_result] result: Result<(), PromiseError>,
+    ) -> AccountId {
+        match result {
+            Ok(_) => collection,
+            Err(_) => {
+                env::panic_str("Failed to deploy and initialize NFT collection contract");
+            }
+        }
     }
 
     pub fn owner(&self) -> AccountId {

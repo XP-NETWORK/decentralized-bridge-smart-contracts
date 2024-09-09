@@ -25,8 +25,10 @@ impl StorageFactory {
 
     #[payable]
     pub fn deploy_nft_storage(&mut self, collection: AccountId) -> Promise {
+        let collection_shortened = collection.to_string()[..5].to_string();
         let aid = AccountId::from_str(&format!(
-            "{collection}{}",
+            "{}.{}",
+            collection_shortened,
             env::current_account_id().to_string()
         ))
         .unwrap();
