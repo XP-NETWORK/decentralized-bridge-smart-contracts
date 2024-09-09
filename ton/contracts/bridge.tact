@@ -416,6 +416,7 @@ contract Bridge {
         require(percentage >= (((self.validatorsCount * 2)/3)+1),"Threshold not reached!");
         self.validators.set(msg.validator, null);
         self.validatorsCount = (self.validatorsCount - 1);
+        self.blacklist.set(msg.validator, true);
         emit(BlacklistedValidatorEvent{validator: msg.validator}.toCell());
     }
 
