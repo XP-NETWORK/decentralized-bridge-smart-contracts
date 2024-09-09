@@ -1,6 +1,5 @@
 use std::{collections::HashMap, str::FromStr};
 
-use ed25519_dalek::{PublicKey, Verifier};
 use events::{EventLog, EventLogVariant, NewValidatorAdded, ValidatorBlacklisted};
 use external::nft_types::{TokenId, TokenMetadata};
 use near_sdk::{
@@ -9,20 +8,17 @@ use near_sdk::{
     near, require, AccountId, NearToken, Promise, PromiseError,
 };
 
-#[cfg(test)]
-mod tests;
-
-mod types;
+pub mod types;
 
 use serde_json::to_string;
-use types::{ClaimData, ContractInfo, SignerAndSignature};
+use types::{AddValidator, BlacklistValidator, ClaimData, ContractInfo, SignerAndSignature};
 pub mod external;
 #[near(contract_state)]
 pub struct Bridge {
     collection_factory: AccountId,
     storage_factory: AccountId,
     validators: TreeMap<String, u128>,
-    blacklisted_validators: LookupMap<String, u128>,
+    blacklisted_validators: LookupMap<String, bool>,
     self_chain: String,
     duplicate_to_original_mapping: LookupMap<(AccountId, String), ContractInfo>,
     original_to_duplicate_mapping: LookupMap<(String, String), ContractInfo>,
@@ -88,41 +84,45 @@ impl Bridge {
         &mut self,
         message: Vec<u8>,
         signer_and_signature: Vec<SignerAndSignature>,
-    ) -> Vec<Vec<u8>> {
+    ) -> Vec<String> {
         let mut percentage = 0;
         let mut validators_to_reward = Vec::new();
 
         for ss in signer_and_signature {
-            let signer = PublicKey::from_bytes(&ss.signer).unwrap();
-            let signature = ed25519_dalek::Signature::from_bytes(&ss.signature).unwrap();
-            let valid = signer
-                .verify(&message, &signature)
-                .map(|_| true)
-                .unwrap_or(false);
+            let valid = near_sdk::env::ed25519_verify(
+                &ss.signature.try_into().unwrap(),
+                &message,
+                &hex::decode(ss.signer.clone()).unwrap().try_into().unwrap(),
+            );
             if valid {
                 percentage += 1;
-                validators_to_reward.push(ss.signature);
+                validators_to_reward.push(ss.signer);
             }
         }
         require!(percentage >= self.threshold(), "Insufficient signatures");
         validators_to_reward
     }
 
-    pub fn add_validator(&mut self, validator: String, signatures: Vec<SignerAndSignature>) {
+    pub fn add_validator(&mut self, validator: AddValidator, signatures: Vec<SignerAndSignature>) {
         require!(
-            !self.blacklisted_validators.contains_key(&validator),
+            !self
+                .blacklisted_validators
+                .contains_key(&validator.public_key),
             "Validator is blacklisted"
         );
         require!(
-            self.validators.contains_key(&validator),
+            !self.validators.contains_key(&validator.public_key),
             "Validator already exists"
         );
-        self.verify_signatures(validator.clone().into_bytes(), signatures);
+        let serialized = near_sdk::borsh::to_vec(&validator).unwrap();
+        self.verify_signatures(serialized, signatures);
         env::log_str(
             &to_string(&EventLog {
                 standard: "bridge".to_string(),
                 version: "1.0.0".to_string(),
-                event: EventLogVariant::ValidatorAdded(NewValidatorAdded { validator }),
+                event: EventLogVariant::ValidatorAdded(NewValidatorAdded {
+                    validator: validator.public_key,
+                }),
             })
             .unwrap(),
         );
@@ -491,17 +491,16 @@ impl Bridge {
         }
     }
 
-    fn reward_validators(&mut self, fee: u128, validators: Vec<Vec<u8>>) {
+    fn reward_validators(&mut self, fee: u128, validators: Vec<String>) {
         let fee_per_head = fee / validators.len() as u128;
         require!(
             env::account_balance() >= NearToken::from_yoctonear(fee),
             "No rewards available"
         );
         for validator in validators {
-            let k = String::from_utf8(validator).unwrap();
             // We know validator cannot be none.
-            let val = self.validators.get(&k).unwrap();
-            self.validators.insert(&k, &(val + fee_per_head));
+            let val = self.validators.get(&validator).unwrap();
+            self.validators.insert(&validator, &(val + fee_per_head));
         }
     }
 
@@ -526,15 +525,25 @@ impl Bridge {
         }));
     }
 
-    pub fn blacklist_validator(&mut self, validator: String, signatures: Vec<SignerAndSignature>) {
+    pub fn blacklist_validator(
+        &mut self,
+        validator: BlacklistValidator,
+        signatures: Vec<SignerAndSignature>,
+    ) {
         require!(
-            !self.blacklisted_validators.contains_key(&validator),
+            !self
+                .blacklisted_validators
+                .contains_key(&validator.public_key),
             "Validator is already blacklisted"
         );
-        self.verify_signatures(validator.clone().into_bytes(), signatures);
-        self.validators.remove(&validator);
+        let serialized = near_sdk::borsh::to_vec(&validator).unwrap();
+        self.verify_signatures(serialized, signatures);
+        self.validators.remove(&validator.public_key);
+        self.blacklisted_validators.insert(&validator.public_key, &true);
         self.emit_event(EventLogVariant::ValidatorBlacklisted(
-            ValidatorBlacklisted { validator },
+            ValidatorBlacklisted {
+                validator: validator.public_key,
+            },
         ));
     }
 

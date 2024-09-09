@@ -31,7 +31,7 @@ pub struct ClaimData {
 #[borsh(crate = "near_sdk::borsh")]
 #[serde(crate = "near_sdk::serde")]
 pub struct SignerAndSignature {
-    pub signer: Vec<u8>,
+    pub signer: String,
     pub signature: Vec<u8>,
 }
 
@@ -41,4 +41,20 @@ pub struct SignerAndSignature {
 pub struct ContractInfo {
     pub chain: String,
     pub contract_address: String,
+}
+
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, NearSchema)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
+pub struct AddValidator {
+    pub public_key: String,
+    pub account_id: AccountId
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, NearSchema)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
+pub struct BlacklistValidator {
+    pub public_key: String,
 }
