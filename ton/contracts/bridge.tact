@@ -93,6 +93,10 @@ message ClaimNFT721 {
     len: Int as uint256;
 }
 
+message BlacklistedValidatorEvent {
+    validator: Int as uint256;
+}
+
 // EVENTS
 message StakeEvent {
     amount: Int as coins;
@@ -127,6 +131,12 @@ message ClaimedEvent {
     transactionHash: String; // Transaction hash of the transfer on the source chain
 }
 
+message BlacklistValidator {
+    validator: Int;
+    sigs: map<Int, SignerAndSignature>;
+    len: Int as uint256;
+}
+
 contract Bridge {
 
     validators: map<Int, Validator>;
@@ -148,6 +158,8 @@ contract Bridge {
     tokenInfoGetSelf: map<Int, Address>;
 
     tokenInfoKeySelf: map<Address, Token>;
+
+    blacklist: map<Int, Bool>;
 
     selfChain: String = "";
     selfChainCell: Cell;
@@ -345,6 +357,7 @@ contract Bridge {
         let length: Int = msg.len;
 
         require(length > 0, "Must have signatures!");
+        require(self.blacklist.get(msg.newValidatorPublicKey.key) == null, "Validator is blacklisted!");
         let percentage: Int = 0;
         let counter: Int = 0;
         let requireUnique: map<Int, Bool> = emptyMap();
@@ -372,6 +385,38 @@ contract Bridge {
         self.validatorsCount = (self.validatorsCount + 1);
 
         emit(AddNewValidatorEvent{validator: msg.newValidatorPublicKey.key}.toCell());
+    }
+
+    receive(msg: BlacklistValidator){
+
+        let length: Int = msg.len;
+
+        require(length > 0, "Must have signatures!");
+        let percentage: Int = 0;
+        let counter: Int = 0;
+        let requireUnique: map<Int, Bool> = emptyMap();
+
+        repeat(length) {
+            let sig: SignerAndSignature = msg.sigs.get(counter)!!;
+            let alreadySigned: Bool? = requireUnique.get(sig.key);
+            if (alreadySigned == null) {
+                requireUnique.set(sig.key, true);
+                let op_hash: Int = beginCell().storeInt(0xFF, 64).storeUint(msg.validator, 256).endCell().hash();
+                let ok: Bool = checkSignature(op_hash, sig.signature, sig.key);
+                let v: Validator? = self.Validator(sig.key);
+                if(ok && v != null){
+                    if((v!!).added){
+                    percentage = percentage + 1;
+                    }
+                }
+                counter = counter + 1;
+            }
+        }
+
+        require(percentage >= (((self.validatorsCount * 2)/3)+1),"Threshold not reached!");
+        self.validators.set(msg.validator, null);
+        self.validatorsCount = (self.validatorsCount - 1);
+        emit(BlacklistedValidatorEvent{validator: msg.validator}.toCell());
     }
 
     receive(msg: RewardValidator){
