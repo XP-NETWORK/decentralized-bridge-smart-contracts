@@ -1,4 +1,4 @@
-# XP MonoRepo for Tezos Contracts
+# XP MonoRepo for Bridge Contracts
 
 ## To clone this repo -
 
