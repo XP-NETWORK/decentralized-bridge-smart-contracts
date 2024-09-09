@@ -55,6 +55,7 @@ contract HederaBridge is
     int64 public constant MAX_INT = 0xFFFFFFFF;
     mapping(address => Validator) public validators;
     mapping(bytes32 => bool) public uniqueIdentifier;
+    mapping(address => bool) public blackListedValidators;
 
     mapping(string => mapping(string => mapping(uint256 => TokenInfo)))
         public keyToValue;
@@ -107,6 +108,7 @@ contract HederaBridge is
     }
 
     event AddNewValidator(address _validator);
+    event BlackListValidator(address _validator);
     event RewardValidator(address _validator);
 
     event Locked(
@@ -174,6 +176,7 @@ contract HederaBridge is
         address _validator,
         SignerAndSignature[] memory signatures
     ) external {
+        require(!blackListedValidators[_validator], "validator blacklisted");
         require(_validator != address(0), "Address cannot be zero address!");
         require(signatures.length > 0, "Must have signatures!");
         require(!validators[_validator].added, "Validator already added");
@@ -213,6 +216,30 @@ contract HederaBridge is
         validators[_validator].pendingReward = 0;
         payable(_validator).transfer(rewards);
     }
+
+
+    function blackListValidator(
+        address _validator,
+        SignerAndSignature[] memory signatures
+    ) external {
+        require(_validator != address(0), "Address cannot be zero address!");
+        require(signatures.length > 0, "Must have signatures!");
+        require(validators[_validator].added, "Validator is not added");
+
+        bytes[] memory signaturesArr = new bytes[](signatures.length);
+
+        for (uint256 i = 0; i < signatures.length; i++) {
+            signaturesArr[i] = signatures[i].signature;
+        }
+
+        verifySignature(keccak256(abi.encode(_validator,"blackList")), signaturesArr);
+
+        emit BlackListValidator(address(_validator));
+        validators[_validator].added = false;
+        validatorsCount -= 1;
+        blackListedValidators[_validator] = true;
+    }
+
 
     function lock721(
         uint256 tokenId, // Unique ID for the NFT transfer
