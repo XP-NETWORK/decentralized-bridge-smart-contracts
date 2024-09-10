@@ -38,21 +38,17 @@ export namespace NFTCollectionFactory {
     @entry
     function deploy_nft(p: deploy_params, store: storage): ret {
         only_owner(store);
-        let storage: NFT.NFT.Storage = {
+        let storage: NFT.NFT.storage = {
+            admin: Option.value_with_error("Unreachable", store.owner),
+            ledger: Big_map.empty,
             metadata: Big_map.empty,
-            assets: Big_map.empty,
-            token_metadata: Big_map.empty,
-            operators: None(),
-            approvals: Big_map.empty,
-            proxy: Option.value_with_error("Unreachable", store.owner),
-            extension: {
-                admin: Option.value_with_error("Unreachable", store.owner)
-            }
+            operators: Big_map.empty,
+            token_metadata: Big_map.empty
         }
         let createMyContract = (
             op: option<key_hash>,
             ltez: tez,
-            s: NFT.NFT.Storage
+            s: NFT.NFT.storage
         ): [operation, address] =>
             (create_contract_of_file `../build/NFT.tz`)(op, ltez, s);
         let originate: [operation, address] =

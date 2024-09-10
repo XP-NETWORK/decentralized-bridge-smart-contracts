@@ -6,8 +6,9 @@
 #import "./SFTStorage.jsligo" "SFTStorage"
 
 #import "./NFTv2.jsligo" "NFT"
+#import "./SFTv2.jsligo" "SFT"
 
-#import "@ligo/fa/lib/fa2.1/entrypoints/transfer.jsligo" "Transfer"
+#import "@ligo/fa/lib/fa2/common/tzip12.datatypes.jsligo" "TZIP12"
 
 #import "./NFTStorage.jsligo" "NFTStorage"
 
@@ -117,7 +118,7 @@ export namespace Bridge {
         source_nft_address: SourceNFT,
         token_amount: nat,
         nft_type: string,
-        source_chain: string
+        source_chain: string, metadata_uri: string
     ): operation {
         return Tezos.emit(
             "%locked",
@@ -129,6 +130,7 @@ export namespace Bridge {
                 token_amount: token_amount,
                 nft_type: nft_type,
                 source_chain: source_chain,
+                metadata_uri: metadata_uri
             }
         );
     }
@@ -276,7 +278,7 @@ export namespace Bridge {
         dest_chain: string,
         dest_address: string,
         source_nft_address: AddrOrStr, // shouldve been an address but cant convert address to string in ligo/michelson
-
+        metadata_uri: string
     }
     function transfer_fa2(
         from_: address,
@@ -285,18 +287,18 @@ export namespace Bridge {
         nft: address,
         amount: nat
     ): operation {
-        const ctr: contract<Transfer.t> = Tezos.get_entrypoint("%transfer", nft);
+        const ctr: contract<list<TZIP12.transfer_from>> = Tezos.get_entrypoint("%transfer", nft);
         const params =
-            list(
-                [
+        
+                
                     {
                         from_: from_,
                         txs: list([{ to_: to_, amount, token_id: token_id }])
                     }
-                ]
-            );
+                
+
         const transfer_nft_op =
-            Tezos.Next.Operation.transaction(params, 0mutez, ctr)
+            Tezos.Next.Operation.transaction([params], 0mutez, ctr)
         return transfer_nft_op;
     };
     export type lock_internal = {
@@ -306,7 +308,8 @@ export namespace Bridge {
         original: bool,
         amt: nat,
         new_deploy: bool,
-        dest_chain: string
+        dest_chain: string,
+        metadata_uri: string
     }
     @entry
     function lock_nft(p: lock_nft_params, s: storage): ret {
@@ -350,7 +353,8 @@ export namespace Bridge {
                             original: true,
                             amt: 1n,
                             new_deploy: true,
-                            dest_chain: p.dest_chain
+                            dest_chain: p.dest_chain,
+                            metadata_uri: p.metadata_uri
                         },
                         0mutez,
                         lock_internal_op
@@ -368,7 +372,8 @@ export namespace Bridge {
                         original: true,
                         amt: 1n,
                         new_deploy: false,
-                        dest_chain: p.dest_chain
+                        dest_chain: p.dest_chain,
+                        metadata_uri: p.metadata_uri
                     },
                     0mutez,
                     lock_internal_op
@@ -408,7 +413,8 @@ export namespace Bridge {
                             original: false,
                             amt: 1n,
                             new_deploy: true,
-                            dest_chain: p.dest_chain
+                            dest_chain: p.dest_chain,
+                            metadata_uri: p.metadata_uri
                         },
                         0mutez,
                         lock_internal_op
@@ -426,7 +432,8 @@ export namespace Bridge {
                         original: false,
                         amt: 1n,
                         new_deploy: false,
-                        dest_chain: p.dest_chain
+                        dest_chain: p.dest_chain,
+                        metadata_uri: p.metadata_uri
                     },
                     0mutez,
                     lock_internal_op
@@ -483,7 +490,8 @@ export namespace Bridge {
                     p.collection,
                     p.amt,
                     p.amt == 1n ? nft_type : sft_type,
-                    self_chain
+                    self_chain,
+                    p.metadata_uri
                 );
             return [list([transfer_op, add_op, event_op]), new_storage];
         } else {
@@ -523,7 +531,8 @@ export namespace Bridge {
                     ci.contract,
                     p.amt,
                     p.amt == 1n ? nft_type : sft_type,
-                    ci.chain
+                    ci.chain,
+                    p.metadata_uri
                 );
             return [list([transfer_op, add_op, event_op]), new_storage];
         }
@@ -533,7 +542,8 @@ export namespace Bridge {
         dest_chain: string,
         dest_address: string,
         source_nft_address: AddrOrStr,
-        token_amount: nat
+        token_amount: nat,
+        metadata_uri: string
     }
     @entry
     function lock_sft(p: lock_sft_params, s: storage): ret {
@@ -576,7 +586,8 @@ export namespace Bridge {
                             original: true,
                             amt: 1n,
                             new_deploy: true,
-                            dest_chain: p.dest_chain
+                            dest_chain: p.dest_chain,
+                            metadata_uri: p.metadata_uri
                         },
                         0mutez,
                         lock_internal_op
@@ -594,7 +605,8 @@ export namespace Bridge {
                         original: true,
                         amt: 1n,
                         new_deploy: false,
-                        dest_chain: p.dest_chain
+                        dest_chain: p.dest_chain,
+                        metadata_uri: p.metadata_uri
                     },
                     0mutez,
                     lock_internal_op
@@ -634,7 +646,8 @@ export namespace Bridge {
                             original: false,
                             amt: 1n,
                             new_deploy: true,
-                            dest_chain: p.dest_chain
+                            dest_chain: p.dest_chain,
+                            metadata_uri: p.metadata_uri
                         },
                         0mutez,
                         lock_internal_op
@@ -652,7 +665,8 @@ export namespace Bridge {
                         original: false,
                         amt: 1n,
                         new_deploy: false,
-                        dest_chain: p.dest_chain
+                        dest_chain: p.dest_chain,
+                        metadata_uri: p.metadata_uri
                     },
                     0mutez,
                     lock_internal_op
@@ -773,15 +787,15 @@ export namespace Bridge {
         return transfer_nft_op;
     };
     function mint_nft(to: address, contract: address, md: string, token_id: nat): operation {
-        const ctr: option<contract<NFT.Mint.T>> =
+        const ctr: option<contract<list<NFT.NFT.mint_args>>> =
             Tezos.get_entrypoint_opt("%mint", contract);
         Assert.Error.some(ctr, "Contract does not have mint entrypoint");
-        const params = {
-            to_: to,
-            token_info: Some(Map.literal([["", Bytes.pack(md)]])),
+        const params = [{
+            to: to,
+            token_uri: md,
             token_id: token_id,
-            amount: 1n
-        };
+            amt: 1n
+        }];
         const transfer_nft_op =
             Tezos.Next.Operation.transaction(
                 params,
@@ -797,13 +811,13 @@ export namespace Bridge {
         md: string,
         token_id: nat
     ): operation {
-        const ctr: contract<NFT.Mint.T> =
+        const ctr: contract<SFT.SFT.mint_args> =
             Tezos.get_entrypoint("%mint", contract);
         const params = {
-            to_: to,
-            token_info: Some(Map.literal([["", Bytes.pack(md)]])),
+            to: to,
+            token_uri: md,
             token_id: token_id,
-            amount: amt
+            amt: amt
         };
         const transfer_nft_op =
             Tezos.Next.Operation.transaction(params, 0mutez, ctr)

@@ -41,21 +41,17 @@ export namespace SFTCollectionFactory {
     @entry
     function deploy_sft(p: deploy_params, store: storage): ret {
         only_owner(store);
-        let storage: SFT.SFT.Storage = {
+        let storage: SFT.SFT.storage = {
             metadata: Big_map.empty,
-            assets: { ledger: Big_map.empty, supply: Big_map.empty },
             token_metadata: Big_map.empty,
-            operators: None(),
-            approvals: Big_map.empty,
-            proxy: Option.value_with_error("Unreachable", store.owner),
-            extension: {
-                admin: Option.value_with_error("Unreachable", store.owner)
-            }
+            operators: Big_map.empty,
+            ledger: Big_map.empty,
+            admin: Option.value_with_error("Unreachable", store.owner)
         }
         let createMyContract = (
             op: option<key_hash>,
             ltez: tez,
-            s: SFT.SFT.Storage
+            s: SFT.SFT.storage
         ): [operation, address] =>
             (create_contract_of_file `../build/SFT.tz`)(op, ltez, s);
         let originate: [operation, address] =
