@@ -285,4 +285,4 @@ function add_validator(): unit {
 
 const _a = lock_nft();
 
-// const _b = add_validator();
+const _b = add_validator();
