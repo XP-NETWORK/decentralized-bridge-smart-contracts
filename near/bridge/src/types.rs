@@ -1,11 +1,9 @@
 use near_sdk::{
-    borsh::{BorshDeserialize, BorshSerialize},
-    serde::{Deserialize, Serialize},
-    AccountId, NearSchema,
+    borsh::{BorshDeserialize, BorshSerialize}, json_types::U128, serde::{Deserialize, Serialize}, AccountId, NearSchema
 };
 
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, NearSchema, Hash)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, NearSchema)]
 #[borsh(crate = "near_sdk::borsh")]
 #[serde(crate = "near_sdk::serde")]
 pub struct ClaimData {
@@ -22,7 +20,7 @@ pub struct ClaimData {
     pub transaction_hash: String,
     pub token_amount: u128,
     pub nft_type: String,
-    pub fee: u128,
+    pub fee: U128,
     pub lock_tx_chain: String,
 }
 

@@ -19,7 +19,7 @@ pub struct Bridge {
     storage_factory: AccountId,
     validators: TreeMap<String, u128>,
     blacklisted_validators: LookupMap<String, bool>,
-    self_chain: String,
+    chain_id: String,
     duplicate_to_original_mapping: LookupMap<(AccountId, String), ContractInfo>,
     original_to_duplicate_mapping: LookupMap<(String, String), ContractInfo>,
     original_storage_mapping: LookupMap<(String, String), AccountId>,
@@ -42,6 +42,9 @@ impl Default for Bridge {
     }
 }
 
+pub const CHAIN_ID: &str = "NEAR";
+pub const NFT_TYPE_SINGULAR: &str = "singular";
+
 #[near]
 impl Bridge {
     #[init]
@@ -59,7 +62,7 @@ impl Bridge {
             collection_factory,
             storage_factory,
             blacklisted_validators: LookupMap::new(b"b"),
-            self_chain: "near".to_string(),
+            chain_id: CHAIN_ID.to_string(),
             duplicate_to_original_mapping: LookupMap::new(b"d"),
             original_storage_mapping: LookupMap::new(b"o"),
             duplicate_storage_mapping: LookupMap::new(b"a"),
@@ -87,16 +90,19 @@ impl Bridge {
     ) -> Vec<String> {
         let mut percentage = 0;
         let mut validators_to_reward = Vec::new();
-
+        let mut unique = HashMap::new();
         for ss in signer_and_signature {
-            let valid = near_sdk::env::ed25519_verify(
-                &ss.signature.try_into().unwrap(),
-                &message,
-                &hex::decode(ss.signer.clone()).unwrap().try_into().unwrap(),
-            );
-            if valid {
-                percentage += 1;
-                validators_to_reward.push(ss.signer);
+            if let None = unique.get(&ss.signer) {
+                let valid = near_sdk::env::ed25519_verify(
+                    &ss.signature.try_into().unwrap(),
+                    &message,
+                    &str_to_pubkey(&ss.signer)
+                );
+                if valid {
+                    unique.insert(ss.signer.clone(), true);
+                    percentage += 1;
+                    validators_to_reward.push(ss.signer);
+                }
             }
         }
         require!(percentage >= self.threshold(), "Insufficient signatures");
@@ -114,7 +120,7 @@ impl Bridge {
             !self.validators.contains_key(&validator.public_key),
             "Validator already exists"
         );
-        let serialized = near_sdk::borsh::to_vec(&validator).unwrap();
+        let serialized = near_sdk::borsh::to_vec(&validator).expect("Failed to serialize AddValidator into vec");
         self.verify_signatures(serialized, signatures);
         env::log_str(
             &to_string(&EventLog {
@@ -136,17 +142,17 @@ impl Bridge {
         destination_address: String,
     ) {
         require!(
-            destination_chain != self.self_chain,
+            destination_chain != self.chain_id,
             "Destination chain is the same as source chain"
         );
         let oca = self
             .duplicate_to_original_mapping
-            .get(&(source_nft_contract_address.clone(), self.self_chain.clone()));
+            .get(&(source_nft_contract_address.clone(), self.chain_id.clone()));
 
         match oca {
             Some(_) => {
                 Self::check_storage_nft(
-                    self.self_chain.clone(),
+                    self.chain_id.clone(),
                     source_nft_contract_address,
                     token_id,
                     destination_chain,
@@ -157,7 +163,7 @@ impl Bridge {
             }
             None => {
                 Self::check_storage_nft(
-                    self.self_chain.clone(),
+                    self.chain_id.clone(),
                     source_nft_contract_address,
                     token_id,
                     destination_chain,
@@ -223,26 +229,26 @@ impl Bridge {
             Err(e) => env::panic_str(&format!("Failed to deploy Collection: {:?}", e)),
         }
     }
+
     #[payable]
     pub fn claim_nft(&mut self, cd: ClaimData, signatures: Vec<SignerAndSignature>) -> Promise {
         assert!(
-            env::attached_deposit() >= NearToken::from_yoctonear(cd.fee),
+            env::attached_deposit() >= NearToken::from_yoctonear(cd.fee.into()),
             "Insufficient fee"
         );
         assert!(
-            cd.destination_chain == self.self_chain,
+            cd.destination_chain == self.chain_id,
             "Invalid destination chain"
         );
-        assert!(cd.nft_type == "singular", "Invalid NFT type");
+        assert!(cd.nft_type == NFT_TYPE_SINGULAR, "Invalid NFT type");
         let serialized = near_sdk::borsh::to_vec(&cd).unwrap();
         let hash = sha256(&serialized);
-        let hexeh = hex::encode(hash);
+        let hexeh = bytes2hex(&hash);
         require!(
             self.unique_identifiers.get(&hexeh).is_none(),
             "Data already processed!"
         );
         let validators_to_reward = self.verify_signatures(serialized, signatures);
-        self.reward_validators(cd.fee, validators_to_reward);
 
         let duplicate_collection_address = self.original_to_duplicate_mapping.get(&(
             cd.source_nft_contract_address.clone(),
@@ -256,7 +262,7 @@ impl Bridge {
                     .clone()
                     .unwrap()
                     .contract_address,
-                self.self_chain.clone(),
+                self.chain_id.clone(),
             ))
         } else {
             self.original_storage_mapping.get(&(
@@ -277,6 +283,7 @@ impl Bridge {
                         hexeh,
                         storage.unwrap(),
                         dc.contract_address.try_into().unwrap(),
+                        validators_to_reward
                     ))
             }
             (true, false) => {
@@ -286,7 +293,7 @@ impl Bridge {
                 let mut royalty = HashMap::new();
                 royalty.insert(cd.royalty_receiver, cd.royalty.into());
                 nft_collection
-                .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
+                    .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
                     .nft_mint(
                         cd.token_id.clone(),
                         TokenMetadata {
@@ -306,7 +313,7 @@ impl Bridge {
                         cd.destination_user_address,
                         Some(royalty),
                     )
-                    .then(Self::ext(env::current_account_id()).finalize_claim_callback(hexeh))
+                    .then(Self::ext(env::current_account_id()).finalize_claim_callback(hexeh, cd.fee.into(), validators_to_reward))
                     .then(Self::ext(env::current_account_id()).emit_claimed_event(
                         coll,
                         cd.token_id,
@@ -322,7 +329,7 @@ impl Bridge {
                     .deploy_nft_collection(cd.name.clone(), cd.symbol.clone())
                     .then(
                         Self::ext(env::current_account_id())
-                            .after_collection_deploy_callback(cd, hexeh),
+                            .after_collection_deploy_callback(cd, hexeh, validators_to_reward),
                     )
             }
             (false, true) => {
@@ -335,6 +342,7 @@ impl Bridge {
                         hexeh,
                         storage.unwrap(),
                         cd.source_nft_contract_address.try_into().unwrap(),
+                        validators_to_reward
                     ))
             }
         }
@@ -345,6 +353,7 @@ impl Bridge {
         &mut self,
         cd: ClaimData,
         identifier: String,
+        validators_to_reward: Vec<String>,
         #[callback_result] result: Result<AccountId, PromiseError>,
     ) -> Promise {
         if result.is_err() {
@@ -358,12 +367,12 @@ impl Bridge {
             ),
             &ContractInfo {
                 contract_address: collection.clone().to_string(),
-                chain: self.self_chain.clone(),
+                chain: self.chain_id.clone(),
             },
         );
 
         self.duplicate_to_original_mapping.insert(
-            &(collection.clone(), self.self_chain.clone()),
+            &(collection.clone(), self.chain_id.clone()),
             &ContractInfo {
                 contract_address: cd.source_nft_contract_address.clone(),
                 chain: cd.source_chain.clone(),
@@ -372,7 +381,7 @@ impl Bridge {
         let mut royalty = HashMap::new();
         royalty.insert(cd.royalty_receiver, cd.royalty.into());
         external::ext_nft::ext(collection.clone())
-        .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
+            .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
             .nft_mint(
                 cd.token_id.clone(),
                 TokenMetadata {
@@ -392,7 +401,7 @@ impl Bridge {
                 cd.destination_user_address,
                 Some(royalty),
             )
-            .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier))
+            .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier, cd.fee.into(), validators_to_reward))
             .then(Self::ext(env::current_account_id()).emit_claimed_event(
                 collection,
                 cd.token_id,
@@ -423,10 +432,13 @@ impl Bridge {
     pub fn finalize_claim_callback(
         &mut self,
         identifier: String,
+        fee: u128,
+        validators_to_reward: Vec<String>,
         #[callback_result] result: Result<(), PromiseError>,
     ) {
         if result.is_ok() {
             self.unique_identifiers.insert(&identifier, &true);
+            self.reward_validators(fee, validators_to_reward);
             return;
         }
         env::panic_str(&format!("Failed to finalize claim. Reason: {:?}", result));
@@ -439,6 +451,7 @@ impl Bridge {
         identifier: String,
         storage: AccountId,
         collection: AccountId,
+        validators_to_reward: Vec<String>,
         #[callback_result] result: Result<Vec<external::nft_types::JsonToken>, PromiseError>,
     ) -> Promise {
         let is_stored = {
@@ -453,7 +466,7 @@ impl Bridge {
         if is_stored {
             external::nft_storage::ext(storage)
                 .unlock_token(cd.destination_user_address, cd.token_id.clone())
-                .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier))
+                .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier, cd.fee.into(), validators_to_reward))
                 .then(Self::ext(env::current_account_id()).emit_claimed_event(
                     collection,
                     cd.token_id,
@@ -464,7 +477,7 @@ impl Bridge {
             let mut royalty = HashMap::new();
             royalty.insert(cd.royalty_receiver, cd.royalty.into());
             external::ext_nft::ext(collection.clone())
-            .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
+                .with_attached_deposit(NearToken::from_yoctonear(10000000000000000000000))
                 .nft_mint(
                     cd.token_id.clone(),
                     TokenMetadata {
@@ -484,7 +497,7 @@ impl Bridge {
                     cd.destination_user_address,
                     Some(royalty),
                 )
-                .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier))
+                .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier, cd.fee.into(), validators_to_reward))
                 .then(Self::ext(env::current_account_id()).emit_claimed_event(
                     collection,
                     cd.token_id,
@@ -523,7 +536,7 @@ impl Bridge {
             source_nft_contract_address: source_nft_contract_address.to_string(),
             token_id,
             nft_type: "singular".to_string(),
-            source_chain: self.self_chain.clone(),
+            source_chain: self.chain_id.clone(),
             token_amount: 1,
         }));
     }
@@ -542,7 +555,8 @@ impl Bridge {
         let serialized = near_sdk::borsh::to_vec(&validator).unwrap();
         self.verify_signatures(serialized, signatures);
         self.validators.remove(&validator.public_key);
-        self.blacklisted_validators.insert(&validator.public_key, &true);
+        self.blacklisted_validators
+            .insert(&validator.public_key, &true);
         self.emit_event(EventLogVariant::ValidatorBlacklisted(
             ValidatorBlacklisted {
                 validator: validator.public_key,
@@ -564,4 +578,17 @@ impl Bridge {
             .unwrap(),
         );
     }
+}
+
+
+fn hex2bytes(hex: &str) -> Vec<u8> {
+    hex::decode(hex).expect("Failed to decode hex")
+}
+
+fn bytes2hex(bytes: &[u8]) -> String {
+    hex::encode(bytes)
+}
+
+fn str_to_pubkey<const LEN: usize>(s: &str) -> [u8; LEN] {
+    hex2bytes(s).try_into().unwrap()
 }

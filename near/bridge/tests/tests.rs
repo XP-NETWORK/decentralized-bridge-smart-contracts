@@ -236,7 +236,7 @@ async fn claim_nft() -> Result<(), Box<dyn Error>> {
         initialize_bridge(&mut sandbox, &admin, bootstrap_validator.public).await?;
 
     let cd = ClaimData {
-        destination_chain: "near".to_string(),
+        destination_chain: "NEAR".to_string(),
         source_chain: "BSC".to_string(),
         destination_user_address: admin.id().clone(),
         token_id: "token-1".to_string(),
@@ -251,11 +251,11 @@ async fn claim_nft() -> Result<(), Box<dyn Error>> {
         transaction_hash: "0x1234567890123456789012345678901234567890".to_string(),
         token_amount: 1,
         nft_type: "singular".to_string(),
-        fee: NearToken::from_near(1).as_yoctonear(),
+        fee: NearToken::from_near(1).as_yoctonear().into(),
     };
 
     let claim = admin.call(bridge.id(), "claim_nft")
-    .deposit(NearToken::from_yoctonear(cd.fee.clone()))
+    .deposit(NearToken::from_yoctonear(cd.fee.clone().into()))
     .max_gas()
     .args_json(json!({
         "cd": cd,
