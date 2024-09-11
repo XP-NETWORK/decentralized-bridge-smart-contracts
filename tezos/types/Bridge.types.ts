@@ -6,7 +6,8 @@ export type Storage = {
     validators: BigMap<address, mutez>;
     blacklisted_validators: BigMap<address, boolean>;
     unique_identifiers: BigMap<bytes, boolean>;
-    collection_deployer: address;
+    nft_collection_deployer: address;
+    sft_collection_deployer: address;
     storage_deployer: address;
     original_to_duplicate_mapping: BigMap<{
         0: (
@@ -100,6 +101,7 @@ type Methods = {
             | { str: string }
         ),
         token_amount: nat,
+        token_type: string,
         source_chain: string,
         md: string,
         transaction_hash: string,
@@ -114,6 +116,7 @@ type Methods = {
             | { str: string }
         ),
         token_amount: nat,
+        metadata_uri: string,
     ) => Promise<void>;
     lock_internal: (
         to: string,
@@ -126,6 +129,7 @@ type Methods = {
         amt: nat,
         new_deploy: boolean,
         dest_chain: string,
+        metadata_uri: string,
     ) => Promise<void>;
     lock_nft: (
         token_id: nat,
@@ -135,6 +139,7 @@ type Methods = {
             { addr: address }
             | { str: string }
         ),
+        metadata_uri: string,
     ) => Promise<void>;
     claim_validator_rewards: (
         validator: address,
@@ -197,6 +202,7 @@ type MethodsObject = {
             | { str: string }
         ),
         token_amount: nat,
+        token_type: string,
         source_chain: string,
         md: string,
         transaction_hash: string,
@@ -211,6 +217,7 @@ type MethodsObject = {
             | { str: string }
         ),
         token_amount: nat,
+        metadata_uri: string,
     }) => Promise<void>;
     lock_internal: (params: {
         to: string,
@@ -223,6 +230,7 @@ type MethodsObject = {
         amt: nat,
         new_deploy: boolean,
         dest_chain: string,
+        metadata_uri: string,
     }) => Promise<void>;
     lock_nft: (params: {
         token_id: nat,
@@ -232,6 +240,7 @@ type MethodsObject = {
             { addr: address }
             | { str: string }
         ),
+        metadata_uri: string,
     }) => Promise<void>;
     claim_validator_rewards: (params: {
         validator: address,
