@@ -10,9 +10,7 @@ pub struct CollectionFactory {
 
 impl Default for CollectionFactory {
     fn default() -> Self {
-        Self {
-            owner: "default.near".parse().unwrap(),
-        }
+        env::panic_str("Contract should be initialized before usage")
     }
 }
 

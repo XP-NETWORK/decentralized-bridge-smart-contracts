@@ -1,4 +1,4 @@
-use near_sdk::{near, AccountId, NearToken, Promise};
+use near_sdk::{env, near, AccountId, NearToken, Promise};
 
 mod external;
 #[near(contract_state)]
@@ -9,10 +9,7 @@ pub struct Contract {
 
 impl Default for Contract {
     fn default() -> Self {
-        Self {
-            owner: "default.near".parse().unwrap(),
-            collection: "default.near".parse().unwrap(),
-        }
+        env::panic_str("Contract should be initialized before usage")
     }
 }
 

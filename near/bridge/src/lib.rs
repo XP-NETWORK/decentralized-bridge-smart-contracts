@@ -11,13 +11,15 @@ use near_sdk::{
 pub mod types;
 
 use serde_json::to_string;
-use types::{AddValidator, BlacklistValidator, ClaimData, ContractInfo, SignerAndSignature};
+use types::{
+    AddValidator, BlacklistValidator, ClaimData, ContractInfo, SignerAndSignature, Validator,
+};
 pub mod external;
 #[near(contract_state)]
 pub struct Bridge {
     collection_factory: AccountId,
     storage_factory: AccountId,
-    validators: TreeMap<String, u128>,
+    validators: TreeMap<String, Validator>,
     blacklisted_validators: LookupMap<String, bool>,
     chain_id: String,
     duplicate_to_original_mapping: LookupMap<(AccountId, String), ContractInfo>,
@@ -30,15 +32,8 @@ pub struct Bridge {
 mod events;
 
 impl Default for Bridge {
-    #![allow(unreachable_code)]
     fn default() -> Self {
-        Self {
-            collection_factory: todo!(),
-            storage_factory: todo!(),
-            validators: todo!(),
-            blacklisted_validators: todo!(),
-            ..Default::default()
-        }
+        env::panic_str("Contract should be initialized before usage")
     }
 }
 
@@ -51,11 +46,17 @@ impl Bridge {
     pub fn new(
         collection_factory: AccountId,
         storage_factory: AccountId,
-        validators: Vec<String>,
+        validators: Vec<(String, AccountId)>,
     ) -> Self {
         let mut v = TreeMap::new(b"v");
-        for validator in validators {
-            v.insert(&validator, &0);
+        for (pubk, acc_id) in validators {
+            v.insert(
+                &pubk,
+                &Validator {
+                    account_id: acc_id,
+                    pending_rewards: 0,
+                },
+            );
         }
         Self {
             validators: v,
@@ -96,7 +97,7 @@ impl Bridge {
                 let valid = near_sdk::env::ed25519_verify(
                     &ss.signature.try_into().unwrap(),
                     &message,
-                    &str_to_pubkey(&ss.signer)
+                    &str_to_pubkey(&ss.signer),
                 );
                 if valid {
                     unique.insert(ss.signer.clone(), true);
@@ -120,8 +121,16 @@ impl Bridge {
             !self.validators.contains_key(&validator.public_key),
             "Validator already exists"
         );
-        let serialized = near_sdk::borsh::to_vec(&validator).expect("Failed to serialize AddValidator into vec");
+        let serialized =
+            near_sdk::borsh::to_vec(&validator).expect("Failed to serialize AddValidator into vec");
         self.verify_signatures(serialized, signatures);
+        self.validators.insert(
+            &validator.public_key,
+            &Validator {
+                account_id: validator.account_id,
+                pending_rewards: 0,
+            },
+        );
         env::log_str(
             &to_string(&EventLog {
                 standard: "bridge".to_string(),
@@ -283,7 +292,7 @@ impl Bridge {
                         hexeh,
                         storage.unwrap(),
                         dc.contract_address.try_into().unwrap(),
-                        validators_to_reward
+                        validators_to_reward,
                     ))
             }
             (true, false) => {
@@ -313,7 +322,13 @@ impl Bridge {
                         cd.destination_user_address,
                         Some(royalty),
                     )
-                    .then(Self::ext(env::current_account_id()).finalize_claim_callback(hexeh, cd.fee.into(), validators_to_reward))
+                    .then(
+                        Self::ext(env::current_account_id()).finalize_claim_callback(
+                            hexeh,
+                            cd.fee.into(),
+                            validators_to_reward,
+                        ),
+                    )
                     .then(Self::ext(env::current_account_id()).emit_claimed_event(
                         coll,
                         cd.token_id,
@@ -328,8 +343,11 @@ impl Bridge {
                 nft_factory
                     .deploy_nft_collection(cd.name.clone(), cd.symbol.clone())
                     .then(
-                        Self::ext(env::current_account_id())
-                            .after_collection_deploy_callback(cd, hexeh, validators_to_reward),
+                        Self::ext(env::current_account_id()).after_collection_deploy_callback(
+                            cd,
+                            hexeh,
+                            validators_to_reward,
+                        ),
                     )
             }
             (false, true) => {
@@ -342,7 +360,7 @@ impl Bridge {
                         hexeh,
                         storage.unwrap(),
                         cd.source_nft_contract_address.try_into().unwrap(),
-                        validators_to_reward
+                        validators_to_reward,
                     ))
             }
         }
@@ -401,7 +419,13 @@ impl Bridge {
                 cd.destination_user_address,
                 Some(royalty),
             )
-            .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier, cd.fee.into(), validators_to_reward))
+            .then(
+                Self::ext(env::current_account_id()).finalize_claim_callback(
+                    identifier,
+                    cd.fee.into(),
+                    validators_to_reward,
+                ),
+            )
             .then(Self::ext(env::current_account_id()).emit_claimed_event(
                 collection,
                 cd.token_id,
@@ -466,7 +490,13 @@ impl Bridge {
         if is_stored {
             external::nft_storage::ext(storage)
                 .unlock_token(cd.destination_user_address, cd.token_id.clone())
-                .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier, cd.fee.into(), validators_to_reward))
+                .then(
+                    Self::ext(env::current_account_id()).finalize_claim_callback(
+                        identifier,
+                        cd.fee.into(),
+                        validators_to_reward,
+                    ),
+                )
                 .then(Self::ext(env::current_account_id()).emit_claimed_event(
                     collection,
                     cd.token_id,
@@ -497,7 +527,13 @@ impl Bridge {
                     cd.destination_user_address,
                     Some(royalty),
                 )
-                .then(Self::ext(env::current_account_id()).finalize_claim_callback(identifier, cd.fee.into(), validators_to_reward))
+                .then(
+                    Self::ext(env::current_account_id()).finalize_claim_callback(
+                        identifier,
+                        cd.fee.into(),
+                        validators_to_reward,
+                    ),
+                )
                 .then(Self::ext(env::current_account_id()).emit_claimed_event(
                     collection,
                     cd.token_id,
@@ -516,7 +552,13 @@ impl Bridge {
         for validator in validators {
             // We know validator cannot be none.
             let val = self.validators.get(&validator).unwrap();
-            self.validators.insert(&validator, &(val + fee_per_head));
+            self.validators.insert(
+                &validator,
+                &Validator {
+                    account_id: val.account_id,
+                    pending_rewards: (val.pending_rewards + fee_per_head),
+                },
+            );
         }
     }
 
@@ -579,7 +621,6 @@ impl Bridge {
         );
     }
 }
-
 
 fn hex2bytes(hex: &str) -> Vec<u8> {
     hex::decode(hex).expect("Failed to decode hex")

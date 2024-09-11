@@ -56,3 +56,11 @@ pub struct AddValidator {
 pub struct BlacklistValidator {
     pub public_key: String,
 }
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, NearSchema)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
+pub struct Validator {
+    pub(crate) account_id: AccountId,
+    pub(crate) pending_rewards: u128
+}

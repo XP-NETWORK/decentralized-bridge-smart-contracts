@@ -10,9 +10,7 @@ pub struct StorageFactory {
 
 impl Default for StorageFactory {
     fn default() -> Self {
-        Self {
-            owner: "default.near".parse().unwrap(),
-        }
+        env::panic_str("Contract should be initialized before usage")
     }
 }
 

@@ -46,7 +46,7 @@ async fn initialize_bridge(
             "collection_factory": collection_factory.id(),
             "storage_factory": storage_factory.id(),
             "validators": [
-                hex::encode(pk.to_bytes())
+                [hex::encode(pk.to_bytes()), admin.id()]
             ],
         }))
         .transact()
