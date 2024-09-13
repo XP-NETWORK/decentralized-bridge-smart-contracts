@@ -1461,17 +1461,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "deployment"
-version = "0.1.0"
-dependencies = [
- "ed25519-dalek 1.0.1",
- "near-sdk",
- "near-workspaces 0.12.0",
- "rand 0.8.5",
- "tokio",
-]
-
-[[package]]
 name = "deranged"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
