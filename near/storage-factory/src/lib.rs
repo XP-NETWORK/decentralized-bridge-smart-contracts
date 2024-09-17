@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
+use near_sdk::{env, near, AccountId, Promise, PromiseError};
 
 mod external;
 #[near(contract_state)]
@@ -13,6 +13,7 @@ impl Default for StorageFactory {
         env::panic_str("Contract should be initialized before usage")
     }
 }
+const STORAGE: &'static [u8; 122437] = include_bytes!("../../target/near/storage/storage.wasm");
 
 #[near]
 impl StorageFactory {
@@ -23,20 +24,26 @@ impl StorageFactory {
 
     #[payable]
     pub fn deploy_nft_storage(&mut self, collection: AccountId) -> Promise {
-        let collection_shortened = collection.to_string()[..5].to_string();
+        let coll_str = collection.to_string();
+        let mut collection_shortened = coll_str.split(".").next().unwrap();
+        if collection_shortened.len() > 15 {
+            collection_shortened = &collection_shortened[..15];
+        }
         let aid = AccountId::from_str(&format!(
             "{}.{}",
             collection_shortened,
             env::current_account_id().to_string()
         ))
         .unwrap();
+        let cost = env::storage_byte_cost()
+            .saturating_mul(STORAGE.len() as u128)
+            .saturating_mul(5)
+            .saturating_div(4);
         let ctr = Promise::new(aid.clone())
             .create_account()
-            .transfer(NearToken::from_near(5)) // 5e24yN, 5N
+            .transfer(cost) // 5e24yN, 5N9
             .add_full_access_key(env::signer_account_pk())
-            .deploy_contract(
-                include_bytes!("../../target/near/storage/storage.wasm").to_vec(),
-            )
+            .deploy_contract(STORAGE.to_vec())
             .then(external::storage::ext(aid.clone()).new(env::current_account_id(), collection))
             .then(Self::ext(env::current_account_id()).reply_storage_aid(aid));
         ctr

@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, str::FromStr};
 
 use bridge::types::{AddValidator, BlacklistValidator, ClaimData};
 use ed25519_dalek::{ed25519::signature::SignerMut, Keypair, PublicKey};
@@ -212,6 +212,7 @@ async fn lock_nft() -> Result<(), Box<dyn Error>> {
     let lock = admin
         .call(bridge.id(), "lock_nft")
         .max_gas()
+        .deposit(NearToken::from_str("2 NEAR").unwrap())
         .args_json(json!({
             "source_nft_contract_address": nft.id(),
             "token_id": "token-1",

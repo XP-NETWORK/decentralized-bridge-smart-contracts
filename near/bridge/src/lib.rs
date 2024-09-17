@@ -1,11 +1,13 @@
 use std::{collections::HashMap, str::FromStr};
 
-use events::{EventLog, EventLogVariant, NewValidatorAdded, ValidatorBlacklisted};
+use events::{
+    EventLog, EventLogVariant, NewValidatorAdded, ValidatorBlacklisted, ValidatorRewardsClaimed,
+};
 use external::nft_types::{TokenId, TokenMetadata};
 use near_sdk::{
     collections::{LookupMap, TreeMap},
     env::{self, sha256},
-    near, require, AccountId, NearToken, Promise, PromiseError,
+    near, require, AccountId, NearToken, Promise, PromiseError, PromiseResult,
 };
 
 pub mod types;
@@ -143,6 +145,51 @@ impl Bridge {
         );
     }
 
+    pub fn validator(&self, public_key: String) -> Validator {
+        self.validators.get(&public_key).unwrap()
+    }
+
+    pub fn claim_validator_rewards(&mut self, public_key: String) {
+        let val = self.validators.get(&public_key).unwrap();
+        require!(val.pending_rewards > 0, "No rewards to claim");
+        require!(
+            val.account_id == env::signer_account_id(),
+            "Invalid withdrawal signer"
+        );
+        require!(
+            env::account_balance() >= NearToken::from_yoctonear(val.pending_rewards),
+            "No rewards available"
+        );
+        Promise::new(val.account_id)
+            .transfer(NearToken::from_yoctonear(val.pending_rewards))
+            .then(
+                Self::ext(env::current_account_id()).claim_validator_rewards_callback(public_key),
+            );
+    }
+
+    pub fn claim_validator_rewards_callback(
+        &mut self,
+        public_key: String,
+        #[callback_result] result: Result<(), PromiseError>,
+    ) {
+        require!(result.is_ok(), "Failed to claim rewards");
+        let v = self.validators.get(&public_key).unwrap();
+        self.validators.insert(
+            &public_key,
+            &Validator {
+                account_id: v.account_id.clone(),
+                pending_rewards: 0,
+            },
+        );
+        self.emit_event(EventLogVariant::ValidatorRewardsClaimed(
+            ValidatorRewardsClaimed {
+                amount: NearToken::from_yoctonear(v.pending_rewards),
+                validator: v.account_id,
+            },
+        ));
+    }
+
+    #[payable]
     pub fn lock_nft(
         &mut self,
         source_nft_contract_address: AccountId,
@@ -150,6 +197,10 @@ impl Bridge {
         destination_chain: String,
         destination_address: String,
     ) {
+        require!(
+            env::attached_deposit() >= NearToken::from_near(2),
+            "Insufficient fee for deploying storage contract"
+        );
         require!(
             destination_chain != self.chain_id,
             "Destination chain is the same as source chain"
@@ -207,6 +258,7 @@ impl Bridge {
                     token_id,
                 )),
             None => external::storage_factory::ext(sf)
+                .with_attached_deposit(env::attached_deposit())
                 .deploy_nft_storage(source_nft_contract_address.clone())
                 .then(Self::ext(env::current_account_id()).transfer_to_storage(
                     source_nft_contract_address,
