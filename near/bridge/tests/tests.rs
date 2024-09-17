@@ -218,6 +218,7 @@ async fn lock_nft() -> Result<(), Box<dyn Error>> {
             "token_id": "token-1",
             "destination_chain": "BSC",
             "destination_address": "0x1234567890123456789012345678901234567890",
+            "metadata_uri": "https://meta.polkamon.com/meta?id=1",
         }))
         .transact()
         .await?;

@@ -7,7 +7,7 @@ use external::nft_types::{TokenId, TokenMetadata};
 use near_sdk::{
     collections::{LookupMap, TreeMap},
     env::{self, sha256},
-    near, require, AccountId, NearToken, Promise, PromiseError, PromiseResult,
+    near, require, AccountId, NearToken, Promise, PromiseError,
 };
 
 pub mod types;
@@ -196,6 +196,7 @@ impl Bridge {
         token_id: external::nft_types::TokenId,
         destination_chain: String,
         destination_address: String,
+        metadata_uri: String,
     ) {
         require!(
             env::attached_deposit() >= NearToken::from_near(2),
@@ -219,6 +220,7 @@ impl Bridge {
                     destination_address,
                     &mut self.duplicate_storage_mapping,
                     self.storage_factory.clone(),
+                    metadata_uri
                 );
             }
             None => {
@@ -230,6 +232,7 @@ impl Bridge {
                     destination_address,
                     &mut self.original_storage_mapping,
                     self.storage_factory.clone(),
+                    metadata_uri
                 );
             }
         }
@@ -243,6 +246,7 @@ impl Bridge {
         destination_address: String,
         storage: &mut LookupMap<(String, String), AccountId>,
         sf: AccountId,
+        metadata_uri: String,
     ) -> Promise {
         let storage_address_opt =
             storage.get(&(source_nft_contract_address.to_string(), self_chain.clone()));
@@ -256,6 +260,7 @@ impl Bridge {
                     destination_address,
                     source_nft_contract_address,
                     token_id,
+                    metadata_uri
                 )),
             None => external::storage_factory::ext(sf)
                 .with_attached_deposit(env::attached_deposit())
@@ -265,6 +270,7 @@ impl Bridge {
                     token_id,
                     destination_chain,
                     destination_address,
+                    metadata_uri
                 )),
         }
     }
@@ -275,6 +281,7 @@ impl Bridge {
         token_id: TokenId,
         destination_chain: String,
         destination_user_address: String,
+        metadata_uri: String,
         #[callback_result] result: Result<AccountId, PromiseError>,
     ) -> Promise {
         match result {
@@ -286,6 +293,7 @@ impl Bridge {
                     destination_user_address,
                     source_nft_contract_address,
                     token_id,
+                    metadata_uri
                 )),
             Err(e) => env::panic_str(&format!("Failed to deploy Collection: {:?}", e)),
         }
@@ -621,6 +629,7 @@ impl Bridge {
         destination_address: String,
         source_nft_contract_address: AccountId,
         token_id: TokenId,
+        metadata_uri: String,
         #[callback_result] result: Result<(), PromiseError>,
     ) {
         require!(result.is_ok(), "NFT transfer failed");
@@ -632,6 +641,7 @@ impl Bridge {
             nft_type: "singular".to_string(),
             source_chain: self.chain_id.clone(),
             token_amount: 1,
+            metadata_uri
         }));
     }
 

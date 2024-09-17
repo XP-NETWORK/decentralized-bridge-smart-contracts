@@ -59,6 +59,7 @@ pub struct LockedEvent {
     pub token_amount: u128,
     pub nft_type: String,
     pub source_chain: String,
+    pub metadata_uri: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
