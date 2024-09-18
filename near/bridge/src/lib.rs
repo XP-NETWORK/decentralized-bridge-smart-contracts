@@ -145,8 +145,8 @@ impl Bridge {
         );
     }
 
-    pub fn validator(&self, public_key: String) -> Validator {
-        self.validators.get(&public_key).unwrap()
+    pub fn validator(&self, public_key: String) -> Option<Validator> {
+        self.validators.get(&public_key)
     }
 
     pub fn claim_validator_rewards(&mut self, public_key: String) {

@@ -1,3 +1,5 @@
+use near_sdk::require;
+
 use crate::*;
 
 #[near_bindgen]
@@ -11,6 +13,7 @@ impl Contract {
         //we add an optional parameter for perpetual royalties
         perpetual_royalties: Option<HashMap<AccountId, u32>>,
     ) {
+        require!(env::predecessor_account_id() == self.owner_id, "Only contract owner can mint new tokens");
         //measure the initial storage being used on the contract
         let initial_storage_usage = env::storage_usage();
 

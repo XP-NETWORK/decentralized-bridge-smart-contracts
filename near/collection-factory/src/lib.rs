@@ -44,7 +44,7 @@ impl CollectionFactory {
                 include_bytes!("../../target/near/nft/nft.wasm").to_vec(),
             )
             .then(external::collection::ext(collection_id.clone()).new(
-                env::current_account_id(),
+                self.owner.clone(),
                 external::NFTContractMetadata {
                     spec: "nep-171.0".to_string(),
                     name,
