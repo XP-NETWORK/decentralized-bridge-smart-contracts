@@ -14,7 +14,6 @@ import Nat64 "mo:base/Nat64";
 import ExperimentalCycles "mo:base/ExperimentalCycles";
 import Debug "mo:base/Debug";
 import Hash "mo:base/Hash";
-import Ledger "canister:icp_ledger_canister";
 import Map "mo:map/Map";
 import { thash } "mo:map/Map";
 import CollectionFactory "../collection-factory/main";
@@ -32,7 +31,7 @@ import ClaimData "structures/claim_data";
 import ClaimedEvent "structures/claimed_event";
 import AddValidator "structures/add_validator";
 import BlacklistValidator "structures/blacklist_validator";
-
+import Types "types";
 actor class XPBridge(
   _args : {
     validators : [(Text, Principal)];
@@ -41,6 +40,8 @@ actor class XPBridge(
     storage_deployer : Principal;
   }
 ) = self {
+
+  let Ledger : Types.Ledger = actor("ryjl3-tyaaa-aaaaa-aaaba-cai");
 
   type OriginalToDuplicateMappingKey = OriginalToDuplicateMappingKey.OriginalToDuplicateMappingKey;
   type DuplicateToOriginalMappingKey = DuplicateToOriginalMappingKey.DuplicateToOriginalMappingKey;

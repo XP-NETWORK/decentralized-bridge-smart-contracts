@@ -25,3 +25,5 @@ dist/
 .env
 .mops
 deploy.sh
+*.pem
+canister_ids.json

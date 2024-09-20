@@ -3,10 +3,7 @@
     "bridge": {
       "main": "src/bridge/main.mo",
       "type": "motoko",
-      "gzip": true,
-      "dependencies": [
-        "icp_ledger_canister"
-      ]
+      "gzip": true
     },
     "user_nft_minter": {
       "main": "src/nft/user_nft_minter.mo",
@@ -32,22 +29,6 @@
       "main": "src/collection-factory/main.mo",
       "type": "motoko",
       "gzip": true
-    },
-    "icp_ledger_canister": {
-      "type": "custom",
-      "candid": "https://raw.githubusercontent.com/dfinity/ic/1ac5439c6da1aafe8156c667c313344c0245fea3/rs/rosetta-api/icp_ledger/ledger.did",
-      "wasm": "https://download.dfinity.systems/ic/1ac5439c6da1aafe8156c667c313344c0245fea3/canisters/ledger-canister.wasm.gz",
-      "remote": {
-        "id": {
-          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
-        },
-        "playground": {
-          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
-        },
-        "https___tools_xp_network_": {
-          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
-        }
-      }
     }
   },
   "defaults": {
