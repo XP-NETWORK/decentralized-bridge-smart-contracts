@@ -42,6 +42,9 @@ shared actor class CollectionFactory() {
         return owner;
     };
     public shared func set_owner(new : Principal) : async () {
+        if (owner != null) {
+            throw Error.reject("CollectionFactory: Owner already set.");
+        };
         owner := ?new;
     };
 
