@@ -75,8 +75,10 @@ actor class XPBridge(
   private var locked_events = HashMap.fromIter<Text, LockedEvent>([].vals(), 0, Text.equal, Text.hash);
   private var claimed_events = HashMap.fromIter<Text, ClaimedEvent>([].vals(), 0, Text.equal, Text.hash);
   private stable var nonce = 0;
+  private stable var claim_nonce = 0;
   private var nonce_to_hash = HashMap.fromIter<Nat, Text>([].vals(), 0, Nat.equal, Hash.hash);
-
+  private var nonce_to_claim_hash = HashMap.fromIter<Nat, Text>([].vals(), 0, Nat.equal, Hash.hash);
+  
   private stable var _init = false;
 
   public shared func init() : async () {
@@ -115,6 +117,12 @@ actor class XPBridge(
   public func add_validator(add_validator: AddValidator.AddValidator, sigs : [SignerAndSignature]) : async () {
     let pubk = add_validator.public_key;
     let princ = add_validator.principal;
+
+    let is_blacklisted = Option.isSome(blacklisted_validators.get(pubk));
+    if (is_blacklisted) {
+      throw Error.reject("Validator is blacklisted.");
+    };
+
     let present = Option.isSome(validators.get(pubk));
     if (present) {
       throw Error.reject("Validator already present.");
@@ -150,7 +158,7 @@ actor class XPBridge(
     blacklisted_validators.put(pubk, true);
   };
 
-  public shared (msg) func lock_nft(source_nft_contract_address : Principal, tid : Nat, destination_chain : Text, destination_user_address : Text) : async Text {
+  public shared (msg) func lock_nft(source_nft_contract_address : Principal, tid : Nat, destination_chain : Text, destination_user_address : Text, metadata_uri : Text) : async Text {
     if (destination_chain == self_chain) {
       throw Error.reject("Destination chain cannot be equal to self chain");
     };
@@ -169,6 +177,8 @@ actor class XPBridge(
         nft_type = singular;
         token_amount = 1;
         token_id = tid;
+        metadata_uri = metadata_uri;
+        sender_address = Principal.toText(msg.caller);
       };
       let hash = Nat32.toText(LockedEvent.hash(locked));
       locked_events.put(hash, locked);
@@ -185,6 +195,8 @@ actor class XPBridge(
         nft_type = singular;
         token_amount = 1;
         token_id = tid;
+        metadata_uri = metadata_uri;
+        sender_address = Principal.toText(msg.caller);
       };
       let hash = Nat32.toText(LockedEvent.hash(locked));
       locked_events.put(hash, locked);
@@ -314,12 +326,22 @@ actor class XPBridge(
         let _mint = collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       };
       unique_identifiers.put(hash, true);
-      emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
+
+      let claim_hash = emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
+      nonce_to_claim_hash.put(claim_nonce, claim_hash);
+      claim_nonce+=1;
+
+      return claim_hash;
+    
     } else if (has_duplicate and not has_storage) {
       let collection = actor (Principal.toText(o_unwrap(duplicate_collection_address))) : NFT.NFT;
       let _mint = await collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       unique_identifiers.put(hash, true);
-      emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
+      let claim_hash = emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
+      nonce_to_claim_hash.put(claim_nonce, claim_hash);
+      claim_nonce+=1;
+
+      return claim_hash;
       // Emit Claimed EV;
     } else if (not has_duplicate and not has_storage) {
       let new_collection_address = await collection_factory.deploy_nft_collection(claim_data.name, claim_data.symbol);
@@ -333,7 +355,12 @@ actor class XPBridge(
       let collection = actor (Principal.toText(new_collection_address)) : NFT.NFT;
       let _mint = await collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       unique_identifiers.put(hash, true);
-      emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(new_collection_address), claim_data.token_id, claim_data.transaction_hash);
+      let claim_hash = emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(new_collection_address), claim_data.token_id, claim_data.transaction_hash);
+      nonce_to_claim_hash.put(claim_nonce, claim_hash);
+      claim_nonce+=1;
+
+      return claim_hash;
+    
     } else if (not has_duplicate and has_storage) {
       let sc = o_unwrap(storage);
       let collection = actor (claim_data.source_nft_contract_address) : NFT.NFT;
@@ -344,7 +371,12 @@ actor class XPBridge(
         let _mint = collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       };
       unique_identifiers.put(hash, true);
-      emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, claim_data.source_nft_contract_address, claim_data.token_id, claim_data.transaction_hash);
+      let claim_hash = emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, claim_data.source_nft_contract_address, claim_data.token_id, claim_data.transaction_hash);
+      nonce_to_claim_hash.put(claim_nonce, claim_hash);
+      claim_nonce+=1;
+
+      return claim_hash;
+
     } else {
       Prelude.unreachable();
     };
@@ -460,8 +492,16 @@ actor class XPBridge(
     return nonce;
   };
 
+  public query func get_claim_nonce(): async Nat {
+    return claim_nonce;
+  };
+
   public query func get_hash_from_nonce(nonce: Nat): async ?Text {
     return nonce_to_hash.get(nonce);
+  };
+
+  public query func get_hash_from_claim_nonce(nonce: Nat): async ?Text {
+    return nonce_to_claim_hash.get(nonce);
   };
 
   public query func get_validator_count(): async Nat {

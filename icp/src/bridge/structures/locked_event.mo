@@ -10,6 +10,8 @@ module {
         token_id : Nat;
         nft_type : Text;
         token_amount : Nat;
+        metadata_uri : Text;
+        sender_address: Text;
     };
 
     public func hash(ev : LockedEvent) : Hash.Hash {
