@@ -211,7 +211,9 @@ fn add_validator(deps: DepsMut, add_validator_msg: AddValidatorMsg) -> StdResult
     if add_validator_msg.signatures.is_empty() {
         return Err(StdError::generic_err("Must have signatures!"));
     }
-
+    if BLACKLISTED_VALIDATORS.contains(deps.storage, &add_validator_msg.validator.0.clone()) {
+        return Err(StdError::generic_err("Validator is blacklisted"));
+    }
     let state = config_read(deps.storage).load()?;
     if VALIDATORS_STORAGE.contains(deps.storage, &add_validator_msg.validator.0) {
         return Err(StdError::generic_err("Validator already added"));
@@ -516,6 +518,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 1,
                 config_read(deps.storage).load()?.type_erc_721,
                 _v.chain,
+                msg.metadata_uri
             )
             .try_into()?];
 
@@ -543,6 +546,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 1,
                 config_read(deps.storage).load()?.type_erc_721,
                 config(deps.storage).load()?.self_chain,
+                msg.metadata_uri
             )
             .try_into()?];
 
@@ -710,6 +714,7 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
                 msg.token_amount,
                 config_read(deps.storage).load()?.type_erc_1155,
                 _v.chain,
+                msg.metadata_uri
             )
             .try_into()?];
 
@@ -739,6 +744,7 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
                 msg.token_amount,
                 config_read(deps.storage).load()?.type_erc_1155,
                 config(deps.storage).load()?.self_chain,
+                msg.metadata_uri
             )
             .try_into()?];
 
