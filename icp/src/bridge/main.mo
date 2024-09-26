@@ -44,8 +44,8 @@ actor class XPBridge(
 ) = self {
 
   let CYCLE_MINTING_CANISTER = Principal.fromText("rkp4c-7iaaa-aaaaa-aaaca-cai");
-  let cmc : CmcLedger.CMC = actor("rkp4c-7iaaa-aaaaa-aaaca-cai");
-  let Ledger : IcpLedger.Ledger = actor("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  let cmc : CmcLedger.CMC = actor ("rkp4c-7iaaa-aaaaa-aaaca-cai");
+  let Ledger : IcpLedger.Ledger = actor ("ryjl3-tyaaa-aaaaa-aaaba-cai");
   let TOP_UP_CANISTER_MEMO = 1347768404 : Nat64;
 
   type OriginalToDuplicateMappingKey = OriginalToDuplicateMappingKey.OriginalToDuplicateMappingKey;
@@ -68,7 +68,7 @@ actor class XPBridge(
   private stable var singular = "singular";
   private stable var _multiple = "multiple";
   private var validators : HashMap.HashMap<Text, Validator> = validatorsArrayToHashMap(_args.validators);
-  private var blacklisted_validators: HashMap.HashMap<Text, Bool> = HashMap.fromIter([].vals(), 0, Text.equal, Text.hash);
+  private var blacklisted_validators : HashMap.HashMap<Text, Bool> = HashMap.fromIter([].vals(), 0, Text.equal, Text.hash);
   private var original_to_duplicate_mapping = HashMap.fromIter<OriginalToDuplicateMappingKey, Principal>([].vals(), 0, OriginalToDuplicateMappingKey.equal, OriginalToDuplicateMappingKey.hash);
   private var duplicate_to_original_mapping = HashMap.fromIter<DuplicateToOriginalMappingKey, Principal>([].vals(), 0, DuplicateToOriginalMappingKey.equal, DuplicateToOriginalMappingKey.hash);
   private var unique_identifiers = HashMap.fromIter<Text, Bool>([].vals(), 0, Text.equal, Text.hash);
@@ -85,7 +85,7 @@ actor class XPBridge(
 
   private var nonce_to_hash = HashMap.fromIter<Nat, Text>([].vals(), 0, Nat.equal, Hash.hash);
   private var nonce_to_claim_hash = HashMap.fromIter<Nat, Text>([].vals(), 0, Nat.equal, Hash.hash);
-  
+
   private stable var _init = false;
 
   public shared func init() : async () {
@@ -121,7 +121,7 @@ actor class XPBridge(
     return ((validators_count * 2) / 3) + 1;
   };
 
-  public func add_validator(add_validator: AddValidator.AddValidator, sigs : [SignerAndSignature]) : async () {
+  public func add_validator(add_validator : AddValidator.AddValidator, sigs : [SignerAndSignature]) : async () {
     let pubk = add_validator.public_key;
     let princ = add_validator.principal;
 
@@ -149,7 +149,7 @@ actor class XPBridge(
     validators_count += 1;
   };
 
-  public func blacklist_validator(bv: BlacklistValidator.BlacklistValidator, sigs : [SignerAndSignature]): async () {
+  public func blacklist_validator(bv : BlacklistValidator.BlacklistValidator, sigs : [SignerAndSignature]) : async () {
     let pubk = bv.public_key;
     let present = Option.isSome(validators.get(pubk));
     if (not present) {
@@ -190,7 +190,7 @@ actor class XPBridge(
       let hash = Nat32.toText(LockedEvent.hash(locked));
       locked_events.put(hash, locked);
       nonce_to_hash.put(nonce, hash);
-      nonce+=1;
+      nonce += 1;
       return hash;
     } else {
       await transfer_to_storage(duplicate_storage, source_nft_contract_address, tid, msg.caller);
@@ -208,7 +208,7 @@ actor class XPBridge(
       let hash = Nat32.toText(LockedEvent.hash(locked));
       locked_events.put(hash, locked);
       nonce_to_hash.put(nonce, hash);
-      nonce+=1;
+      nonce += 1;
       return hash;
     };
   };
@@ -336,17 +336,17 @@ actor class XPBridge(
 
       let claim_hash = emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
       nonce_to_claim_hash.put(claim_nonce, claim_hash);
-      claim_nonce+=1;
+      claim_nonce += 1;
 
       return claim_hash;
-    
+
     } else if (has_duplicate and not has_storage) {
       let collection = actor (Principal.toText(o_unwrap(duplicate_collection_address))) : NFT.NFT;
       let _mint = await collection.icrcX_mint(claim_data.token_id, { owner = claim_data.destination_user_address; subaccount = null }, claim_data.metadata);
       unique_identifiers.put(hash, true);
       let claim_hash = emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(o_unwrap(duplicate_collection_address)), claim_data.token_id, claim_data.transaction_hash);
       nonce_to_claim_hash.put(claim_nonce, claim_hash);
-      claim_nonce+=1;
+      claim_nonce += 1;
 
       return claim_hash;
       // Emit Claimed EV;
@@ -367,10 +367,10 @@ actor class XPBridge(
       unique_identifiers.put(hash, true);
       let claim_hash = emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, Principal.toText(new_collection_address), claim_data.token_id, claim_data.transaction_hash);
       nonce_to_claim_hash.put(claim_nonce, claim_hash);
-      claim_nonce+=1;
+      claim_nonce += 1;
 
       return claim_hash;
-    
+
     } else if (not has_duplicate and has_storage) {
       let sc = o_unwrap(storage);
       let collection = actor (claim_data.source_nft_contract_address) : NFT.NFT;
@@ -383,7 +383,7 @@ actor class XPBridge(
       unique_identifiers.put(hash, true);
       let claim_hash = emit_claimed_event(claim_data.lock_tx_chain, claim_data.source_chain, claim_data.source_nft_contract_address, claim_data.token_id, claim_data.transaction_hash);
       nonce_to_claim_hash.put(claim_nonce, claim_hash);
-      claim_nonce+=1;
+      claim_nonce += 1;
 
       return claim_hash;
 
@@ -441,7 +441,7 @@ actor class XPBridge(
     return;
   };
 
-  private func emit_claimed_event(lock_tx_chain: Text, source_chain : Text, nft_contract : Text, token_id : Nat, transaction_hash : Text) : Text {
+  private func emit_claimed_event(lock_tx_chain : Text, source_chain : Text, nft_contract : Text, token_id : Nat, transaction_hash : Text) : Text {
     let claimed = {
       source_chain = source_chain;
       nft_contract = Principal.fromText(nft_contract);
@@ -461,47 +461,46 @@ actor class XPBridge(
 
   private func top_up_cycles() : async (Nat) {
 
-    try{
-        // let subAccount = Principal.toBlob(_args.collection_deployer);
-        let this = _args.collection_deployer;
-        // let subaccount = Blob.fromArray(Account.principalToSubAccount(this));
-        let cycle_subaccount = Blob.fromArray(Account.principalToSubAccount(this));
-        let cycle_ai = Account.accountIdentifier(CYCLE_MINTING_CANISTER, cycle_subaccount);
-        
-        let result = await Ledger.transfer({
-                        to = cycle_ai;
-                        fee = { e8s = 10_000; };
-                        memo = TOP_UP_CANISTER_MEMO;
-                        from_subaccount = null;
-                        amount = { e8s = Nat64.fromNat(claim_execution_fee) - 1_010_000 };
-                        created_at_time = null;
-                    });
+    try {
+      // let subAccount = Principal.toBlob(_args.collection_deployer);
+      let this = _args.collection_deployer;
+      // let subaccount = Blob.fromArray(Account.principalToSubAccount(this));
+      let cycle_subaccount = Blob.fromArray(Account.principalToSubAccount(this));
+      let cycle_ai = Account.accountIdentifier(CYCLE_MINTING_CANISTER, cycle_subaccount);
 
-        switch (result) {
+      let result = await Ledger.transfer({
+        to = cycle_ai;
+        fee = { e8s = 10_000 };
+        memo = TOP_UP_CANISTER_MEMO;
+        from_subaccount = null;
+        amount = { e8s = Nat64.fromNat(claim_execution_fee) - 1_010_000 };
+        created_at_time = null;
+      });
+
+      switch (result) {
+        case (#Err(transferError)) {
+          throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
+        };
+        case (#Ok(height)) {
+          let result = await cmc.notify_top_up({
+            block_index = height;
+            canister_id = this;
+          });
+
+          switch (result) {
             case (#Err(transferError)) {
               throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
             };
             case (#Ok(height)) {
-                    let result = await cmc.notify_top_up({
-                                  block_index = height;
-                                  canister_id = this;
-                                });
-
-                    switch (result) {
-                        case (#Err(transferError)) {
-                          throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
-                        };
-                        case (#Ok(height)) {
-                            return height;
-                        };
-                    };
+              return height;
             };
+          };
         };
-    }
-    catch(e){
-        throw Error.reject("Failed to transfer ICP to Validator." # Error.message(e));
-    }
-    
+      };
+    } catch (e) {
+      throw Error.reject("Failed to transfer ICP to Validator." # Error.message(e));
+    };
+
   };
 
   private func o_unwrap<T>(o : ?T) : T {
@@ -515,65 +514,65 @@ actor class XPBridge(
     };
   };
 
-  public query func get_locked_data(hash: Text): async ?LockedEvent {
+  public query func get_locked_data(hash : Text) : async ?LockedEvent {
     return locked_events.get(hash);
   };
 
-  public query func get_claimed_data(hash: Text): async ?ClaimedEvent {
+  public query func get_claimed_data(hash : Text) : async ?ClaimedEvent {
     return claimed_events.get(hash);
   };
 
-  public query func get_blacklisted_validators(pubk: Text): async ?Bool {
+  public query func get_blacklisted_validators(pubk : Text) : async ?Bool {
     return blacklisted_validators.get(pubk);
   };
 
-  public query func get_validator(pubk: Text): async ?Validator {
+  public query func get_validator(pubk : Text) : async ?Validator {
     return validators.get(pubk);
   };
 
-  public query func encode_claim_data(claim_data: ClaimData): async Blob {
+  public query func encode_claim_data(claim_data : ClaimData) : async Blob {
     return ClaimData.hash(claim_data);
   };
 
-   public query func encode_add_validator(av: AddValidator.AddValidator): async Blob {
+  public query func encode_add_validator(av : AddValidator.AddValidator) : async Blob {
     return AddValidator.hash(av);
   };
 
-  public query func encode_blacklist_validator(bv: BlacklistValidator.BlacklistValidator): async Blob {
+  public query func encode_blacklist_validator(bv : BlacklistValidator.BlacklistValidator) : async Blob {
     return BlacklistValidator.hash(bv);
   };
 
-  public query func get_nonce(): async Nat {
+  public query func get_nonce() : async Nat {
     return nonce;
   };
 
-  public query func get_claim_nonce(): async Nat {
+  public query func get_claim_nonce() : async Nat {
     return claim_nonce;
   };
 
-  public query func get_hash_from_nonce(nonce: Nat): async ?Text {
+  public query func get_hash_from_nonce(nonce : Nat) : async ?Text {
     return nonce_to_hash.get(nonce);
   };
 
-  public query func get_hash_from_claim_nonce(nonce: Nat): async ?Text {
+  public query func get_hash_from_claim_nonce(nonce : Nat) : async ?Text {
     return nonce_to_claim_hash.get(nonce);
   };
 
-  public query func get_validator_count(): async Nat {
+  public query func get_validator_count() : async Nat {
     return validators_count;
   };
 
-  public query func get_claim_execution_fee(): async Nat {
+  public query func get_claim_execution_fee() : async Nat {
     return claim_execution_fee;
   };
-    //Internal cycle management - good general case
-    public func acceptCycles() : async () {
-        let available = ExperimentalCycles.available();
-        let accepted = ExperimentalCycles.accept<system>(available);
-        assert (accepted == available);
-    };
+  //Internal cycle management - good general case
+  public func acceptCycles() : async () {
+    let available = ExperimentalCycles.available();
+    let accepted = ExperimentalCycles.accept<system>(available);
+    assert (accepted == available);
+  };
 
-    public query func availableCycles() : async Nat {
-        return ExperimentalCycles.balance();
-    };
+  public query func availableCycles() : async Nat {
+    return ExperimentalCycles.balance();
+  };
 };
