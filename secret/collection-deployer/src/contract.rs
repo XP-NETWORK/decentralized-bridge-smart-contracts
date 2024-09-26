@@ -82,7 +82,8 @@ pub fn execute(
             royalty,
             royalty_receiver,
             metadata,
-            transaction_hash
+            transaction_hash,
+            lock_tx_chain
         } => try_create_collection_721(
             deps,
             env,
@@ -97,7 +98,8 @@ pub fn execute(
             royalty,
             royalty_receiver,
             metadata,
-            transaction_hash
+            transaction_hash,
+            lock_tx_chain
         ),
         CollectionDeployerExecuteMsg::CreateCollection1155 {
             name,
@@ -116,7 +118,8 @@ pub fn execute(
             royalty,
             royalty_receiver,
             metadata,
-            transaction_hash
+            transaction_hash,
+            lock_tx_chain
         } => try_create_collection_1155(
             deps,
             env,
@@ -136,7 +139,8 @@ pub fn execute(
             royalty,
             royalty_receiver,
             metadata,
-            transaction_hash
+            transaction_hash,
+            lock_tx_chain
         ),
     };
     pad_handle_result(response, BLOCK_SIZE)
@@ -168,7 +172,8 @@ fn try_create_collection_721(
     royalty: u16,
     royalty_receiver: Addr,
     metadata: String,
-    transaction_hash:String
+    transaction_hash:String,
+            lock_tx_chain: String
 ) -> Result<Response, ContractError> {
     let owner_addr = deps.api.addr_validate(&owner)?;
 
@@ -192,7 +197,8 @@ fn try_create_collection_721(
         royalty,
         royalty_receiver,
         metadata,
-        transaction_hash
+        transaction_hash,
+        lock_tx_chain
     };
 
     let offspring_code = SNIP721_CODE.load(deps.storage)?;
@@ -238,7 +244,8 @@ fn try_create_collection_1155(
     royalty: u16,
     royalty_receiver: Addr,
     metadata: String,
-    transaction_hash:String
+    transaction_hash:String,
+            lock_tx_chain: String
 ) -> Result<Response, ContractError> {
     // let owner = admin.clone().unwrap().into_string();
     // let owner_addr = deps.api.addr_validate(&owner)?;
@@ -263,7 +270,8 @@ fn try_create_collection_1155(
         royalty,
         royalty_receiver,
         metadata,
-        transaction_hash
+        transaction_hash,
+            lock_tx_chain
     };
 
     let offspring_code = SNIP1155_CODE.load(deps.storage)?;
