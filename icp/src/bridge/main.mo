@@ -31,7 +31,9 @@ import ClaimData "structures/claim_data";
 import ClaimedEvent "structures/claimed_event";
 import AddValidator "structures/add_validator";
 import BlacklistValidator "structures/blacklist_validator";
-import Types "types";
+import IcpLedger "ledger";
+import CmcLedger "cmc";
+import Account "Account";
 actor class XPBridge(
   _args : {
     validators : [(Text, Principal)];
@@ -41,7 +43,10 @@ actor class XPBridge(
   }
 ) = self {
 
-  let Ledger : Types.Ledger = actor("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  let CYCLE_MINTING_CANISTER = Principal.fromText("rkp4c-7iaaa-aaaaa-aaaca-cai");
+  let cmc : CmcLedger.CMC = actor("rkp4c-7iaaa-aaaaa-aaaca-cai");
+  let Ledger : IcpLedger.Ledger = actor("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  let TOP_UP_CANISTER_MEMO = 1347768404 : Nat64;
 
   type OriginalToDuplicateMappingKey = OriginalToDuplicateMappingKey.OriginalToDuplicateMappingKey;
   type DuplicateToOriginalMappingKey = DuplicateToOriginalMappingKey.DuplicateToOriginalMappingKey;
@@ -76,6 +81,8 @@ actor class XPBridge(
   private var claimed_events = HashMap.fromIter<Text, ClaimedEvent>([].vals(), 0, Text.equal, Text.hash);
   private stable var nonce = 0;
   private stable var claim_nonce = 0;
+  private stable var claim_execution_fee = 14638409;
+
   private var nonce_to_hash = HashMap.fromIter<Nat, Text>([].vals(), 0, Nat.equal, Hash.hash);
   private var nonce_to_claim_hash = HashMap.fromIter<Nat, Text>([].vals(), 0, Nat.equal, Hash.hash);
   
@@ -263,7 +270,7 @@ actor class XPBridge(
           subaccount = null;
         };
         memo = null;
-        amount = Nat64.toNat(claim_data.fee);
+        amount = Nat64.toNat(claim_data.fee) + claim_execution_fee;
         fee = null;
         from_subaccount = null;
         to = {
@@ -344,6 +351,9 @@ actor class XPBridge(
       return claim_hash;
       // Emit Claimed EV;
     } else if (not has_duplicate and not has_storage) {
+
+      let _a = await top_up_cycles();
+
       let new_collection_address = await collection_factory.deploy_nft_collection(claim_data.name, claim_data.symbol);
       original_to_duplicate_mapping.put(
         {
@@ -449,6 +459,51 @@ actor class XPBridge(
     await s.unlock_token(tid, { owner = destination_user_address; subaccount = null });
   };
 
+  private func top_up_cycles() : async (Nat) {
+
+    try{
+        // let subAccount = Principal.toBlob(_args.collection_deployer);
+        let this = _args.collection_deployer;
+        // let subaccount = Blob.fromArray(Account.principalToSubAccount(this));
+        let cycle_subaccount = Blob.fromArray(Account.principalToSubAccount(this));
+        let cycle_ai = Account.accountIdentifier(CYCLE_MINTING_CANISTER, cycle_subaccount);
+        
+        let result = await Ledger.transfer({
+                        to = cycle_ai;
+                        fee = { e8s = 10_000; };
+                        memo = TOP_UP_CANISTER_MEMO;
+                        from_subaccount = null;
+                        amount = { e8s = Nat64.fromNat(claim_execution_fee) - 1_010_000 };
+                        created_at_time = null;
+                    });
+
+        switch (result) {
+            case (#Err(transferError)) {
+              throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
+            };
+            case (#Ok(height)) {
+                    let result = await cmc.notify_top_up({
+                                  block_index = height;
+                                  canister_id = this;
+                                });
+
+                    switch (result) {
+                        case (#Err(transferError)) {
+                          throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
+                        };
+                        case (#Ok(height)) {
+                            return height;
+                        };
+                    };
+            };
+        };
+    }
+    catch(e){
+        throw Error.reject("Failed to transfer ICP to Validator." # Error.message(e));
+    }
+    
+  };
+
   private func o_unwrap<T>(o : ?T) : T {
     switch o {
       case (null) {
@@ -506,6 +561,10 @@ actor class XPBridge(
 
   public query func get_validator_count(): async Nat {
     return validators_count;
+  };
+
+  public query func get_claim_execution_fee(): async Nat {
+    return claim_execution_fee;
   };
     //Internal cycle management - good general case
     public func acceptCycles() : async () {
