@@ -211,7 +211,9 @@ fn add_validator(deps: DepsMut, add_validator_msg: AddValidatorMsg) -> StdResult
     if add_validator_msg.signatures.is_empty() {
         return Err(StdError::generic_err("Must have signatures!"));
     }
-
+    if BLACKLISTED_VALIDATORS.contains(deps.storage, &add_validator_msg.validator.0.clone()) {
+        return Err(StdError::generic_err("Validator is blacklisted"));
+    }
     let state = config_read(deps.storage).load()?;
     if VALIDATORS_STORAGE.contains(deps.storage, &add_validator_msg.validator.0) {
         return Err(StdError::generic_err("Validator already added"));
