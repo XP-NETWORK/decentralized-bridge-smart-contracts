@@ -77,6 +77,7 @@ pub struct Lock721Msg {
     pub source_nft_contract_address: Addr,
     pub collection_code_info: CodeInfo,
     pub token_id: String,
+    pub metadata_uri: String
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -87,6 +88,7 @@ pub struct Lock1155Msg {
     pub collection_code_info: CodeInfo,
     pub token_id: String,
     pub token_amount: u128,
+    pub metadata_uri: String
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

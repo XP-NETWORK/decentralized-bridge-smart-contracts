@@ -60,6 +60,7 @@ pub struct LockedEventInfo {
     pub token_amount: u128,
     pub nft_type: String,
     pub source_chain: String,
+    pub metadata_uri: String
 }
 bridge_event!(LockedEventInfo);
 
@@ -72,6 +73,7 @@ impl LockedEventInfo {
         token_amount: u128,
         nft_type: String,
         source_chain: String,
+        metadata_uri: String
     ) -> Self {
         Self {
             token_id,
@@ -81,6 +83,7 @@ impl LockedEventInfo {
             token_amount,
             nft_type,
             source_chain,
+            metadata_uri
         }
     }
 }

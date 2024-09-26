@@ -518,6 +518,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 1,
                 config_read(deps.storage).load()?.type_erc_721,
                 _v.chain,
+                msg.metadata_uri
             )
             .try_into()?];
 
@@ -545,6 +546,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 1,
                 config_read(deps.storage).load()?.type_erc_721,
                 config(deps.storage).load()?.self_chain,
+                msg.metadata_uri
             )
             .try_into()?];
 
@@ -712,6 +714,7 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
                 msg.token_amount,
                 config_read(deps.storage).load()?.type_erc_1155,
                 _v.chain,
+                msg.metadata_uri
             )
             .try_into()?];
 
@@ -741,6 +744,7 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
                 msg.token_amount,
                 config_read(deps.storage).load()?.type_erc_1155,
                 config(deps.storage).load()?.self_chain,
+                msg.metadata_uri
             )
             .try_into()?];
 
