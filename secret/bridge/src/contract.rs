@@ -867,7 +867,8 @@ fn deploy_collection_721(
     royalty: u16,
     royalty_receiver: Addr,
     metadata: String,
-    transaction_hash: String
+    transaction_hash: String,
+            lock_tx_chain: String
 ) -> StdResult<Response> {
     let create_collection_msg = collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection721 {
         owner,
@@ -881,7 +882,8 @@ fn deploy_collection_721(
         royalty,
         royalty_receiver,
         metadata,
-        transaction_hash
+        transaction_hash,
+        lock_tx_chain
     };
 
     let code_info = COLLETION_DEPLOYER_CODE.load(deps.storage)?;
@@ -913,7 +915,8 @@ fn deploy_collection_1155(
     royalty: u16,
     royalty_receiver: Addr,
     metadata: String,
-    transaction_hash: String
+    transaction_hash: String,
+            lock_tx_chain: String
 ) -> StdResult<Response> {
     let create_collection_msg = collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection1155 {
         has_admin: true,
@@ -963,7 +966,8 @@ fn deploy_collection_1155(
         metadata,
         name,
         symbol,
-        transaction_hash
+        transaction_hash,
+        lock_tx_chain
     };
 
     let code_info = COLLETION_DEPLOYER_CODE.load(deps.storage)?;
@@ -1251,7 +1255,8 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
             msg.data.royalty,
             msg.data.royalty_receiver,
             msg.data.metadata,
-            msg.data.transaction_hash
+            msg.data.transaction_hash,
+            msg.data.lock_tx_chain
         )
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
@@ -1631,7 +1636,8 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             msg.data.royalty,
             msg.data.royalty_receiver,
             msg.data.metadata,
-            msg.data.transaction_hash
+            msg.data.transaction_hash,
+            msg.data.lock_tx_chain
         )
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================

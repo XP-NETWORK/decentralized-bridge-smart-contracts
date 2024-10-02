@@ -28,6 +28,7 @@ pub struct Collection721InstantiateMsg {
     pub royalty: u16,
     pub royalty_receiver: Addr,
     pub metadata: String,
+    pub lock_tx_chain: String
 }
 
 impl InitCallback for Collection721InstantiateMsg {
@@ -99,7 +100,8 @@ pub struct Collection1155InstantiateMsg {
     pub royalty: u16,
     pub royalty_receiver: Addr,
     pub metadata: String,
-    pub transaction_hash: String
+    pub transaction_hash: String,
+            pub lock_tx_chain: String
 }
 
 impl InitCallback for Collection1155InstantiateMsg {

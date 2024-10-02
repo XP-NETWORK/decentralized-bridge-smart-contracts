@@ -93,7 +93,7 @@ pub fn instantiate(
         royalty: msg.royalty,
         royalty_receiver: msg.royalty_receiver,
         metadata: msg.metadata,
-        transaction_hash: msg.transaction_hash
+        transaction_hash: msg.transaction_hash,
         lock_tx_chain: msg.lock_tx_chain
     };
     Ok(Response::new().set_data(to_binary(&collection_info)?))
