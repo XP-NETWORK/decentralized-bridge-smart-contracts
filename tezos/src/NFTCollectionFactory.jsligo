@@ -1,4 +1,5 @@
 #import "./NFTv2.jsligo" "NFT"
+#import "@ligo/fa/lib/fa2/common/tzip16.datatypes.jsligo" "TZIP16"
 
 export namespace NFTCollectionFactory {
     export type AddrOrStr = ["Addr", address] | ["Str", string]
@@ -38,10 +39,27 @@ export namespace NFTCollectionFactory {
     @entry
     function deploy_nft(p: deploy_params, store: storage): ret {
         only_owner(store);
+        
+        let data_string: string = String.concats(list(["{\"name\": \"", p.name, "\",\"description\": \"", p.symbol, "\",\"version\":\"0.0.1\",\"license\":{\"name\":\"MIT\"},\"authors\":[\"D.\"],\"homepage\":\"\",\"interfaces\":[\"TZIP-012\"],\"errors\": [],\"views\": []}"]));
+
+        let data_bytes: bytes = Bytes.pack(data_string);
+
+        let sub_bytes: bytes = Bytes.slice(6n, abs(Bytes.length(data_bytes) - 6n), data_bytes);
+        
         let storage: NFT.NFT.storage = {
             admin: Option.value_with_error("Unreachable", store.owner),
             ledger: Big_map.empty,
-            metadata: Big_map.empty,
+            metadata: Big_map.literal(
+        list(
+            [
+                ["", bytes `tezos-storage:data`],
+                [
+                    "data",
+                    sub_bytes
+                ]
+            ]
+        )
+        ) as TZIP16.metadata,
             operators: Big_map.empty,
             token_metadata: Big_map.empty
         }

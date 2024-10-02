@@ -1,4 +1,5 @@
 #import "./SFTv2.jsligo" "SFT"
+#import "@ligo/fa/lib/fa2/common/tzip16.datatypes.jsligo" "TZIP16"
 
 export namespace SFTCollectionFactory {
     export type AddrOrStr = ["Addr", address] | ["Str", string]
@@ -41,8 +42,25 @@ export namespace SFTCollectionFactory {
     @entry
     function deploy_sft(p: deploy_params, store: storage): ret {
         only_owner(store);
+
+        let data_string: string = String.concats(list(["{\"name\": \"", p.name, "\",\"description\": \"", p.symbol, "\",\"version\":\"0.0.1\",\"license\":{\"name\":\"MIT\"},\"authors\":[\"D.\"],\"homepage\":\"\",\"interfaces\":[\"TZIP-012\"],\"errors\": [],\"views\": []}"]));
+
+        let data_bytes: bytes = Bytes.pack(data_string);
+
+        let sub_bytes: bytes = Bytes.slice(6n, abs(Bytes.length(data_bytes) - 6n), data_bytes);
+
         let storage: SFT.SFT.storage = {
-            metadata: Big_map.empty,
+            metadata: Big_map.literal(
+        list(
+            [
+                ["", bytes `tezos-storage:data`],
+                [
+                    "data",
+                    sub_bytes
+                ]
+            ]
+        )
+        ) as TZIP16.metadata,
             token_metadata: Big_map.empty,
             operators: Big_map.empty,
             ledger: Big_map.empty,
