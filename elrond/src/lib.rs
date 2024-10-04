@@ -7,6 +7,7 @@ pub const TX_FEES: u8 = 0;
 pub const SELF_CHAIN: &[u8] = b"MULTIVERSX";
 pub const TYPE_ERC721: &[u8] = b"singular"; // a more general term to accomodate non-evm chains
 pub const TYPE_ERC1155: &[u8] = b"multiple"; // a more general term to accomodate non-evm chains
+pub const COLLECTION_FEE: u64 = 50000000000000000u64;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
 #[multiversx_sc::contract]
@@ -56,6 +57,7 @@ pub trait BridgeContract {
         #[indexed] token_amount: BigUint,
         #[indexed] nft_type: ManagedBuffer,
         #[indexed] chain: ManagedBuffer,
+        #[indexed] metadata_uri: ManagedBuffer,
     );
 
     #[event("UnLock721")]
@@ -75,18 +77,8 @@ pub trait BridgeContract {
         #[indexed] amount: BigUint,
     );
 
-    #[event("Claimed721")]
-    fn claimed721(
-        &self,
-        #[indexed] lock_tx_chain: ManagedBuffer,
-        #[indexed] source_chain: ManagedBuffer,
-        #[indexed] transaction_hash: ManagedBuffer,
-        #[indexed] token_id: TokenIdentifier,
-        #[indexed] nonce: u64,
-    );
-
-    #[event("Claimed1155")]
-    fn claimed1155(
+    #[event("Claimed")]
+    fn claimed(
         &self,
         #[indexed] lock_tx_chain: ManagedBuffer,
         #[indexed] source_chain: ManagedBuffer,
@@ -94,6 +86,7 @@ pub trait BridgeContract {
         #[indexed] token_id: TokenIdentifier,
         #[indexed] nonce: u64,
         #[indexed] amt: BigUint,
+        #[indexed] nft_type: ManagedBuffer,
     );
 
     #[event("RewardValidator")]
@@ -112,19 +105,6 @@ pub trait BridgeContract {
     }
 
     #[inline]
-    fn require_fees(&self) {
-        require!(
-            self.call_value().egld_value().gt(&0),
-            "Tx Fees is required!"
-        );
-    }
-
-    #[inline]
-    fn only_validator(&self) {
-        require!(false, "Failed to verify signature!");
-    }
-
-    #[inline]
     fn matches_current_chain(&self, destination_chain: &ManagedBuffer) {
         require!(
             destination_chain.eq(SELF_CHAIN),
@@ -135,7 +115,7 @@ pub trait BridgeContract {
     #[inline]
     fn has_correct_fee(&self, fee: BigUint) {
         let sent_fee = self.call_value().egld_value().clone_value();
-        require!(fee.le(&sent_fee), "Fee and sent amount do not match");
+        require!(sent_fee.ge(&fee), "Sent amount less than fee");
     }
 
     fn verify_ed25519(&self, key: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> bool {
@@ -150,7 +130,8 @@ pub trait BridgeContract {
         new_validator_public_key: ManagedAddress,
         signatures: ManagedVec<SignatureInfo<Self::Api>>,
     ) {
-        // require!(args.new_validator_address., "Address cannot be zero address!");
+        require!(!self.blacklisted_validators(&new_validator_public_key).get(), "validator blacklisted");
+
         require!(signatures.len() > 0, "Must have signatures!");
         let mut uv = ManagedMap::new();
 
@@ -201,7 +182,6 @@ pub trait BridgeContract {
         address: ManagedAddress,
         signatures: ManagedVec<SignatureInfo<Self::Api>>,
     ) {
-        // require!(args.new_validator_address., "Address cannot be zero address!");
         require!(signatures.len() > 0, "Must have signatures!");
         let mut uv = ManagedMap::new();
         let mut percentage: u64 = 0;
@@ -269,6 +249,7 @@ pub trait BridgeContract {
         destination_user_address: ManagedBuffer,
         source_nft_contract_address: TokenIdentifier,
         nonce: u64,
+        metadata_uri: ManagedBuffer,
     ) {
         let self_chain = SELF_CHAIN;
         let self_chain_buffer: ManagedBuffer = self_chain.into();
@@ -336,6 +317,7 @@ pub trait BridgeContract {
                     BigUint::from(1u64),
                     nft_type,
                     v.chain,
+                    metadata_uri,
                 );
             }
             None => {
@@ -348,6 +330,7 @@ pub trait BridgeContract {
                     BigUint::from(1u64),
                     nft_type,
                     SELF_CHAIN.into(),
+                    metadata_uri,
                 );
             }
         }
@@ -363,6 +346,7 @@ pub trait BridgeContract {
         source_nft_contract_address: TokenIdentifier,
         amount: BigUint,
         nonce: u64,
+        metadata_uri: ManagedBuffer,
     ) {
         let self_chain = SELF_CHAIN;
         let self_chain_buffer: ManagedBuffer = self_chain.into();
@@ -430,6 +414,7 @@ pub trait BridgeContract {
                     amount,
                     nft_type,
                     v.chain,
+                    metadata_uri,
                 );
             }
             None => {
@@ -442,6 +427,7 @@ pub trait BridgeContract {
                     amount,
                     nft_type,
                     SELF_CHAIN.into(),
+                    metadata_uri,
                 );
             }
         }
@@ -471,7 +457,9 @@ pub trait BridgeContract {
 
         self.reward_validators(data.fee.clone(), validators_to_reward);
 
-        let payment_amount = self.call_value().egld_value();
+        let sub = self.call_value().egld_value().to_u64().unwrap() - data.fee.to_u64().unwrap();
+
+        let payment_amount = BigUint::from(sub);
 
         let identifier = data.name.clone().concat(data.symbol.clone());
 
@@ -509,13 +497,18 @@ pub trait BridgeContract {
                             v.token_id,
                             data.source_nft_contract_address.clone().into(),
                         );
-                        self.claimed721(
+
+                        self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
+
+                        self.claimed(
                             data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             data.source_nft_contract_address.into(),
                             v.token_id,
-                        )
+                            BigUint::from(1u64),
+                            data.nft_type
+                        );
                     }
                     None => {
                         let nonce = self.send().esdt_nft_create(
@@ -534,13 +527,18 @@ pub trait BridgeContract {
                             nonce,
                             &BigUint::from(1u64),
                         );
-                        self.claimed721(
+
+                        self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
+
+                        self.claimed(
                             data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             TokenIdentifier::from(v.address.clone()),
                             nonce,
-                        )
+                            BigUint::from(1u64),
+                            data.nft_type
+                        );
                     }
                 }
             }
@@ -553,17 +551,22 @@ pub trait BridgeContract {
                             v.token_id,
                             data.source_nft_contract_address.clone().into(),
                         );
-                        self.claimed721(
+
+                        self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
+
+                        self.claimed(
                             data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             data.source_nft_contract_address.into(),
                             v.token_id,
-                        )
+                            BigUint::from(1u64),
+                            data.nft_type
+                        );
                     }
                     None => {
                         self.create_collection(
-                            payment_amount.clone_value(),
+                            payment_amount,
                             identifier,
                             data.clone(),
                             mvuri,
@@ -599,7 +602,9 @@ pub trait BridgeContract {
 
         self.reward_validators(data.fee.clone(), validators_to_reward);
 
-        let payment_amount = self.call_value().egld_value();
+        let sub = self.call_value().egld_value().to_u64().unwrap() - data.fee.to_u64().unwrap();
+
+        let payment_amount = BigUint::from(sub);
 
         let identifier = data.name.clone().concat(data.symbol.clone());
 
@@ -645,13 +650,17 @@ pub trait BridgeContract {
                                 data.source_nft_contract_address.clone().into(),
                                 data.token_amount.clone(),
                             );
-                            self.claimed1155(
+
+                            self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
+
+                            self.claimed(
                                 data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 data.source_nft_contract_address.into(),
                                 vnonce.token_id,
                                 data.token_amount,
+                                data.nft_type
                             )
                         } else {
                             let to_mint = data.token_amount.clone() - balance_of_tokens.clone();
@@ -677,13 +686,17 @@ pub trait BridgeContract {
                                 nonce,
                                 &data.token_amount,
                             );
-                            self.claimed1155(
+
+                            self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
+
+                            self.claimed(
                                 data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 TokenIdentifier::from(v.address.clone()),
                                 nonce,
                                 data.token_amount.clone(),
+                                data.nft_type
                             )
                         }
                     }
@@ -704,13 +717,17 @@ pub trait BridgeContract {
                             nonce,
                             &data.token_amount,
                         );
-                        self.claimed1155(
+
+                        self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
+
+                        self.claimed(
                             data.lock_tx_chain,
                             data.source_chain,
                             data.transaction_hash,
                             TokenIdentifier::from(v.address.clone()),
                             nonce,
                             data.token_amount.clone(),
+                            data.nft_type
                         )
                     }
                 }
@@ -735,9 +752,21 @@ pub trait BridgeContract {
                             let _ = self.unlock1155(
                                 data.destination_user_address,
                                 vnonce.token_id,
-                                data.source_nft_contract_address.into(),
-                                data.token_amount,
+                                data.source_nft_contract_address.clone().into(),
+                                data.token_amount.clone(),
                             );
+
+                            self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
+
+                            self.claimed(
+                                data.lock_tx_chain,
+                                data.source_chain,
+                                data.transaction_hash,
+                                data.source_nft_contract_address.into(),
+                                vnonce.token_id,
+                                data.token_amount,
+                                data.nft_type
+                            )
                         } else {
                             let to_mint = data.token_amount.clone() - balance_of_tokens.clone();
                             let _ = self.unlock1155(
@@ -763,19 +792,23 @@ pub trait BridgeContract {
                                 nonce,
                                 &to_mint,
                             );
-                            self.claimed1155(
+
+                            self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
+
+                            self.claimed(
                                 data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
                                 data.source_nft_contract_address.into(),
                                 nonce,
                                 data.token_amount.clone(),
+                                data.nft_type
                             )
                         }
                     }
                     None => {
                         self.create_collection(
-                            payment_amount.clone_value(),
+                            payment_amount,
                             identifier,
                             data.clone(),
                             mvuri,
@@ -888,7 +921,6 @@ pub trait BridgeContract {
             "Collection already exists"
         );
 
-        // let payment_amount = self.call_value().egld_value();
         if data.nft_type.eq(TYPE_ERC721) {
             self.send()
                 .esdt_system_sc_proxy()
@@ -973,24 +1005,15 @@ pub trait BridgeContract {
                     nonce,
                     &BigUint::from(data.token_amount.clone()),
                 );
-                if data.token_amount == 1 {
-                    self.claimed721(
-                        data.lock_tx_chain,
-                        data.source_chain,
-                        data.transaction_hash,
-                        tid,
-                        nonce,
-                    )
-                } else {
-                    self.claimed1155(
+                    self.claimed(
                         data.lock_tx_chain,
                         data.source_chain,
                         data.transaction_hash,
                         tid,
                         nonce,
                         data.token_amount,
+                        data.nft_type
                     )
-                }
             }
             ManagedAsyncCallResult::Err(err) => {
                 panic!(
