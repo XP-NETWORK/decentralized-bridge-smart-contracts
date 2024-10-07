@@ -261,12 +261,9 @@ pub trait BridgeContract {
             self_chain_buffer.clone(),
         ));
 
-        let data = self.blockchain().get_esdt_token_data(
-            &self.blockchain().get_sc_address(),
-            &source_nft_contract_address,
-            nonce,
-        );
-        require!(data.amount.eq(&BigUint::from(1u64)), "No nft received");
+        let data = self.call_value().all_esdt_transfers().get(0).amount;
+
+        require!(data.eq(&BigUint::from(1u64)), "No nft received {}",data);
 
         let is_token_exists = self
             .tokens()
@@ -358,12 +355,9 @@ pub trait BridgeContract {
             self_chain_buffer.clone(),
         ));
 
-        let data = self.blockchain().get_esdt_token_data(
-            &self.blockchain().get_sc_address(),
-            &source_nft_contract_address,
-            nonce,
-        );
-        require!(data.amount.eq(&amount), "No sft received");
+        let data = self.call_value().all_esdt_transfers().get(0).amount;
+
+        require!(data.eq(&amount), "No sft received {}",data);
 
         let is_token_exists = self
             .tokens()
