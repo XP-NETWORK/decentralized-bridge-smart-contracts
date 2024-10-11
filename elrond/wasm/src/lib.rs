@@ -5,9 +5,10 @@
 ////////////////////////////////////////////////////
 
 // Init:                                 1
-// Endpoints:                           15
+// Upgrade:                              1
+// Endpoints:                           16
 // Async Callback:                       1
-// Total number of exported functions:  17
+// Total number of exported functions:  19
 
 #![no_std]
 
@@ -18,11 +19,13 @@ multiversx_sc_wasm_adapter::endpoints! {
     bridge
     (
         init => init
+        upgrade => upgrade
         tokens => tokens
         validators => validators
         blacklistedValidators => blacklisted_validators
         validatorsCount => validators_count
         uniqueIdentifier => unique_identifier
+        uniqueImplementation => unique_implementation
         originalToDuplicateMapping => original_to_duplicate_mapping
         duplicateToOriginalMapping => duplicate_to_original_mapping
         addValidator => add_validator

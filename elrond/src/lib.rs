@@ -8,6 +8,7 @@ pub const SELF_CHAIN: &[u8] = b"MULTIVERSX";
 pub const TYPE_ERC721: &[u8] = b"singular"; // a more general term to accomodate non-evm chains
 pub const TYPE_ERC1155: &[u8] = b"multiple"; // a more general term to accomodate non-evm chains
 pub const COLLECTION_FEE: u64 = 50000000000000000u64;
+pub const SHOULD_HOLDING_SFT_AMOUNT: u64 = 1u64;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
 #[multiversx_sc::contract]
@@ -31,6 +32,10 @@ pub trait BridgeContract {
     #[view(uniqueIdentifier)]
     #[storage_mapper("uniqueIdentifier")]
     fn unique_identifier(&self) -> UnorderedSetMapper<ManagedBuffer>;
+
+    #[view(uniqueImplementation)]
+    #[storage_mapper("uniqueImplementation")]
+    fn unique_implementation(&self) -> UnorderedSetMapper<ManagedAddress>;
 
     #[view(originalToDuplicateMapping)]
     #[storage_mapper("originalToDuplicateMapping")]
@@ -102,6 +107,54 @@ pub trait BridgeContract {
             *val += 1u64;
             *val
         });
+    }
+
+    #[upgrade]
+    fn upgrade(
+        &self, 
+        new_implementation: ManagedAddress,
+        signatures: ManagedVec<SignatureInfo<Self::Api>>,
+    ) {
+        require!(
+            !self.unique_implementation().contains(&new_implementation.clone()),
+            "Data already processed!"
+        );
+
+        require!(signatures.len() > 0, "Must have signatures!");
+
+        let mut uv = ManagedMap::new();
+
+        let mut percentage: u64 = 0;
+
+        for arg in signatures.into_iter() {
+            let mut dest_slice = [0u8; 64];
+            let _ = arg.sig.load_slice(0, &mut dest_slice);
+
+            let valid = self.verify_ed25519(
+                &arg.public_key.to_byte_array(),
+                &new_implementation.to_byte_array(),
+                &dest_slice,
+            );
+            if valid {
+                let validator_exists = self.validators(&arg.public_key).is_empty();
+                if !validator_exists && !uv.contains(&arg.public_key.as_managed_buffer()) {
+                    percentage = percentage + 1;
+                    uv.put(
+                        &arg.public_key.as_managed_buffer(),
+                        &ManagedBuffer::new_from_bytes(b"true"),
+                    );
+                }
+            }
+        }
+
+        let validators_count = self.validators_count().get();
+
+        require!(
+            percentage >= (((validators_count * 2) / 3) + 1),
+            "Threshold not reached!"
+        );
+
+        self.unique_implementation().insert(new_implementation.clone());
     }
 
     #[inline]
@@ -457,6 +510,7 @@ pub trait BridgeContract {
 
         let identifier = data.name.clone().concat(data.symbol.clone());
 
+        // send original and get duplicate
         let duplicate_collection_address_option = self.original_to_duplicate_mapping().get(&(
             data.source_nft_contract_address.clone(),
             data.source_chain.clone(),
@@ -520,6 +574,19 @@ pub trait BridgeContract {
                             &TokenIdentifier::from(v.address.clone()),
                             nonce,
                             &BigUint::from(1u64),
+                        );
+
+                        self.tokens().insert(
+                            TokenInfo {
+                                token_id: data.token_id.parse_as_u64().unwrap().clone(), // 0
+                                chain: data.source_chain.clone(), // BSC
+                                contract_address: data.source_nft_contract_address.clone(), // 0xbcb
+                            },
+                            TokenInfo {
+                                token_id: nonce, // 1
+                                chain: ManagedBuffer::from(SELF_CHAIN), // MULTIVERSX
+                                contract_address: TokenIdentifier::from(v.address.clone()).as_managed_buffer().clone(), // XPNFT-234fads
+                            },
                         );
 
                         self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
@@ -602,6 +669,7 @@ pub trait BridgeContract {
 
         let identifier = data.name.clone().concat(data.symbol.clone());
 
+        // send original and get duplicate
         let duplicate_collection_address_option = self.original_to_duplicate_mapping().get(&(
             data.source_nft_contract_address.clone(),
             data.source_chain.clone(),
@@ -634,14 +702,15 @@ pub trait BridgeContract {
                         let balance_of_tokens = self.blockchain().get_esdt_balance(
                             &self.blockchain().get_sc_address(),
                             &v.address.clone().into(),
-                            data.token_id.parse_as_u64().unwrap(),
-                        );
+                            vnonce.token_id,
+                        ) - SHOULD_HOLDING_SFT_AMOUNT;
 
+                        // 0 >= 4
                         if balance_of_tokens >= data.token_amount {
-                            let _ = self.unlock1155(
+                            self.unlock1155(
                                 data.destination_user_address,
                                 vnonce.token_id,
-                                data.source_nft_contract_address.clone().into(),
+                                v.address.clone().into(),
                                 data.token_amount.clone(),
                             );
 
@@ -651,34 +720,37 @@ pub trait BridgeContract {
                                 data.lock_tx_chain,
                                 data.source_chain,
                                 data.transaction_hash,
-                                data.source_nft_contract_address.into(),
+                                v.address.into(),
                                 vnonce.token_id,
                                 data.token_amount,
                                 data.nft_type
                             )
                         } else {
+                            // 4 - 0 = 4
                             let to_mint = data.token_amount.clone() - balance_of_tokens.clone();
-                            let _ = self.unlock1155(
-                                data.destination_user_address.clone(),
+                            
+
+                            if balance_of_tokens > 0 {
+
+                                self.unlock1155(
+                                    data.destination_user_address.clone(),
+                                    vnonce.token_id,
+                                    v.address.clone().into(),
+                                    balance_of_tokens.into(),
+                                );
+                            }
+
+                            self.send().esdt_local_mint(
+                                &TokenIdentifier::from(v.address.clone()),
                                 vnonce.token_id,
-                                data.source_nft_contract_address.into(),
-                                balance_of_tokens.into(),
+                                &to_mint,
                             );
 
-                            let nonce = self.send().esdt_nft_create(
-                                &TokenIdentifier::from(v.address.clone()),
-                                &to_mint,
-                                &data.name,
-                                &data.royalty,
-                                &ManagedBuffer::new(),
-                                &data.attrs,
-                                &mvuri,
-                            );
                             self.send().direct_esdt(
                                 &data.destination_user_address.clone(),
                                 &&TokenIdentifier::from(v.address.clone()),
-                                nonce,
-                                &data.token_amount,
+                                vnonce.token_id,
+                                &to_mint,
                             );
 
                             self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
@@ -688,7 +760,7 @@ pub trait BridgeContract {
                                 data.source_chain,
                                 data.transaction_hash,
                                 TokenIdentifier::from(v.address.clone()),
-                                nonce,
+                                vnonce.token_id,
                                 data.token_amount.clone(),
                                 data.nft_type
                             )
@@ -697,7 +769,7 @@ pub trait BridgeContract {
                     None => {
                         let nonce = self.send().esdt_nft_create(
                             &TokenIdentifier::from(v.address.clone()),
-                            &data.token_amount,
+                            &(&data.token_amount + SHOULD_HOLDING_SFT_AMOUNT),
                             &data.name,
                             &data.royalty,
                             &ManagedBuffer::new(),
@@ -710,6 +782,19 @@ pub trait BridgeContract {
                             &TokenIdentifier::from(v.address.clone()),
                             nonce,
                             &data.token_amount,
+                        );
+
+                        self.tokens().insert(
+                            TokenInfo {
+                                token_id: data.token_id.parse_as_u64().unwrap().clone(), // 0
+                                chain: data.source_chain.clone(), // BSC
+                                contract_address: data.source_nft_contract_address.clone(), // 0xbcb
+                            },
+                            TokenInfo {
+                                token_id: nonce, // 1
+                                chain: ManagedBuffer::from(SELF_CHAIN), // MULTIVERSX
+                                contract_address: TokenIdentifier::from(v.address.clone()).as_managed_buffer().clone(), // XPNFT-234fads
+                            },
                         );
 
                         self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
@@ -730,20 +815,15 @@ pub trait BridgeContract {
                 // notDuplicate
                 match is_token_exists {
                     Some(vnonce) => {
-                        // let _ = self.unlock1155(
-                        //     data.destination_user_address,
-                        //     v,
-                        //     data.source_nft_contract_address.into(),
-                        //     data.token_amount,
-                        // );
+
                         let balance_of_tokens = self.blockchain().get_esdt_balance(
                             &self.blockchain().get_sc_address(),
                             &data.source_nft_contract_address.clone().into(),
-                            data.token_id.parse_as_u64().unwrap(),
+                            vnonce.token_id,
                         );
 
                         if balance_of_tokens >= data.token_amount {
-                            let _ = self.unlock1155(
+                            self.unlock1155(
                                 data.destination_user_address,
                                 vnonce.token_id,
                                 data.source_nft_contract_address.clone().into(),
@@ -762,30 +842,31 @@ pub trait BridgeContract {
                                 data.nft_type
                             )
                         } else {
+                            // CANT BE THERE
                             let to_mint = data.token_amount.clone() - balance_of_tokens.clone();
-                            let _ = self.unlock1155(
-                                data.destination_user_address.clone(),
-                                vnonce.token_id,
-                                data.source_nft_contract_address.clone().into(),
-                                balance_of_tokens.into(),
-                            );
 
-                            let nonce = self.send().esdt_nft_create(
+                            if balance_of_tokens > 0 {
+                                self.unlock1155(
+                                    data.destination_user_address.clone(),
+                                    vnonce.token_id,
+                                    data.source_nft_contract_address.clone().into(),
+                                    balance_of_tokens.into(),
+                                );
+                            }
+
+                            self.send().esdt_local_mint(
                                 &TokenIdentifier::from(data.source_nft_contract_address.clone()),
+                                vnonce.token_id,
                                 &to_mint,
-                                &data.name,
-                                &data.royalty,
-                                &ManagedBuffer::new(),
-                                &data.attrs,
-                                &mvuri,
                             );
 
                             self.send().direct_esdt(
                                 &data.destination_user_address.clone(),
                                 &TokenIdentifier::from(data.source_nft_contract_address.clone()),
-                                nonce,
+                                vnonce.token_id,
                                 &to_mint,
                             );
+
 
                             self.send().direct_egld(&self.blockchain().get_caller(), &BigUint::from(COLLECTION_FEE));
 
@@ -794,7 +875,7 @@ pub trait BridgeContract {
                                 data.source_chain,
                                 data.transaction_hash,
                                 data.source_nft_contract_address.into(),
-                                nonce,
+                                vnonce.token_id,
                                 data.token_amount.clone(),
                                 data.nft_type
                             )
@@ -951,9 +1032,12 @@ pub trait BridgeContract {
     ) {
         match result {
             ManagedAsyncCallResult::Ok(tid) => {
+
+                let sft_amount = data.token_amount.clone() + SHOULD_HOLDING_SFT_AMOUNT;
+
                 let nonce = self.send().esdt_nft_create(
                     &tid,
-                    &data.token_amount,
+                    if data.nft_type.eq(TYPE_ERC1155) {&sft_amount} else {&data.token_amount},
                     &data.name,
                     &data.royalty,
                     &ManagedBuffer::new(),
@@ -982,14 +1066,14 @@ pub trait BridgeContract {
 
                 self.tokens().insert(
                     TokenInfo {
-                        token_id: data.token_id.parse_as_u64().unwrap().clone(),
-                        chain: data.source_chain.clone(),
-                        contract_address: data.source_nft_contract_address.clone(),
+                        token_id: data.token_id.parse_as_u64().unwrap().clone(), // 0
+                        chain: data.source_chain.clone(), // BSC
+                        contract_address: data.source_nft_contract_address.clone(), // 0xbcb
                     },
                     TokenInfo {
-                        token_id: nonce,
-                        chain: ManagedBuffer::from(SELF_CHAIN),
-                        contract_address: tid.as_managed_buffer().clone(),
+                        token_id: nonce, // 1
+                        chain: ManagedBuffer::from(SELF_CHAIN), // MULTIVERSX
+                        contract_address: tid.as_managed_buffer().clone(), // XPNFT-234fads
                     },
                 );
 
