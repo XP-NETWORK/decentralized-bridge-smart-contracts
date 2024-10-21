@@ -1222,7 +1222,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
     } else {
         return Err(StdError::generic_err("Invalid bridge state"));
     }?;
-    Ok(Response::new())
+    Ok(res)
 }
 
 fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdResult<Response> {
