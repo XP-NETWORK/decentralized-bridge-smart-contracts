@@ -1,4 +1,4 @@
-// #[cfg(not(feature = "library"))]
+#[cfg(feature = "contract")]
 pub mod handles;
 pub mod queries;
 pub mod msg;

@@ -58,7 +58,6 @@ export async function deploy() {
       gasLimit: 5000000,
     }
   );
-  console.log(uploadSft);
   const sftCodeId = uploadSft.arrayLog?.find((e) => e.key === "code_id")?.value!;
   console.log("Uploaded SFT contract code. Code ID: ", sftCodeId);
 
@@ -152,8 +151,8 @@ export async function deploy() {
       ],
     ],
     chain_type: "SECRET",
-    storage_label: "XPBridge Version-4 NFT Store Deployer",
-    collection_label: "XPBridge Version-4 NFT Collection Deployer",
+    storage_label: `XPContract-SF${Math.ceil(Math.random() * 10000)}`,
+    collection_label: `XPContract-CF${Math.ceil(Math.random() * 10000)}`,
     collection721_code_info: {
       code_id: parseInt(nftCodeId),
       code_hash: (
@@ -209,7 +208,7 @@ export async function deploy() {
       {
         code_id: bridgeCodeId,
         init_msg: initMsg,
-        label: "XPBridge Version-4",
+        label: `XPBridge${Math.ceil(Math.random() * 10000)}`,
         sender: validator.address,
       },
 

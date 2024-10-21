@@ -1,3 +1,9 @@
+build-snip1155:
+	RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown --package snip1155 --features contract
+
+build-cf:
+	RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown --package collection-deployer --features contract
+
 build-release:
 	@echo "Building release..."
 	RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown
@@ -12,7 +18,7 @@ optimize:
 	@echo "Optimizing..."
 	./optimize.sh
 
-release: build optimize
+release: build build-snip1155 build-cf optimize
 
 clean:
 	@echo "Cleaning..."

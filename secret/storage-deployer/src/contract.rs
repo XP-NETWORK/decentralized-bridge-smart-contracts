@@ -6,7 +6,7 @@ use cosmwasm_std::{
 
 use secret_toolkit::utils::{pad_handle_result, InitCallback};
 
-use crate::bridge_msg::BridgeInfo;
+use crate::bridge_msg::ReplyStorageDeployerInfo;
 use crate::error::ContractError;
 use crate::state::{
     BLOCK_SIZE, STORAGE1155_CODE, STORAGE1155_INSTANTIATE_REPLY_ID, STORAGE721_CODE,
@@ -42,7 +42,7 @@ pub fn instantiate(
     STORAGE721_CODE.save(deps.storage, &msg.storage721_code_info)?;
     STORAGE1155_CODE.save(deps.storage, &msg.storage1155_code_info)?;
 
-    let offspring_info = BridgeInfo {
+    let offspring_info = ReplyStorageDeployerInfo {
         address: _env.contract.address,
     };
     Ok(Response::new().set_data(to_binary(&offspring_info)?))

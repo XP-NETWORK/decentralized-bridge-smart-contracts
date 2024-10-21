@@ -1,54 +1,64 @@
-
 use std::collections::BTreeMap;
 
+use collection_deployer::bridge_msg::ReplyCollectionDeployerInfo;
 use common::CodeInfo;
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg, SubMsgResult, Uint128, WasmMsg
+    entry_point, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg,
+    Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg,
+    SubMsgResult, Uint128, WasmMsg,
 };
 use schemars::JsonSchema;
 use secret_toolkit::serialization::Bincode2;
 use secret_toolkit::storage::{Keymap, WithoutIter};
 use secret_toolkit::utils::{HandleCallback, InitCallback, Query};
 use serde::{Deserialize, Serialize};
+use snip1155::reply::ReplyCollectionInfo as ReplyCollection1155Info;
 use snip1155::state::metadata::Metadata as Snip1155Meta;
-use snip1155::state::state_structs::{CurateTokenId, TknConfig, TokenAmount, TokenIdBalance, TokenInfoMsg};
+use snip1155::state::state_structs::{
+    CurateTokenId, TknConfig, TokenAmount, TokenIdBalance, TokenInfoMsg,
+};
+use snip721::reply::ReplyCollectionInfo as ReplyCollection721Info;
 use snip721::royalties::{Royalty, RoyaltyInfo};
 use snip721::token::Metadata as Snip721Meta;
+use storage_deployer::bridge_msg::ReplyStorageDeployerInfo;
+use storage_deployer::structs::ReplyStorageInfo;
 
 use crate::error::ContractError;
 use crate::events::{
-    AddNewValidatorEventInfo, Claimed1155EventInfo, Claimed721EventInfo, LockedEventInfo, RewardValidatorEventInfo, UnLock1155EventInfo, UnLock721EventInfo
+    AddNewValidatorEventInfo, Claimed1155EventInfo, Claimed721EventInfo, LockedEventInfo,
+    RewardValidatorEventInfo, UnLock1155EventInfo, UnLock721EventInfo,
 };
 use crate::msg::{BlacklistValidatorMsg, BridgeExecuteMsg, BridgeQueryAnswer, BridgeQueryMsg};
-use snip1155::msg::Snip1155ExecuteMsg;
-use snip1155::msg::Snip1155QueryMsg;
 use crate::state::{
-    config, config_read, BLACKLISTED_VALIDATORS, CODEHASHES, COLLECTION_DEPLOYER_1155_REPLY_ID, COLLECTION_DEPLOYER_721_REPLY_ID, COLLECTION_DEPLOYER_REPLY_ID, COLLETION_DEPLOYER_CODE, DUPLICATE_STORAGE_1155, DUPLICATE_STORAGE_721, DUPLICATE_TO_ORIGINAL_STORAGE, NFT_COLLECTION_OWNER, ORIGINAL_STORAGE_1155, ORIGINAL_STORAGE_721, ORIGINAL_TO_DUPLICATE_STORAGE, STORAGE_DEPLOYER_1155_REPLY_ID, STORAGE_DEPLOYER_721_REPLY_ID, STORAGE_DEPLOYER_CODE, STORAGE_DEPLOYER_REPLY_ID, UNIQUE_IDENTIFIER_STORAGE, VALIDATORS_STORAGE
+    config, config_read, BLACKLISTED_VALIDATORS, CODEHASHES, COLLECTION_DEPLOYER_1155_REPLY_ID,
+    COLLECTION_DEPLOYER_721_REPLY_ID, COLLECTION_DEPLOYER_REPLY_ID, COLLETION_DEPLOYER_CODE,
+    DUPLICATE_STORAGE_1155, DUPLICATE_STORAGE_721, DUPLICATE_TO_ORIGINAL_STORAGE,
+    NFT_COLLECTION_OWNER, ORIGINAL_STORAGE_1155, ORIGINAL_STORAGE_721,
+    ORIGINAL_TO_DUPLICATE_STORAGE, STORAGE_DEPLOYER_1155_REPLY_ID, STORAGE_DEPLOYER_721_REPLY_ID,
+    STORAGE_DEPLOYER_CODE, STORAGE_DEPLOYER_REPLY_ID, UNIQUE_IDENTIFIER_STORAGE,
+    VALIDATORS_STORAGE,
 };
 use crate::structs::{
-    AddValidatorMsg, ClaimData, ClaimMsg, ClaimValidatorRewardsMsg,
-    DuplicateToOriginalContractInfo, BridgeInstantiateMsg, Lock1155Msg, Lock721Msg,
-    OriginalToDuplicateContractInfo, ReplyCollectionDeployerInfo, ReplyCollectionInfo,
-    ReplyStorageDeployerInfo, ReplyStorageInfo, SignerAndSignature, State,
-    Validator, VerifyMsg,
+    AddValidatorMsg, BridgeInstantiateMsg, ClaimData, ClaimMsg, ClaimValidatorRewardsMsg,
+    DuplicateToOriginalContractInfo, Lock1155Msg, Lock721Msg, OriginalToDuplicateContractInfo,
+    SignerAndSignature, State, Validator, VerifyMsg,
 };
 use sha2::{Digest, Sha256};
+use snip1155::msg::Snip1155ExecuteMsg;
+use snip1155::msg::Snip1155QueryMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
- struct Balance {
-        amount: Uint128,
-    }
+struct Balance {
+    amount: Uint128,
+}
 
 #[entry_point]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: BridgeInstantiateMsg,
 ) -> StdResult<Response> {
-    deps.api
-        .debug(format!("Contract was initialized by {}", info.sender).as_str());
-
     let mut validators_count = 0;
     for val in msg.validators {
         validators_count += 1;
@@ -73,22 +83,6 @@ pub fn instantiate(
     };
 
     config(deps.storage).save(&state)?;
-
-    // config(deps.storage).update(|mut state| -> Result<_, StdError> {
-    //     for ele in msg.validators {
-    //         let mut validatorEntry: BTreeMap<Addr, Validator> = BTreeMap::new();
-    //         validatorEntry.insert(
-    //             ele,
-    //             Validator {
-    //                 added: true,
-    //                 pending_reward: 0,
-    //             },
-    //         );
-    //         state.validators_count += 1;
-    //         state.validators.append(&mut validatorEntry);
-    //     }
-    //     Ok(state)
-    // })?;
 
     STORAGE_DEPLOYER_CODE.save(deps.storage, &msg.storage_deployer_code_info)?;
     COLLETION_DEPLOYER_CODE.save(deps.storage, &msg.collection_deployer_code_info)?;
@@ -124,32 +118,21 @@ pub fn instantiate(
         )?,
         COLLECTION_DEPLOYER_REPLY_ID,
     );
-    Ok(Response::new().add_submessages(vec![
-        init_storage_deployer_sub_msg,
-        init_collection_deployer_submsg,
-    ]).add_attribute("bridge_contract_address", _env.contract.address))
+    Ok(Response::new()
+        .add_submessages(vec![
+            init_storage_deployer_sub_msg,
+            init_collection_deployer_submsg,
+        ])
+        .add_attribute("bridge_contract_address", _env.contract.address))
 }
 
 #[entry_point]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: BridgeExecuteMsg) -> StdResult<Response> {
-    // let response = match msg {
-    //     ExecuteMsg::CreateOffspring {
-    //         label,
-    //         owner,
-    //         count,
-    //         description,
-    //     } => try_create_offspring(deps, env, label, owner, count, description),
-    //     ExecuteMsg::DeactivateOffspring { owner } => try_deactivate_offspring(deps, info, owner),
-    //     ExecuteMsg::CreateViewingKey { entropy } => try_create_key(deps, env, info, entropy),
-    //     ExecuteMsg::SetViewingKey { key, .. } => try_set_key(deps, info, &key),
-    //     ExecuteMsg::NewOffspringContract {
-    //         offspring_code_info,
-    //     } => try_new_contract(deps, info, offspring_code_info),
-    //     ExecuteMsg::SetStatus { stop } => try_set_status(deps, info, stop),
-    //     ExecuteMsg::RevokePermit { permit_name, .. } => revoke_permit(deps, info, permit_name),
-    // };
-    // pad_handle_result(response, BLOCK_SIZE)
-
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: BridgeExecuteMsg,
+) -> StdResult<Response> {
     match msg {
         BridgeExecuteMsg::AddValidator { data } => add_validator(deps, data),
         BridgeExecuteMsg::ClaimValidatorRewards { data } => claim_validator_rewards(deps, data),
@@ -163,7 +146,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: BridgeExecuteMsg
 }
 
 fn verify_sig(deps: DepsMut, msg: VerifyMsg) -> StdResult<Response> {
-    let serialized = serde_json::to_vec(&msg.claim_data_as_binary).unwrap();
+    let serialized = serde_json::to_vec(&msg.claim_data_as_binary)
+        .expect("Failed to convert claim data to binary");
     let mut hasher = Sha256::new();
     hasher.update(serialized);
 
@@ -190,7 +174,7 @@ fn verify_sig(deps: DepsMut, msg: VerifyMsg) -> StdResult<Response> {
 }
 
 fn matches_current_chain(storage: &dyn Storage, destination_chain: String) -> StdResult<Response> {
-    if destination_chain == config_read(storage).load()?.self_chain {
+    if destination_chain != config_read(storage).load()?.self_chain {
         return Err(StdError::generic_err("Invalid destination chain!"));
     } else {
         Ok(Response::default())
@@ -218,13 +202,15 @@ fn add_validator(deps: DepsMut, add_validator_msg: AddValidatorMsg) -> StdResult
     if VALIDATORS_STORAGE.contains(deps.storage, &add_validator_msg.validator.0) {
         return Err(StdError::generic_err("Validator already added"));
     }
+    let required = required_threshold(state.validators_count as u128) as u128;
 
-    let percentage = validate_signatures(
+    let percentage = validate_signature(
         deps.api,
-        &add_validator_msg.validator.0,
-        &add_validator_msg.signatures,
+        add_validator_msg.validator.0 .0.clone().try_into().unwrap(),
+        add_validator_msg.signatures,
+        required,
     )?;
-    if percentage < required_threshold(state.validators_count as u128) {
+    if percentage.len() < required as usize {
         return Err(StdError::generic_err("Threshold not reached!"));
     }
 
@@ -234,21 +220,23 @@ fn add_validator(deps: DepsMut, add_validator_msg: AddValidatorMsg) -> StdResult
     )?)
 }
 
-
 fn blacklist_validator(deps: DepsMut, blacklist_msg: BlacklistValidatorMsg) -> StdResult<Response> {
     if blacklist_msg.signatures.len() <= 0 {
         return Err(StdError::generic_err("Must have signatures!"));
     }
-    if !VALIDATORS_STORAGE.contains(deps.storage, &blacklist_msg.validator.0){
+    if !VALIDATORS_STORAGE.contains(deps.storage, &blacklist_msg.validator.0) {
         return Err(StdError::generic_err("Validator is not added"));
     }
-    let percentage = validate_signatures(
-        deps.api,
-        &blacklist_msg.validator.0.clone(),
-        &blacklist_msg.signatures,
-    )?;
     let state = config_read(deps.storage).load()?;
-    if percentage < required_threshold(state.validators_count as u128) {
+    let req = required_threshold(state.validators_count as u128) as u128;
+    let percentage = validate_signature(
+        deps.api,
+        blacklist_msg.validator.0 .0.clone().try_into().unwrap(),
+        blacklist_msg.signatures,
+        req,
+    )?;
+
+    if percentage.len() < req as usize {
         return Err(StdError::generic_err("Threshold not reached!"));
     }
     VALIDATORS_STORAGE.remove(deps.storage, &blacklist_msg.validator.0)?;
@@ -261,62 +249,13 @@ fn blacklist_validator(deps: DepsMut, blacklist_msg: BlacklistValidatorMsg) -> S
     Ok(Response::new())
 }
 
-
-fn validate_signatures(
-    api: &dyn Api,
-    key: &Binary,
-    sigs: &Vec<SignerAndSignature>,
-) -> StdResult<i128> {
-    let mut percentage = 0;
-    let serialized = key.to_string();
-    let mut hasher = Sha256::new();
-    hasher.update(serialized);
-    let hash: [u8; 32] = hasher.finalize().into();
-    let mut unique = BTreeMap::new();
-
-    for ele in sigs {
-        if unique.contains_key(&ele.signer_address) {
-            continue;
-        }
-        unique.insert(ele.signer_address.clone(), true);
-        if verify_signature(api, &ele.signature, &ele.signer_address, &hash)? {
-            percentage += 1;
-        }
-    }
-    Ok(percentage)
-}
-
 fn verify_signature(
     api: &dyn Api,
     signature: &[u8],
     signer_address: &[u8],
     hash: &[u8; 32],
 ) -> StdResult<bool> {
-    if signature.len() == 64 && signer_address.len() == 33 {
-        // let sig_array = <[u8; 64]>::try_from(signature)
-        //     .map_err(|_| StdError::generic_err("Invalid signature length"))?;
-        // let signer_array = <[u8; 32]>::try_from(signer_address)
-        //     .map_err(|_| StdError::generic_err("Invalid signer address length"))?;
-        // let sig = Signature::new(sig_array);
-        // let key = PublicKey::new(signer_array);
-
-        // key.verify(validator.as_ref(), &sig)
-        //     .map(|_| true)
-        //     .map_err(|_| StdError::generic_err("Signature verification failed"))
-
-        let result = api.secp256k1_verify(hash, &signature, &signer_address)?;
-        api.debug(format!("SIG RESULT {}", result).as_str());
-        if result {
-            api.debug(format!("TRUE SIG {}", true).as_str());
-            Ok(true)
-        } else {
-            api.debug(format!("FALSE SIG {}", true).as_str());
-            Ok(false)
-        }
-    } else {
-        api.debug(format!("TFT SIG {}", true).as_str());
-        Ok(false)
-    }
+    Ok(api.secp256k1_verify(hash, &signature, &signer_address)?)
 }
 
 fn required_threshold(validators_count: u128) -> i128 {
@@ -347,8 +286,6 @@ fn add_validator_to_state(
 }
 
 fn claim_validator_rewards(deps: DepsMut, data: ClaimValidatorRewardsMsg) -> StdResult<Response> {
-    let state = config_read(deps.storage).load()?;
-
     if !VALIDATORS_STORAGE
         .get(deps.storage, &data.validator)
         .is_some()
@@ -430,19 +367,17 @@ fn check_storage_721(
             collection_code_info.code_hash,
         ),
         None => {
-            let create_storage_msg = storage_deployer::msg::StorageDeployerExecuteMsg::CreateStorage721 {
-                label: source_nft_contract_address.clone().into_string(),
-                collection_address: source_nft_contract_address.clone(),
-                collection_code_info,
-                owner: owner.into_string(),
-                is_original,
-                token_id,
-            };
+            let create_storage_msg =
+                storage_deployer::msg::StorageDeployerExecuteMsg::CreateStorage721 {
+                    label: source_nft_contract_address.clone().into_string(),
+                    collection_address: source_nft_contract_address.clone(),
+                    collection_code_info,
+                    owner: owner.into_string(),
+                    is_original,
+                    token_id,
+                };
 
             let code_info = STORAGE_DEPLOYER_CODE.load(deps.storage)?;
-
-            deps.api
-                .debug(format!("LOCK721 {}", code_info.code_id).as_str());
 
             let init_submsg = SubMsg::reply_always(
                 create_storage_msg.to_cosmos_msg(
@@ -518,7 +453,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 1,
                 config_read(deps.storage).load()?.type_erc_721,
                 _v.chain,
-                msg.metadata_uri
+                msg.metadata_uri,
             )
             .try_into()?];
 
@@ -546,7 +481,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 1,
                 config_read(deps.storage).load()?.type_erc_721,
                 config(deps.storage).load()?.self_chain,
-                msg.metadata_uri
+                msg.metadata_uri,
             )
             .try_into()?];
 
@@ -617,19 +552,17 @@ fn check_storage_1155(
             collection_code_info.code_hash,
         ),
         None => {
-            let create_storage_msg = storage_deployer::msg::StorageDeployerExecuteMsg::CreateStorage1155 {
-                label: source_nft_contract_address.clone().into_string(),
-                collection_address: source_nft_contract_address.clone(),
-                collection_code_info,
-                owner: owner.into_string(),
-                is_original,
-                token_id,
-            };
+            let create_storage_msg =
+                storage_deployer::msg::StorageDeployerExecuteMsg::CreateStorage1155 {
+                    label: source_nft_contract_address.clone().into_string(),
+                    collection_address: source_nft_contract_address.clone(),
+                    collection_code_info,
+                    owner: owner.into_string(),
+                    is_original,
+                    token_id,
+                };
 
             let code_info = STORAGE_DEPLOYER_CODE.load(deps.storage)?;
-
-            deps.api
-                .debug(format!("LOCK1155 {}", code_info.code_id).as_str());
 
             let init_submsg = SubMsg::reply_always(
                 create_storage_msg.to_cosmos_msg(
@@ -714,7 +647,7 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
                 msg.token_amount,
                 config_read(deps.storage).load()?.type_erc_1155,
                 _v.chain,
-                msg.metadata_uri
+                msg.metadata_uri,
             )
             .try_into()?];
 
@@ -744,7 +677,7 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
                 msg.token_amount,
                 config_read(deps.storage).load()?.type_erc_1155,
                 config(deps.storage).load()?.self_chain,
-                msg.metadata_uri
+                msg.metadata_uri,
             )
             .try_into()?];
 
@@ -766,34 +699,10 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
 }
 
 fn create_claim_data_hash(data: ClaimData) -> [u8; 32] {
-    let serialized = data.concat_all_fields();
     let mut hasher = Sha256::new();
-    hasher.update(serialized);
-    let output: [u8; 32] = hasher.finalize().into();
-    output
+    hasher.update(data.concat_all_fields());
+    hasher.finalize().into()
 }
-
-fn verify_signatures(
-    api: &dyn Api,
-    signature: &[u8],
-    signer_address: &[u8],
-    hash: &[u8; 32],
-) -> StdResult<bool> {
-    if signature.len() == 64 && signer_address.len() == 33 {
-        let result = api.secp256k1_verify(hash, &signature, &signer_address)?;
-        if result {
-            api.debug(format!("TRUE SIG {}", true).as_str());
-            Ok(true)
-        } else {
-            api.debug(format!("FALSE SIG {}", true).as_str());
-            Ok(false)
-        }
-    } else {
-        api.debug(format!("TFT SIG {}", true).as_str());
-        Ok(false)
-    }
-}
-
 fn validate_signature(
     api: &dyn Api,
     hash: [u8; 32],
@@ -801,27 +710,20 @@ fn validate_signature(
     validators_count: u128,
 ) -> StdResult<Vec<Binary>> {
     let mut percentage = 0;
-    let mut arr: Vec<Binary> = Vec::new();
+    let mut uv: BTreeMap<Binary, bool> = BTreeMap::new();
     for ele in signatures {
-        if verify_signatures(api, &ele.signature, &ele.signer_address, &hash)? {
+        if uv.contains_key(&ele.signer_address) {
+            continue;
+        }
+        if verify_signature(api, &ele.signature, &ele.signer_address, &hash)? {
             percentage += 1;
-            arr.push(ele.signer_address);
+            uv.insert(ele.signer_address, true);
         }
     }
-
-    api.debug(
-        format!(
-            "PERCENTAGE {}, {}",
-            percentage,
-            required_threshold(validators_count)
-        )
-        .as_str(),
-    );
-
     if percentage < required_threshold(validators_count) {
         return Err(StdError::generic_err("Threshold not reached!"));
     }
-    Ok(arr)
+    Ok(uv.keys().cloned().collect())
 }
 
 fn reward_validators(
@@ -833,23 +735,16 @@ fn reward_validators(
     if fee <= 0 {
         return Err(StdError::generic_err("Invalid fees"));
     }
-
     if balance < fee {
         return Err(StdError::generic_err("No rewards available"));
     }
-
     let fee_per_validator = balance / validators_to_reward.len() as u128;
-
     for val in validators_to_reward {
-        let validator_option = VALIDATORS_STORAGE.get(storage, &val);
-        match validator_option {
-            Some(mut v) => {
-                v.pending_reward = v.pending_reward + fee_per_validator;
-
-                let _ = VALIDATORS_STORAGE.insert(storage, &val, &v);
-            }
-            None => todo!(),
-        }
+        let mut validator_option = VALIDATORS_STORAGE
+            .get(storage, &val)
+            .expect("Unreachable: Validator not found found");
+        validator_option.pending_reward = validator_option.pending_reward + fee_per_validator;
+        VALIDATORS_STORAGE.insert(storage, &val, &validator_option)?;
     }
     Ok(())
 }
@@ -868,28 +763,26 @@ fn deploy_collection_721(
     royalty_receiver: Addr,
     metadata: String,
     transaction_hash: String,
-            lock_tx_chain: String
+    lock_tx_chain: String,
 ) -> StdResult<Response> {
-    let create_collection_msg = collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection721 {
-        owner,
-        name,
-        symbol,
-        source_nft_contract_address,
-        source_chain,
-        destination_user_address,
-        token_id,
-        token_amount,
-        royalty,
-        royalty_receiver,
-        metadata,
-        transaction_hash,
-        lock_tx_chain
-    };
+    let create_collection_msg =
+        collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection721 {
+            owner,
+            name,
+            symbol,
+            source_nft_contract_address,
+            source_chain,
+            destination_user_address,
+            token_id,
+            token_amount,
+            royalty,
+            royalty_receiver,
+            metadata,
+            transaction_hash,
+            lock_tx_chain,
+        };
 
     let code_info = COLLETION_DEPLOYER_CODE.load(deps.storage)?;
-
-    deps.api
-        .debug(format!("create 721 collection {}", code_info.code_id).as_str());
 
     let init_submsg = SubMsg::reply_always(
         create_collection_msg.to_cosmos_msg(
@@ -916,65 +809,54 @@ fn deploy_collection_1155(
     royalty_receiver: Addr,
     metadata: String,
     transaction_hash: String,
-            lock_tx_chain: String
+    lock_tx_chain: String,
 ) -> StdResult<Response> {
-    let create_collection_msg = collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection1155 {
-        has_admin: true,
-        admin: Some(owner.clone()),
-        curators: vec![owner.clone()],
-        initial_tokens: vec![CurateTokenId {
-            token_info: TokenInfoMsg {
-                token_id: token_id.to_string(),
-                name: name.clone(),
-                symbol: symbol.clone(),
-                token_config: TknConfig::Fungible {
-                    minters: vec![owner.clone()],
-                    decimals: 6,
-                    public_total_supply: true,
-                    enable_mint: true,
-                    enable_burn: true,
-                    minter_may_update_metadata: true,
+    let create_collection_msg =
+        collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection1155 {
+            has_admin: true,
+            admin: Some(owner.clone()),
+            curators: vec![owner.clone()],
+            initial_tokens: vec![CurateTokenId {
+                token_info: TokenInfoMsg {
+                    token_id: token_id.to_string(),
+                    name: name.clone(),
+                    symbol: symbol.clone(),
+                    token_config: TknConfig::Fungible {
+                        minters: vec![owner.clone()],
+                        decimals: 6,
+                        public_total_supply: true,
+                        enable_mint: true,
+                        enable_burn: true,
+                        minter_may_update_metadata: true,
+                    },
+                    public_metadata: Some(Snip1155Meta {
+                        token_uri: Some(metadata.clone()),
+                        extension: Option::None,
+                    }),
+                    private_metadata: Option::None,
                 },
-                // {
-                //     minters: vec![owner.clone()],
-                //     public_total_supply: true,
-                //     owner_is_public: false,
-                //     enable_burn: false,
-                //     owner_may_update_metadata: true,
-                //     minter_may_update_metadata: true,
-                // },
-                public_metadata: Some(Snip1155Meta {
-                    token_uri: Some(metadata.clone()),
-                    extension: Option::None,
-                }),
-                private_metadata: Option::None,
-            },
-            balances: vec![TokenIdBalance {
-                address: owner,
-                amount: Uint128::from(1u128),
+                balances: vec![TokenIdBalance {
+                    address: owner,
+                    amount: Uint128::from(1u128),
+                }],
             }],
-        }],
-        entropy: name.clone() + &symbol + &source_nft_contract_address,
-        label: name.clone() + &symbol + &source_nft_contract_address,
-        source_nft_contract_address,
-        source_chain,
-        destination_user_address,
-        token_id,
-        token_amount,
-        royalty,
-        royalty_receiver,
-        metadata,
-        name,
-        symbol,
-        transaction_hash,
-        lock_tx_chain
-    };
+            entropy: name.clone() + &symbol + &source_nft_contract_address,
+            label: name.clone() + &symbol + &source_nft_contract_address,
+            source_nft_contract_address,
+            source_chain,
+            destination_user_address,
+            token_id,
+            token_amount,
+            royalty,
+            royalty_receiver,
+            metadata,
+            name,
+            symbol,
+            transaction_hash,
+            lock_tx_chain,
+        };
 
     let code_info = COLLETION_DEPLOYER_CODE.load(deps.storage)?;
-
-    deps.api
-        .debug(format!("create 1155 collection {}", code_info.code_id).as_str());
-
     let init_submsg = SubMsg::reply_always(
         create_collection_msg.to_cosmos_msg(
             code_info.code_hash,
@@ -987,34 +869,19 @@ fn deploy_collection_1155(
 }
 
 fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdResult<Response> {
-    deps.api.debug(format!("CLAIM721 started").as_str());
-
     let balance = deps
         .querier
         .query_balance(env.contract.address.clone(), "uscrt".to_string())?
         .amount;
-
-    deps.api
-        .debug(format!("CONTRACT BALANCE  {}", balance).as_str());
-
     let self_chain = config_read(deps.storage).load()?.self_chain;
 
-    deps.api
-        .debug(format!("SELF CHAIN  {}", self_chain).as_str());
-
-    let _ = has_correct_fee(msg.data.fee.clone(), info);
+    let _ = has_correct_fee(msg.data.fee.clone(), info)?;
 
     let type_erc_721 = config_read(deps.storage).load()?.type_erc_721;
 
-    deps.api
-        .debug(format!("TYPEERC721  {}", type_erc_721).as_str());
-
     let validators_count = config_read(deps.storage).load()?.validators_count;
 
-    deps.api
-        .debug(format!("VALIDATOR COUNT  {}", validators_count).as_str());
-
-    let _ = matches_current_chain(deps.storage, msg.data.destination_chain.clone());
+    let _ = matches_current_chain(deps.storage, msg.data.destination_chain.clone())?;
 
     if msg.data.nft_type != type_erc_721 {
         return Err(StdError::generic_err("Invalid NFT type!"));
@@ -1022,352 +889,341 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
 
     let hash = create_claim_data_hash(msg.data.clone());
 
-    let exists = UNIQUE_IDENTIFIER_STORAGE.get(deps.storage, &hash);
-    let _ = match exists {
-        Some(_v) => {
-            return Err(StdError::generic_err("Data already processed!"));
-        }
-        None => UNIQUE_IDENTIFIER_STORAGE.insert(deps.storage, &hash, &true),
-    };
-
-    let validators_to_reward = validate_signature(
-        deps.api,
-        hash,
-        msg.signatures,
-        validators_count.try_into().unwrap(),
-    )?;
-
-    let _ = reward_validators(
-        deps.storage,
-        msg.data.fee.clone(),
-        validators_to_reward,
-        balance.into(),
-    );
-
-    let duplicate_collection_address_option = ORIGINAL_TO_DUPLICATE_STORAGE.get(
-        deps.storage,
-        &(
-            msg.data.source_nft_contract_address.clone(),
-            msg.data.source_chain.clone(),
-        ),
-    );
-    let mut duplicate_collection_address = OriginalToDuplicateContractInfo {
-        chain: "".to_string(),
-        contract_address: env.contract.address.clone(),
-        code_hash: "".to_string(),
-    };
-    let mut has_duplicate: bool = false;
-    let mut has_storage: bool = false;
-    let storage_contract_option: Option<(Addr, String)>;
-    let storage_contract: (Addr, String);
-
-    match duplicate_collection_address_option {
-        Some(v) => {
-            duplicate_collection_address = v;
-            storage_contract_option = DUPLICATE_STORAGE_721.get(
-                deps.storage,
-                &(
-                    duplicate_collection_address.contract_address.to_string(),
-                    self_chain,
-                ),
-            );
-            has_duplicate = true
-        }
-        None => {
-            storage_contract_option = ORIGINAL_STORAGE_721.get(
-                deps.storage,
-                &(msg.data.source_nft_contract_address.clone(), self_chain),
-            );
-        }
+    let exists = UNIQUE_IDENTIFIER_STORAGE.contains(deps.storage, &hash);
+    if exists {
+        return Err(StdError::generic_err("Data already processed!"));
     }
+    UNIQUE_IDENTIFIER_STORAGE.insert(deps.storage, &hash, &true)?;
+    
+    // let validators_to_reward = validate_signature(
+    //     deps.api,
+    //     hash,
+    //     msg.signatures,
+    //     validators_count.try_into().unwrap(),
+    // )?;
 
-    deps.api
-        .debug(format!("DETAILS {} {}", has_duplicate, has_storage).as_str());
+    // reward_validators(
+    //     deps.storage,
+    //     msg.data.fee.clone(),
+    //     validators_to_reward,
+    //     balance.into(),
+    // )?;
 
-    match storage_contract_option {
-        Some(v) => {
-            storage_contract = v;
-            has_storage = true;
-        }
-        None => {
-            storage_contract = (Addr::unchecked("none"), "none".to_string());
-            has_storage = false;
-            deps.api
-                .debug(format!("DETAILS {} {}", has_duplicate, has_storage).as_str());
-        }
-    }
-    deps.api
-        .debug(format!("DETAILS {} {}", has_duplicate, has_storage).as_str());
-    // ===============================/ hasDuplicate && hasStorage /=======================
-    let res = if has_duplicate && has_storage {
-        let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
-            deps.storage,
-            &(
-                duplicate_collection_address
-                    .contract_address
-                    .clone()
-                    .into_string(),
-                msg.data.token_id.to_string(),
-            ),
-        );
+    // let duplicate_collection_address_option = ORIGINAL_TO_DUPLICATE_STORAGE.get(
+    //     deps.storage,
+    //     &(
+    //         msg.data.source_nft_contract_address.clone(),
+    //         msg.data.source_chain.clone(),
+    //     ),
+    // );
+    // let mut duplicate_collection_address = OriginalToDuplicateContractInfo {
+    //     chain: "".to_string(),
+    //     contract_address: env.contract.address.clone(),
+    //     code_hash: "".to_string(),
+    // };
+    // let mut has_duplicate: bool = false;
+    // let mut has_storage: bool = false;
+    // let storage_contract_option: Option<(Addr, String)>;
+    // let storage_contract: (Addr, String);
 
-        match is_storage_is_nft_owner_option {
-            Some(_v) => {
-                let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
-                    token_id: msg.data.token_id.clone(),
-                    to: msg.data.destination_user_address.clone(),
-                };
+    // match duplicate_collection_address_option {
+    //     Some(v) => {
+    //         duplicate_collection_address = v;
+    //         storage_contract_option = DUPLICATE_STORAGE_721.get(
+    //             deps.storage,
+    //             &(
+    //                 duplicate_collection_address.contract_address.to_string(),
+    //                 self_chain,
+    //             ),
+    //         );
+    //         has_duplicate = true
+    //     }
+    //     None => {
+    //         storage_contract_option = ORIGINAL_STORAGE_721.get(
+    //             deps.storage,
+    //             &(msg.data.source_nft_contract_address.clone(), self_chain),
+    //         );
+    //     }
+    // }
+    // match storage_contract_option {
+    //     Some(v) => {
+    //         storage_contract = v;
+    //         has_storage = true;
+    //     }
+    //     None => {
+    //         storage_contract = (Addr::unchecked("none"), "none".to_string());
+    //         has_storage = false;
+    //     }
+    // }
+    // let res = if has_duplicate && has_storage {
+    //     let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
+    //         deps.storage,
+    //         &(
+    //             duplicate_collection_address
+    //                 .contract_address
+    //                 .clone()
+    //                 .into_string(),
+    //             msg.data.token_id.to_string(),
+    //         ),
+    //     );
 
-                let message = CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: storage_contract.0.clone().into_string(),
-                    code_hash: storage_contract.1,
-                    msg: to_binary(&create_unlock_msg)?,
-                    funds: vec![],
-                });
+    //     match is_storage_is_nft_owner_option {
+    //         Some(_v) => {
+    //             let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
+    //                 token_id: msg.data.token_id.clone(),
+    //                 to: msg.data.destination_user_address.clone(),
+    //             };
 
-                let log: Vec<Attribute> = vec![
-                    UnLock721EventInfo::new(
-                        msg.data.destination_user_address,
-                        msg.data.token_id.clone(),
-                        storage_contract.0.to_string(),
-                    )
-                    .try_into()?,
-                    Claimed721EventInfo::new(
-                        msg.data.lock_tx_chain,
-                        msg.data.source_chain,
-                        msg.data.transaction_hash,
-                        duplicate_collection_address
-                            .contract_address
-                            .clone()
-                            .to_string(),
-                        msg.data.token_id.clone(),
-                    )
-                    .try_into()?,
-                ];
+    //             let message = CosmosMsg::Wasm(WasmMsg::Execute {
+    //                 contract_addr: storage_contract.0.clone().into_string(),
+    //                 code_hash: storage_contract.1,
+    //                 msg: to_binary(&create_unlock_msg)?,
+    //                 funds: vec![],
+    //             });
 
-                let _ = NFT_COLLECTION_OWNER.remove(
-                    deps.storage,
-                    &(
-                        duplicate_collection_address.contract_address.into_string(),
-                        msg.data.token_id,
-                    ),
-                );
+    //             let log: Vec<Attribute> = vec![
+    //                 UnLock721EventInfo::new(
+    //                     msg.data.destination_user_address,
+    //                     msg.data.token_id.clone(),
+    //                     storage_contract.0.to_string(),
+    //                 )
+    //                 .try_into()?,
+    //                 Claimed721EventInfo::new(
+    //                     msg.data.lock_tx_chain,
+    //                     msg.data.source_chain,
+    //                     msg.data.transaction_hash,
+    //                     duplicate_collection_address
+    //                         .contract_address
+    //                         .clone()
+    //                         .to_string(),
+    //                     msg.data.token_id.clone(),
+    //                 )
+    //                 .try_into()?,
+    //             ];
 
-                Ok(Response::new().add_message(message).add_attributes(log))
-            }
-            None => {
-                let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
-                    token_id: Some(msg.data.token_id.to_string()),
-                    owner: Some(msg.data.destination_user_address.into_string()),
-                    public_metadata: Some(Snip721Meta {
-                        token_uri: Some(msg.data.metadata),
-                        extension: Option::None,
-                    }),
-                    private_metadata: Option::None,
-                    serial_number: Option::None,
-                    royalty_info: Some(RoyaltyInfo {
-                        decimal_places_in_rates: 4,
-                        royalties: vec![Royalty {
-                            rate: msg.data.royalty,
-                            recipient: msg.data.royalty_receiver.into_string(),
-                        }],
-                    }),
-                    transferable: Some(true),
-                    memo: Option::None,
-                    padding: Option::None,
-                };
+    //             let _ = NFT_COLLECTION_OWNER.remove(
+    //                 deps.storage,
+    //                 &(
+    //                     duplicate_collection_address.contract_address.into_string(),
+    //                     msg.data.token_id,
+    //                 ),
+    //             );
 
-                let message = CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: duplicate_collection_address.contract_address.clone().into_string(),
-                    code_hash: duplicate_collection_address.code_hash,
-                    msg: to_binary(&create_collection_msg)?,
-                    funds: vec![],
-                });
-                      let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
-                        msg.data.lock_tx_chain,
-                    msg.data.source_chain,
-                    msg.data.transaction_hash,
-                    duplicate_collection_address.contract_address.to_string(),
-                    msg.data.token_id,
-                )
-                .try_into()?];
+    //             Ok(Response::new().add_message(message).add_attributes(log))
+    //         }
+    //         None => {
+    //             let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+    //                 token_id: Some(msg.data.token_id.to_string()),
+    //                 owner: Some(msg.data.destination_user_address.into_string()),
+    //                 public_metadata: Some(Snip721Meta {
+    //                     token_uri: Some(msg.data.metadata),
+    //                     extension: Option::None,
+    //                 }),
+    //                 private_metadata: Option::None,
+    //                 serial_number: Option::None,
+    //                 royalty_info: Some(RoyaltyInfo {
+    //                     decimal_places_in_rates: 4,
+    //                     royalties: vec![Royalty {
+    //                         rate: msg.data.royalty,
+    //                         recipient: msg.data.royalty_receiver.into_string(),
+    //                     }],
+    //                 }),
+    //                 transferable: Some(true),
+    //                 memo: Option::None,
+    //                 padding: Option::None,
+    //             };
 
-                Ok(Response::new().add_message(message).add_attributes(log))
-            }
-        }
-    }
-    // ===============================/ hasDuplicate && NOT hasStorage /=======================
-    else if has_duplicate && !has_storage {
-        let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
-            token_id: Some(msg.data.token_id.to_string()),
-            owner: Some(msg.data.destination_user_address.into_string()),
-            public_metadata: Some(Snip721Meta {
-                token_uri: Some(msg.data.metadata),
-                extension: Option::None,
-            }),
-            private_metadata: Option::None,
-            serial_number: Option::None,
-            royalty_info: Some(RoyaltyInfo {
-                decimal_places_in_rates: 4,
-                royalties: vec![Royalty {
-                    rate: msg.data.royalty,
-                    recipient: msg.data.royalty_receiver.into_string(),
-                }],
-            }),
-            transferable: Some(true),
-            memo: Option::None,
-            padding: Option::None,
-        };
+    //             let message = CosmosMsg::Wasm(WasmMsg::Execute {
+    //                 contract_addr: duplicate_collection_address
+    //                     .contract_address
+    //                     .clone()
+    //                     .into_string(),
+    //                 code_hash: duplicate_collection_address.code_hash,
+    //                 msg: to_binary(&create_collection_msg)?,
+    //                 funds: vec![],
+    //             });
+    //             let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
+    //                 msg.data.lock_tx_chain,
+    //                 msg.data.source_chain,
+    //                 msg.data.transaction_hash,
+    //                 duplicate_collection_address.contract_address.to_string(),
+    //                 msg.data.token_id,
+    //             )
+    //             .try_into()?];
 
-        deps.api
-            .debug(format!("mint 721 nft {}", msg.data.token_id).as_str());
+    //             Ok(Response::new().add_message(message).add_attributes(log))
+    //         }
+    //     }
+    // }
+    // // ===============================/ hasDuplicate && NOT hasStorage /=======================
+    // else if has_duplicate && !has_storage {
+    //     let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+    //         token_id: Some(msg.data.token_id.to_string()),
+    //         owner: Some(msg.data.destination_user_address.into_string()),
+    //         public_metadata: Some(Snip721Meta {
+    //             token_uri: Some(msg.data.metadata),
+    //             extension: Option::None,
+    //         }),
+    //         private_metadata: Option::None,
+    //         serial_number: Option::None,
+    //         royalty_info: Some(RoyaltyInfo {
+    //             decimal_places_in_rates: 4,
+    //             royalties: vec![Royalty {
+    //                 rate: msg.data.royalty,
+    //                 recipient: msg.data.royalty_receiver.into_string(),
+    //             }],
+    //         }),
+    //         transferable: Some(true),
+    //         memo: Option::None,
+    //         padding: Option::None,
+    //     };
 
-        let message = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: duplicate_collection_address.contract_address.clone().into_string(),
-            code_hash: duplicate_collection_address.code_hash,
-            msg: to_binary(&create_collection_msg)?,
-            funds: vec![],
-        });
-          let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
-            msg.data.lock_tx_chain,
-            msg.data.source_chain,
-            msg.data.transaction_hash,
-            duplicate_collection_address.contract_address.to_string(),
-            msg.data.token_id,
-        )
-        .try_into()?];
+    //     let message = CosmosMsg::Wasm(WasmMsg::Execute {
+    //         contract_addr: duplicate_collection_address
+    //             .contract_address
+    //             .clone()
+    //             .into_string(),
+    //         code_hash: duplicate_collection_address.code_hash,
+    //         msg: to_binary(&create_collection_msg)?,
+    //         funds: vec![],
+    //     });
+    //     let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
+    //         msg.data.lock_tx_chain,
+    //         msg.data.source_chain,
+    //         msg.data.transaction_hash,
+    //         duplicate_collection_address.contract_address.to_string(),
+    //         msg.data.token_id,
+    //     )
+    //     .try_into()?];
 
-        Ok(Response::new().add_message(message).add_attributes(log))
-    }
-    // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
-    else if !has_duplicate && !has_storage {
-        // new collection
-        deploy_collection_721(
-            deps,
-            msg.data.name,
-            msg.data.symbol,
-            env.contract.address.into_string(),
-            msg.data.source_nft_contract_address,
-            msg.data.source_chain.clone(),
-            msg.data.destination_user_address,
-            msg.data.token_id,
-            1,
-            msg.data.royalty,
-            msg.data.royalty_receiver,
-            msg.data.metadata,
-            msg.data.transaction_hash,
-            msg.data.lock_tx_chain
-        )
-    }
-    // ===============================/ NOT hasDuplicate && hasStorage /=======================
-    else if !has_duplicate && has_storage {
-        let code_hash = CODEHASHES
-            .get(
-                deps.storage,
-                &deps
-                    .api
-                    .addr_validate(&msg.data.source_nft_contract_address.clone())?,
-            )
-            .unwrap();
+    //     Ok(Response::new().add_message(message).add_attributes(log))
+    // }
+    // // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
+    // else if !has_duplicate && !has_storage {
+    //     // new collection
+    //     deploy_collection_721(
+    //         deps,
+    //         msg.data.name,
+    //         msg.data.symbol,
+    //         env.contract.address.into_string(),
+    //         msg.data.source_nft_contract_address,
+    //         msg.data.source_chain.clone(),
+    //         msg.data.destination_user_address,
+    //         msg.data.token_id,
+    //         1,
+    //         msg.data.royalty,
+    //         msg.data.royalty_receiver,
+    //         msg.data.metadata,
+    //         msg.data.transaction_hash,
+    //         msg.data.lock_tx_chain,
+    //     )
+    // }
+    // // ===============================/ NOT hasDuplicate && hasStorage /=======================
+    // else if !has_duplicate && has_storage {
+    //     let code_hash = CODEHASHES
+    //         .get(
+    //             deps.storage,
+    //             &deps
+    //                 .api
+    //                 .addr_validate(&msg.data.source_nft_contract_address.clone())?,
+    //         )
+    //         .expect("Code hash not found");
 
-        let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
-            deps.storage,
-            &(
-                msg.data.source_nft_contract_address.clone(),
-                msg.data.token_id.to_string(),
-            ),
-        );
+    //     let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
+    //         deps.storage,
+    //         &(
+    //             msg.data.source_nft_contract_address.clone(),
+    //             msg.data.token_id.to_string(),
+    //         ),
+    //     );
 
-        match is_storage_is_nft_owner_option {
-            Some(_v) => {
-                let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
-                    token_id: msg.data.token_id.clone(),
-                    to: msg.data.destination_user_address.clone(),
-                };
+    //     match is_storage_is_nft_owner_option {
+    //         Some(_v) => {
+    //             let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
+    //                 token_id: msg.data.token_id.clone(),
+    //                 to: msg.data.destination_user_address.clone(),
+    //             };
 
-                deps.api
-                    .debug(format!("unlock 721 nft {}", msg.data.token_id).as_str());
+    //             let message = CosmosMsg::Wasm(WasmMsg::Execute {
+    //                 contract_addr: storage_contract.0.clone().into_string(),
+    //                 code_hash: storage_contract.1,
+    //                 msg: to_binary(&create_unlock_msg)?,
+    //                 funds: vec![],
+    //             });
 
-                let message = CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: storage_contract.0.clone().into_string(),
-                    code_hash: storage_contract.1,
-                    msg: to_binary(&create_unlock_msg)?,
-                    funds: vec![],
-                });
+    //             let log: Vec<Attribute> = vec![
+    //                 UnLock721EventInfo::new(
+    //                     msg.data.destination_user_address,
+    //                     msg.data.token_id.clone(),
+    //                     storage_contract.0.to_string(),
+    //                 )
+    //                 .try_into()?,
+    //                 Claimed721EventInfo::new(
+    //                     msg.data.lock_tx_chain,
+    //                     msg.data.source_chain,
+    //                     msg.data.transaction_hash,
+    //                     msg.data.source_nft_contract_address.clone(),
+    //                     msg.data.token_id.clone(),
+    //                 )
+    //                 .try_into()?,
+    //             ];
 
-                let log: Vec<Attribute> = vec![UnLock721EventInfo::new(
-                    msg.data.destination_user_address,
-                    msg.data.token_id.clone(),
-                    storage_contract.0.to_string(),
-                )
-                .try_into()?,   Claimed721EventInfo::new(
-                    msg.data.lock_tx_chain,
-                        msg.data.source_chain,
-                        msg.data.transaction_hash,
-                        msg.data.source_nft_contract_address.clone(),
-                        msg.data.token_id.clone(),
-                    )
-                    .try_into()?,];
+    //             let _ = NFT_COLLECTION_OWNER.remove(
+    //                 deps.storage,
+    //                 &(
+    //                     msg.data.source_nft_contract_address.clone(),
+    //                     msg.data.token_id,
+    //                 ),
+    //             );
 
-                let _ = NFT_COLLECTION_OWNER.remove(
-                    deps.storage,
-                    &(
-                        msg.data.source_nft_contract_address.clone(),
-                        msg.data.token_id,
-                    ),
-                );
+    //             Ok(Response::new().add_message(message).add_attributes(log))
+    //         }
+    //         None => {
+    //             let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+    //                 token_id: Some(msg.data.token_id.to_string()),
+    //                 owner: Some(msg.data.destination_user_address.into_string()),
+    //                 public_metadata: Some(Snip721Meta {
+    //                     token_uri: Some(msg.data.metadata),
+    //                     extension: Option::None,
+    //                 }),
+    //                 private_metadata: Option::None,
+    //                 serial_number: Option::None,
+    //                 royalty_info: Some(RoyaltyInfo {
+    //                     decimal_places_in_rates: 4,
+    //                     royalties: vec![Royalty {
+    //                         rate: msg.data.royalty,
+    //                         recipient: msg.data.royalty_receiver.into_string(),
+    //                     }],
+    //                 }),
+    //                 transferable: Some(true),
+    //                 memo: Option::None,
+    //                 padding: Option::None,
+    //             };
 
-                Ok(Response::new().add_message(message).add_attributes(log))
-            }
-            None => {
-                let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
-                    token_id: Some(msg.data.token_id.to_string()),
-                    owner: Some(msg.data.destination_user_address.into_string()),
-                    public_metadata: Some(Snip721Meta {
-                        token_uri: Some(msg.data.metadata),
-                        extension: Option::None,
-                    }),
-                    private_metadata: Option::None,
-                    serial_number: Option::None,
-                    royalty_info: Some(RoyaltyInfo {
-                        decimal_places_in_rates: 4,
-                        royalties: vec![Royalty {
-                            rate: msg.data.royalty,
-                            recipient: msg.data.royalty_receiver.into_string(),
-                        }],
-                    }),
-                    transferable: Some(true),
-                    memo: Option::None,
-                    padding: Option::None,
-                };
+    //             let message = CosmosMsg::Wasm(WasmMsg::Execute {
+    //                 contract_addr: msg.data.source_nft_contract_address.clone(),
+    //                 code_hash,
+    //                 msg: to_binary(&create_collection_msg)?,
+    //                 funds: vec![],
+    //             });
 
-                deps.api
-                    .debug(format!("mint 721 nft {}", msg.data.token_id).as_str());
+    //             let clog: Vec<Attribute> = vec![Claimed721EventInfo::new(
+    //                 msg.data.lock_tx_chain,
+    //                 msg.data.source_chain,
+    //                 msg.data.transaction_hash,
+    //                 msg.data.source_nft_contract_address,
+    //                 msg.data.token_id,
+    //             )
+    //             .try_into()?];
 
-                let message = CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: msg.data.source_nft_contract_address.clone(),
-                    code_hash,
-                    msg: to_binary(&create_collection_msg)?,
-                    funds: vec![],
-                });
+    //             Ok(Response::new().add_message(message).add_attributes(clog))
+    //         }
+    //     }
+    // } else {
+    //     return Err(StdError::generic_err("Invalid bridge state"));
+    // }?;
 
-                let clog: Vec<Attribute> = vec![Claimed721EventInfo::new(
-                    msg.data.lock_tx_chain,
-                    msg.data.source_chain,
-                    msg.data.transaction_hash,
-                    msg.data.source_nft_contract_address,
-                    msg.data.token_id,
-                )
-                .try_into()?];
-
-                Ok(Response::new().add_message(message).add_attributes(clog))
-            }
-        }
-    } else {
-        return Err(StdError::generic_err("Invalid bridge state"));
-    }?;
-
-    Ok(res)
+    Ok(Response::new())
 }
 
 fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdResult<Response> {
@@ -1422,7 +1278,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
         code_hash: "".to_string(),
     };
     let mut has_duplicate: bool = false;
-    let has_storage: bool ;
+    let has_storage: bool;
     let storage_contract_option: Option<(Addr, String)>;
     let storage_contract: (Addr, String);
 
@@ -1496,9 +1352,6 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         amount: msg.data.token_amount.clone(),
                     };
 
-                    deps.api
-                        .debug(format!("unlock 1155 nft {}", msg.data.token_id).as_str());
-
                     let message = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
                         contract_addr: storage_contract.0.clone().into_string(),
                         code_hash: storage_contract.1,
@@ -1506,13 +1359,24 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         funds: vec![],
                     });
 
-                    let log: Vec<Attribute> = vec![UnLock1155EventInfo::new(
-                        msg.data.destination_user_address,
-                        msg.data.token_id.clone(),
-                        storage_contract.0.to_string(),
-                        msg.data.token_amount,
-                    )
-                    .try_into()?, Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
+                    let log: Vec<Attribute> = vec![
+                        UnLock1155EventInfo::new(
+                            msg.data.destination_user_address,
+                            msg.data.token_id.clone(),
+                            storage_contract.0.to_string(),
+                            msg.data.token_amount,
+                        )
+                        .try_into()?,
+                        Claimed1155EventInfo::new(
+                            msg.data.lock_tx_chain,
+                            msg.data.source_chain,
+                            msg.data.transaction_hash,
+                            duplicate_collection_address.contract_address.to_string(),
+                            msg.data.token_id.clone(),
+                            msg.data.token_amount,
+                        )
+                        .try_into()?,
+                    ];
 
                     let _ = NFT_COLLECTION_OWNER.remove(
                         deps.storage,
@@ -1533,9 +1397,6 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         amount: _v.1,
                     };
 
-                    deps.api
-                        .debug(format!("unlock 1155 nft {}", msg.data.token_id).as_str());
-
                     let message_unlock = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
                         contract_addr: storage_contract.0.clone().into_string(),
                         code_hash: storage_contract.1,
@@ -1543,13 +1404,24 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         funds: vec![],
                     });
 
-                    let log: Vec<Attribute> = vec![UnLock1155EventInfo::new(
-                        msg.data.destination_user_address.clone(),
-                        msg.data.token_id.clone(),
-                        storage_contract.0.to_string(),
-                        _v.1,
-                    )
-                    .try_into()?,  Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
+                    let log: Vec<Attribute> = vec![
+                        UnLock1155EventInfo::new(
+                            msg.data.destination_user_address.clone(),
+                            msg.data.token_id.clone(),
+                            storage_contract.0.to_string(),
+                            _v.1,
+                        )
+                        .try_into()?,
+                        Claimed1155EventInfo::new(
+                            msg.data.lock_tx_chain,
+                            msg.data.source_chain,
+                            msg.data.transaction_hash,
+                            duplicate_collection_address.contract_address.to_string(),
+                            msg.data.token_id.clone(),
+                            msg.data.token_amount,
+                        )
+                        .try_into()?,
+                    ];
 
                     let _ = NFT_COLLECTION_OWNER.remove(
                         deps.storage,
@@ -1574,16 +1446,12 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         padding: Option::None,
                     };
 
-                    deps.api
-                        .debug(format!("mint 1155 nft {}", msg.data.token_id).as_str());
-
                     let message_mint = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
                         contract_addr: duplicate_collection_address.contract_address.into_string(),
                         code_hash: duplicate_collection_address.code_hash,
                         msg: to_binary(&create_collection_msg)?,
                         funds: vec![],
                     });
-
 
                     Ok(Response::new()
                         .add_messages(vec![message_unlock, message_mint])
@@ -1606,17 +1474,24 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             memo: Option::None,
             padding: Option::None,
         };
-
-        deps.api
-            .debug(format!("mint 1155 nft {}", msg.data.token_id).as_str());
-
         let message = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
-            contract_addr: duplicate_collection_address.contract_address.clone().into_string(),
+            contract_addr: duplicate_collection_address
+                .contract_address
+                .clone()
+                .into_string(),
             code_hash: duplicate_collection_address.code_hash,
             msg: to_binary(&create_collection_msg)?,
             funds: vec![],
         });
-        let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, duplicate_collection_address.contract_address.to_string(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
+        let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(
+            msg.data.lock_tx_chain,
+            msg.data.source_chain,
+            msg.data.transaction_hash,
+            duplicate_collection_address.contract_address.to_string(),
+            msg.data.token_id.clone(),
+            msg.data.token_amount,
+        )
+        .try_into()?];
 
         Ok(Response::new().add_message(message).add_attributes(emit))
     }
@@ -1637,7 +1512,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             msg.data.royalty_receiver,
             msg.data.metadata,
             msg.data.transaction_hash,
-            msg.data.lock_tx_chain
+            msg.data.lock_tx_chain,
         )
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
@@ -1656,7 +1531,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                     .addr_validate(&msg.data.source_nft_contract_address.clone())?,
             )
             .unwrap();
-       
+
         let original_collection = get_owner_of.query::<Empty, Balance>(
             deps.querier,
             code_hash.clone(),
@@ -1670,9 +1545,6 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 to: msg.data.destination_user_address.clone(),
             };
 
-            deps.api
-                .debug(format!("unlock 1155 nft {}", msg.data.token_id).as_str());
-
             let message = CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: storage_contract.0.clone().into_string(),
                 code_hash: storage_contract.1,
@@ -1680,14 +1552,23 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 funds: vec![],
             });
 
-            let log: Vec<Attribute> = vec![UnLock1155EventInfo::new(
-                msg.data.destination_user_address.clone(),
-                msg.data.token_id.clone(),
-                storage_contract.0.to_string(),
-                msg.data.token_amount,
-            )
-            .try_into()?, 
-            Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, msg.data.source_nft_contract_address.clone(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?
+            let log: Vec<Attribute> = vec![
+                UnLock1155EventInfo::new(
+                    msg.data.destination_user_address.clone(),
+                    msg.data.token_id.clone(),
+                    storage_contract.0.to_string(),
+                    msg.data.token_amount,
+                )
+                .try_into()?,
+                Claimed1155EventInfo::new(
+                    msg.data.lock_tx_chain,
+                    msg.data.source_chain,
+                    msg.data.transaction_hash,
+                    msg.data.source_nft_contract_address.clone(),
+                    msg.data.token_id.clone(),
+                    msg.data.token_amount,
+                )
+                .try_into()?,
             ];
 
             let _ = NFT_COLLECTION_OWNER.remove(
@@ -1708,9 +1589,6 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 to: msg.data.destination_user_address.clone(),
             };
 
-            deps.api
-                .debug(format!("unlock 1155 nft {}", msg.data.token_id).as_str());
-
             let message_unlock = CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: storage_contract.0.clone().into_string(),
                 code_hash: storage_contract.1,
@@ -1718,14 +1596,24 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 funds: vec![],
             });
 
-            let log: Vec<Attribute> = vec![UnLock1155EventInfo::new(
-                msg.data.destination_user_address.clone(),
-                msg.data.token_id.clone(),
-                storage_contract.0.to_string(),
-                original_collection.amount.into(),
-            )
-            .try_into()?,
-                     Claimed1155EventInfo::new(msg.data.lock_tx_chain,msg.data.source_chain, msg.data.transaction_hash, msg.data.source_nft_contract_address.clone(), msg.data.token_id.clone(), msg.data.token_amount).try_into()?];
+            let log: Vec<Attribute> = vec![
+                UnLock1155EventInfo::new(
+                    msg.data.destination_user_address.clone(),
+                    msg.data.token_id.clone(),
+                    storage_contract.0.to_string(),
+                    original_collection.amount.into(),
+                )
+                .try_into()?,
+                Claimed1155EventInfo::new(
+                    msg.data.lock_tx_chain,
+                    msg.data.source_chain,
+                    msg.data.transaction_hash,
+                    msg.data.source_nft_contract_address.clone(),
+                    msg.data.token_id.clone(),
+                    msg.data.token_amount,
+                )
+                .try_into()?,
+            ];
 
             let _ = NFT_COLLECTION_OWNER.remove(
                 deps.storage,
@@ -1746,9 +1634,6 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                 memo: Option::None,
                 padding: Option::None,
             };
-
-            deps.api
-                .debug(format!("mint 1155 nft {}", msg.data.token_id).as_str());
 
             let message_mint = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
                 contract_addr: msg.data.source_nft_contract_address,
@@ -1871,9 +1756,6 @@ fn duplicate_to_original(
 // Replies
 #[entry_point]
 pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    _deps
-        .api
-        .debug(format!("REPLY FROM STORAGE DEPLOYER  {}", msg.id).as_str());
     match msg.id {
         STORAGE_DEPLOYER_REPLY_ID => handle_storage_deployer_reply(_deps, msg),
         STORAGE_DEPLOYER_721_REPLY_ID => handle_storage_reply_721(_deps, msg),
@@ -1955,7 +1837,7 @@ fn handle_collection_reply_721(_deps: DepsMut, msg: Reply) -> Result<Response, C
     match msg.result {
         SubMsgResult::Ok(s) => match s.data {
             Some(bin) => {
-                let reply_info: ReplyCollectionInfo = from_binary(&bin)?;
+                let reply_info: ReplyCollection721Info = from_binary(&bin)?;
                 register_collection_721_impl(_deps, reply_info)
             }
             None => Err(ContractError::CustomError {
@@ -1970,7 +1852,7 @@ fn handle_collection_reply_1155(_deps: DepsMut, msg: Reply) -> Result<Response, 
     match msg.result {
         SubMsgResult::Ok(s) => match s.data {
             Some(bin) => {
-                let reply_info: ReplyCollectionInfo = from_binary(&bin)?;
+                let reply_info: ReplyCollection1155Info = from_binary(&bin)?;
                 register_collection_1155_impl(_deps, reply_info)
             }
             None => Err(ContractError::CustomError {
@@ -2073,7 +1955,7 @@ fn register_collection_deployer_impl(
 
 fn register_collection_721_impl(
     deps: DepsMut,
-    reply_info: ReplyCollectionInfo,
+    reply_info: ReplyCollection721Info,
 ) -> Result<Response, ContractError> {
     let self_chain = config(deps.storage).load()?.self_chain;
 
@@ -2121,9 +2003,6 @@ fn register_collection_721_impl(
         padding: Option::None,
     };
 
-    deps.api
-        .debug(format!("mint 721 nft {}", reply_info.token_id).as_str());
-
     let message = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reply_info.address.clone().into_string(),
         code_hash: reply_info.code_hash,
@@ -2147,7 +2026,7 @@ fn register_collection_721_impl(
 
 fn register_collection_1155_impl(
     deps: DepsMut,
-    reply_info: ReplyCollectionInfo,
+    reply_info: ReplyCollection1155Info,
 ) -> Result<Response, ContractError> {
     let self_chain = config(deps.storage).load()?.self_chain;
 
@@ -2186,9 +2065,6 @@ fn register_collection_1155_impl(
         padding: Option::None,
     };
 
-    deps.api
-        .debug(format!("mint 1155 nft {}", reply_info.token_id).as_str());
-
     let message = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reply_info.address.clone().into_string(),
         code_hash: reply_info.code_hash,
@@ -2196,219 +2072,18 @@ fn register_collection_1155_impl(
         funds: vec![],
     });
 
-    let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(reply_info.lock_tx_chain, reply_info.source_chain, reply_info.transaction_hash, reply_info.address.to_string(), reply_info.token_id, reply_info.token_amount).try_into()?];
+    let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(
+        reply_info.lock_tx_chain,
+        reply_info.source_chain,
+        reply_info.transaction_hash,
+        reply_info.address.to_string(),
+        reply_info.token_id,
+        reply_info.token_amount,
+    )
+    .try_into()?];
 
     Ok(Response::new()
         .add_message(message)
         .add_attributes(emit)
         .add_attribute("collection_address_1155", &reply_info.address))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use common::CodeInfo;
-    use cosmwasm_std::testing::*;
-    use cosmwasm_std::{from_binary, Coin, Uint128};
-
-    #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies();
-
-        let info = mock_info(
-            "creator",
-            &[Coin {
-                denom: "uscrt".to_string(),
-                amount: Uint128::new(1000),
-            }],
-        );
-
-        let validator_pub_key =
-            to_binary(&"secret1w5fw0m5cad30lsu8x65m57ad5s80f0fmg3jfal".to_string()).unwrap();
-        let init_msg = BridgeInstantiateMsg {
-            validators: vec![(validator_pub_key.clone(), info.sender.clone())],
-            chain_type: "SECRET".to_string(),
-            storage_label: "storage11".to_string(),
-            collection_label: "collection11".to_string(),
-            collection721_code_info: CodeInfo {
-                code_id: 1,
-                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
-                    .to_string(),
-            },
-            storage721_code_info: CodeInfo {
-                code_id: 2,
-                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
-                    .to_string(),
-            },
-            collection1155_code_info: CodeInfo {
-                code_id: 3,
-                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
-                    .to_string(),
-            },
-            storage1155_code_info: CodeInfo {
-                code_id: 4,
-                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
-                    .to_string(),
-            },
-            collection_deployer_code_info: CodeInfo {
-                code_id: 5,
-                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
-                    .to_string(),
-            },
-            storage_deployer_code_info: CodeInfo {
-                code_id: 6,
-                code_hash: "87a462066a7406ff6ee66034d7c9554aae58be320f4084cb958d5b958380babb"
-                    .to_string(),
-            },
-        };
-
-        let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
-
-        assert_eq!(2, res.messages.len());
-
-        let validators_count_binary =
-            query(deps.as_ref(), mock_env(), BridgeQueryMsg::GetValidatorsCount {}).unwrap();
-
-        let validator_info_binary = query(
-            deps.as_ref(),
-            mock_env(),
-            BridgeQueryMsg::GetValidator {
-                address: validator_pub_key,
-            },
-        )
-        .unwrap();
-
-        let collection_deployer_binary = query(
-            deps.as_ref(),
-            mock_env(),
-            BridgeQueryMsg::GetCollectionDeployer {},
-        )
-        .unwrap();
-
-        let storage_deployer_binary =
-            query(deps.as_ref(), mock_env(), BridgeQueryMsg::GetStorageDeployer {}).unwrap();
-
-        let validators_count_answer = from_binary::<BridgeQueryAnswer>(&validators_count_binary).unwrap();
-        let validator_answer = from_binary::<BridgeQueryAnswer>(&validator_info_binary).unwrap();
-        let collection_deployer_answer =
-            from_binary::<BridgeQueryAnswer>(&collection_deployer_binary).unwrap();
-        let storage_deployer_answer = from_binary::<BridgeQueryAnswer>(&storage_deployer_binary).unwrap();
-
-        match validators_count_answer {
-            BridgeQueryAnswer::ValidatorCountResponse { count } => {
-                assert_eq!(1, count);
-            }
-            _ => panic!("query error"),
-        }
-
-        match validator_answer {
-            BridgeQueryAnswer::Validator { data } => {
-                assert_eq!(true, data.unwrap().added);
-            }
-            _ => panic!("query error"),
-        }
-
-        match collection_deployer_answer {
-            BridgeQueryAnswer::CollectionDeployer { data } => {
-                let valid_addr = deps.api.addr_validate(&data.into_string());
-                assert!(valid_addr.is_ok());
-            }
-            _ => panic!("query error"),
-        }
-
-        match storage_deployer_answer {
-            BridgeQueryAnswer::StorageDeployer { data } => {
-                let valid_addr = deps.api.addr_validate(&data.into_string());
-                assert!(valid_addr.is_ok());
-            }
-            _ => panic!("query error"),
-        }
-    }
-
-    // #[test]
-    // fn increment() {
-    //     let mut deps = mock_dependencies_with_balance(&[Coin {
-    //         denom: "token".to_string(),
-    //         amount: Uint128::new(2),
-    //     }]);
-    //     let info = mock_info(
-    //         "creator",
-    //         &[Coin {
-    //             denom: "token".to_string(),
-    //             amount: Uint128::new(2),
-    //         }],
-    //     );
-    //     let init_msg = InstantiateMsg { count: 17 };
-
-    //     let _res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
-
-    //     // anyone can increment
-    //     let info = mock_info(
-    //         "anyone",
-    //         &[Coin {
-    //             denom: "token".to_string(),
-    //             amount: Uint128::new(2),
-    //         }],
-    //     );
-
-    //     let exec_msg = ExecuteMsg::Increment {};
-    //     let _res = execute(deps.as_mut(), mock_env(), info, exec_msg).unwrap();
-
-    //     // should increase counter by 1
-    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-    //     let value: CountResponse = from_binary(&res).unwrap();
-    //     assert_eq!(18, value.count);
-    // }
-
-    // #[test]
-    // fn reset() {
-    //     let mut deps = mock_dependencies_with_balance(&[Coin {
-    //         denom: "token".to_string(),
-    //         amount: Uint128::new(2),
-    //     }]);
-    //     let info = mock_info(
-    //         "creator",
-    //         &[Coin {
-    //             denom: "token".to_string(),
-    //             amount: Uint128::new(2),
-    //         }],
-    //     );
-    //     let init_msg = InstantiateMsg { count: 17 };
-
-    //     let _res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
-
-    //     // not anyone can reset
-    //     let info = mock_info(
-    //         "anyone",
-    //         &[Coin {
-    //             denom: "token".to_string(),
-    //             amount: Uint128::new(2),
-    //         }],
-    //     );
-    //     let exec_msg = ExecuteMsg::Reset { count: 5 };
-
-    //     let res = execute(deps.as_mut(), mock_env(), info, exec_msg);
-
-    //     match res {
-    //         Err(StdError::GenericErr { .. }) => {}
-    //         _ => panic!("Must return unauthorized error"),
-    //     }
-
-    //     // only the original creator can reset the counter
-    //     let info = mock_info(
-    //         "creator",
-    //         &[Coin {
-    //             denom: "token".to_string(),
-    //             amount: Uint128::new(2),
-    //         }],
-    //     );
-    //     let exec_msg = ExecuteMsg::Reset { count: 5 };
-
-    //     let _res = execute(deps.as_mut(), mock_env(), info, exec_msg).unwrap();
-
-    //     // should now be 5
-    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-    //     let value: CountResponse = from_binary(&res).unwrap();
-    //     assert_eq!(5, value.count);
-    // }
 }
