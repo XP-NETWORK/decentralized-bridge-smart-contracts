@@ -895,334 +895,333 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
     }
     UNIQUE_IDENTIFIER_STORAGE.insert(deps.storage, &hash, &true)?;
     
-    // let validators_to_reward = validate_signature(
-    //     deps.api,
-    //     hash,
-    //     msg.signatures,
-    //     validators_count.try_into().unwrap(),
-    // )?;
+    let validators_to_reward = validate_signature(
+        deps.api,
+        hash,
+        msg.signatures,
+        validators_count.try_into().unwrap(),
+    )?;
 
-    // reward_validators(
-    //     deps.storage,
-    //     msg.data.fee.clone(),
-    //     validators_to_reward,
-    //     balance.into(),
-    // )?;
+    reward_validators(
+        deps.storage,
+        msg.data.fee.clone(),
+        validators_to_reward,
+        balance.into(),
+    )?;
 
-    // let duplicate_collection_address_option = ORIGINAL_TO_DUPLICATE_STORAGE.get(
-    //     deps.storage,
-    //     &(
-    //         msg.data.source_nft_contract_address.clone(),
-    //         msg.data.source_chain.clone(),
-    //     ),
-    // );
-    // let mut duplicate_collection_address = OriginalToDuplicateContractInfo {
-    //     chain: "".to_string(),
-    //     contract_address: env.contract.address.clone(),
-    //     code_hash: "".to_string(),
-    // };
-    // let mut has_duplicate: bool = false;
-    // let mut has_storage: bool = false;
-    // let storage_contract_option: Option<(Addr, String)>;
-    // let storage_contract: (Addr, String);
+    let duplicate_collection_address_option = ORIGINAL_TO_DUPLICATE_STORAGE.get(
+        deps.storage,
+        &(
+            msg.data.source_nft_contract_address.clone(),
+            msg.data.source_chain.clone(),
+        ),
+    );
+    let mut duplicate_collection_address = OriginalToDuplicateContractInfo {
+        chain: "".to_string(),
+        contract_address: env.contract.address.clone(),
+        code_hash: "".to_string(),
+    };
+    let mut has_duplicate: bool = false;
+    let mut has_storage: bool = false;
+    let storage_contract_option: Option<(Addr, String)>;
+    let storage_contract: (Addr, String);
 
-    // match duplicate_collection_address_option {
-    //     Some(v) => {
-    //         duplicate_collection_address = v;
-    //         storage_contract_option = DUPLICATE_STORAGE_721.get(
-    //             deps.storage,
-    //             &(
-    //                 duplicate_collection_address.contract_address.to_string(),
-    //                 self_chain,
-    //             ),
-    //         );
-    //         has_duplicate = true
-    //     }
-    //     None => {
-    //         storage_contract_option = ORIGINAL_STORAGE_721.get(
-    //             deps.storage,
-    //             &(msg.data.source_nft_contract_address.clone(), self_chain),
-    //         );
-    //     }
-    // }
-    // match storage_contract_option {
-    //     Some(v) => {
-    //         storage_contract = v;
-    //         has_storage = true;
-    //     }
-    //     None => {
-    //         storage_contract = (Addr::unchecked("none"), "none".to_string());
-    //         has_storage = false;
-    //     }
-    // }
-    // let res = if has_duplicate && has_storage {
-    //     let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
-    //         deps.storage,
-    //         &(
-    //             duplicate_collection_address
-    //                 .contract_address
-    //                 .clone()
-    //                 .into_string(),
-    //             msg.data.token_id.to_string(),
-    //         ),
-    //     );
+    match duplicate_collection_address_option {
+        Some(v) => {
+            duplicate_collection_address = v;
+            storage_contract_option = DUPLICATE_STORAGE_721.get(
+                deps.storage,
+                &(
+                    duplicate_collection_address.contract_address.to_string(),
+                    self_chain,
+                ),
+            );
+            has_duplicate = true
+        }
+        None => {
+            storage_contract_option = ORIGINAL_STORAGE_721.get(
+                deps.storage,
+                &(msg.data.source_nft_contract_address.clone(), self_chain),
+            );
+        }
+    }
+    match storage_contract_option {
+        Some(v) => {
+            storage_contract = v;
+            has_storage = true;
+        }
+        None => {
+            storage_contract = (Addr::unchecked("none"), "none".to_string());
+            has_storage = false;
+        }
+    }
+    let res = if has_duplicate && has_storage {
+        let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
+            deps.storage,
+            &(
+                duplicate_collection_address
+                    .contract_address
+                    .clone()
+                    .into_string(),
+                msg.data.token_id.to_string(),
+            ),
+        );
 
-    //     match is_storage_is_nft_owner_option {
-    //         Some(_v) => {
-    //             let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
-    //                 token_id: msg.data.token_id.clone(),
-    //                 to: msg.data.destination_user_address.clone(),
-    //             };
+        match is_storage_is_nft_owner_option {
+            Some(_v) => {
+                let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
+                    token_id: msg.data.token_id.clone(),
+                    to: msg.data.destination_user_address.clone(),
+                };
 
-    //             let message = CosmosMsg::Wasm(WasmMsg::Execute {
-    //                 contract_addr: storage_contract.0.clone().into_string(),
-    //                 code_hash: storage_contract.1,
-    //                 msg: to_binary(&create_unlock_msg)?,
-    //                 funds: vec![],
-    //             });
+                let message = CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: storage_contract.0.clone().into_string(),
+                    code_hash: storage_contract.1,
+                    msg: to_binary(&create_unlock_msg)?,
+                    funds: vec![],
+                });
 
-    //             let log: Vec<Attribute> = vec![
-    //                 UnLock721EventInfo::new(
-    //                     msg.data.destination_user_address,
-    //                     msg.data.token_id.clone(),
-    //                     storage_contract.0.to_string(),
-    //                 )
-    //                 .try_into()?,
-    //                 Claimed721EventInfo::new(
-    //                     msg.data.lock_tx_chain,
-    //                     msg.data.source_chain,
-    //                     msg.data.transaction_hash,
-    //                     duplicate_collection_address
-    //                         .contract_address
-    //                         .clone()
-    //                         .to_string(),
-    //                     msg.data.token_id.clone(),
-    //                 )
-    //                 .try_into()?,
-    //             ];
+                let log: Vec<Attribute> = vec![
+                    UnLock721EventInfo::new(
+                        msg.data.destination_user_address,
+                        msg.data.token_id.clone(),
+                        storage_contract.0.to_string(),
+                    )
+                    .try_into()?,
+                    Claimed721EventInfo::new(
+                        msg.data.lock_tx_chain,
+                        msg.data.source_chain,
+                        msg.data.transaction_hash,
+                        duplicate_collection_address
+                            .contract_address
+                            .clone()
+                            .to_string(),
+                        msg.data.token_id.clone(),
+                    )
+                    .try_into()?,
+                ];
 
-    //             let _ = NFT_COLLECTION_OWNER.remove(
-    //                 deps.storage,
-    //                 &(
-    //                     duplicate_collection_address.contract_address.into_string(),
-    //                     msg.data.token_id,
-    //                 ),
-    //             );
+                let _ = NFT_COLLECTION_OWNER.remove(
+                    deps.storage,
+                    &(
+                        duplicate_collection_address.contract_address.into_string(),
+                        msg.data.token_id,
+                    ),
+                );
 
-    //             Ok(Response::new().add_message(message).add_attributes(log))
-    //         }
-    //         None => {
-    //             let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
-    //                 token_id: Some(msg.data.token_id.to_string()),
-    //                 owner: Some(msg.data.destination_user_address.into_string()),
-    //                 public_metadata: Some(Snip721Meta {
-    //                     token_uri: Some(msg.data.metadata),
-    //                     extension: Option::None,
-    //                 }),
-    //                 private_metadata: Option::None,
-    //                 serial_number: Option::None,
-    //                 royalty_info: Some(RoyaltyInfo {
-    //                     decimal_places_in_rates: 4,
-    //                     royalties: vec![Royalty {
-    //                         rate: msg.data.royalty,
-    //                         recipient: msg.data.royalty_receiver.into_string(),
-    //                     }],
-    //                 }),
-    //                 transferable: Some(true),
-    //                 memo: Option::None,
-    //                 padding: Option::None,
-    //             };
+                Ok(Response::new().add_message(message).add_attributes(log))
+            }
+            None => {
+                let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+                    token_id: Some(msg.data.token_id.to_string()),
+                    owner: Some(msg.data.destination_user_address.into_string()),
+                    public_metadata: Some(Snip721Meta {
+                        token_uri: Some(msg.data.metadata),
+                        extension: Option::None,
+                    }),
+                    private_metadata: Option::None,
+                    serial_number: Option::None,
+                    royalty_info: Some(RoyaltyInfo {
+                        decimal_places_in_rates: 4,
+                        royalties: vec![Royalty {
+                            rate: msg.data.royalty,
+                            recipient: msg.data.royalty_receiver.into_string(),
+                        }],
+                    }),
+                    transferable: Some(true),
+                    memo: Option::None,
+                    padding: Option::None,
+                };
 
-    //             let message = CosmosMsg::Wasm(WasmMsg::Execute {
-    //                 contract_addr: duplicate_collection_address
-    //                     .contract_address
-    //                     .clone()
-    //                     .into_string(),
-    //                 code_hash: duplicate_collection_address.code_hash,
-    //                 msg: to_binary(&create_collection_msg)?,
-    //                 funds: vec![],
-    //             });
-    //             let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
-    //                 msg.data.lock_tx_chain,
-    //                 msg.data.source_chain,
-    //                 msg.data.transaction_hash,
-    //                 duplicate_collection_address.contract_address.to_string(),
-    //                 msg.data.token_id,
-    //             )
-    //             .try_into()?];
+                let message = CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: duplicate_collection_address
+                        .contract_address
+                        .clone()
+                        .into_string(),
+                    code_hash: duplicate_collection_address.code_hash,
+                    msg: to_binary(&create_collection_msg)?,
+                    funds: vec![],
+                });
+                let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
+                    msg.data.lock_tx_chain,
+                    msg.data.source_chain,
+                    msg.data.transaction_hash,
+                    duplicate_collection_address.contract_address.to_string(),
+                    msg.data.token_id,
+                )
+                .try_into()?];
 
-    //             Ok(Response::new().add_message(message).add_attributes(log))
-    //         }
-    //     }
-    // }
-    // // ===============================/ hasDuplicate && NOT hasStorage /=======================
-    // else if has_duplicate && !has_storage {
-    //     let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
-    //         token_id: Some(msg.data.token_id.to_string()),
-    //         owner: Some(msg.data.destination_user_address.into_string()),
-    //         public_metadata: Some(Snip721Meta {
-    //             token_uri: Some(msg.data.metadata),
-    //             extension: Option::None,
-    //         }),
-    //         private_metadata: Option::None,
-    //         serial_number: Option::None,
-    //         royalty_info: Some(RoyaltyInfo {
-    //             decimal_places_in_rates: 4,
-    //             royalties: vec![Royalty {
-    //                 rate: msg.data.royalty,
-    //                 recipient: msg.data.royalty_receiver.into_string(),
-    //             }],
-    //         }),
-    //         transferable: Some(true),
-    //         memo: Option::None,
-    //         padding: Option::None,
-    //     };
+                Ok(Response::new().add_message(message).add_attributes(log))
+            }
+        }
+    }
+    // ===============================/ hasDuplicate && NOT hasStorage /=======================
+    else if has_duplicate && !has_storage {
+        let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+            token_id: Some(msg.data.token_id.to_string()),
+            owner: Some(msg.data.destination_user_address.into_string()),
+            public_metadata: Some(Snip721Meta {
+                token_uri: Some(msg.data.metadata),
+                extension: Option::None,
+            }),
+            private_metadata: Option::None,
+            serial_number: Option::None,
+            royalty_info: Some(RoyaltyInfo {
+                decimal_places_in_rates: 4,
+                royalties: vec![Royalty {
+                    rate: msg.data.royalty,
+                    recipient: msg.data.royalty_receiver.into_string(),
+                }],
+            }),
+            transferable: Some(true),
+            memo: Option::None,
+            padding: Option::None,
+        };
 
-    //     let message = CosmosMsg::Wasm(WasmMsg::Execute {
-    //         contract_addr: duplicate_collection_address
-    //             .contract_address
-    //             .clone()
-    //             .into_string(),
-    //         code_hash: duplicate_collection_address.code_hash,
-    //         msg: to_binary(&create_collection_msg)?,
-    //         funds: vec![],
-    //     });
-    //     let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
-    //         msg.data.lock_tx_chain,
-    //         msg.data.source_chain,
-    //         msg.data.transaction_hash,
-    //         duplicate_collection_address.contract_address.to_string(),
-    //         msg.data.token_id,
-    //     )
-    //     .try_into()?];
+        let message = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: duplicate_collection_address
+                .contract_address
+                .clone()
+                .into_string(),
+            code_hash: duplicate_collection_address.code_hash,
+            msg: to_binary(&create_collection_msg)?,
+            funds: vec![],
+        });
+        let log: Vec<Attribute> = vec![Claimed721EventInfo::new(
+            msg.data.lock_tx_chain,
+            msg.data.source_chain,
+            msg.data.transaction_hash,
+            duplicate_collection_address.contract_address.to_string(),
+            msg.data.token_id,
+        )
+        .try_into()?];
 
-    //     Ok(Response::new().add_message(message).add_attributes(log))
-    // }
-    // // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
-    // else if !has_duplicate && !has_storage {
-    //     // new collection
-    //     deploy_collection_721(
-    //         deps,
-    //         msg.data.name,
-    //         msg.data.symbol,
-    //         env.contract.address.into_string(),
-    //         msg.data.source_nft_contract_address,
-    //         msg.data.source_chain.clone(),
-    //         msg.data.destination_user_address,
-    //         msg.data.token_id,
-    //         1,
-    //         msg.data.royalty,
-    //         msg.data.royalty_receiver,
-    //         msg.data.metadata,
-    //         msg.data.transaction_hash,
-    //         msg.data.lock_tx_chain,
-    //     )
-    // }
-    // // ===============================/ NOT hasDuplicate && hasStorage /=======================
-    // else if !has_duplicate && has_storage {
-    //     let code_hash = CODEHASHES
-    //         .get(
-    //             deps.storage,
-    //             &deps
-    //                 .api
-    //                 .addr_validate(&msg.data.source_nft_contract_address.clone())?,
-    //         )
-    //         .expect("Code hash not found");
+        Ok(Response::new().add_message(message).add_attributes(log))
+    }
+    // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
+    else if !has_duplicate && !has_storage {
+        // new collection
+        deploy_collection_721(
+            deps,
+            msg.data.name,
+            msg.data.symbol,
+            env.contract.address.into_string(),
+            msg.data.source_nft_contract_address,
+            msg.data.source_chain.clone(),
+            msg.data.destination_user_address,
+            msg.data.token_id,
+            1,
+            msg.data.royalty,
+            msg.data.royalty_receiver,
+            msg.data.metadata,
+            msg.data.transaction_hash,
+            msg.data.lock_tx_chain,
+        )
+    }
+    // ===============================/ NOT hasDuplicate && hasStorage /=======================
+    else if !has_duplicate && has_storage {
+        let code_hash = CODEHASHES
+            .get(
+                deps.storage,
+                &deps
+                    .api
+                    .addr_validate(&msg.data.source_nft_contract_address.clone())?,
+            )
+            .expect("Code hash not found");
 
-    //     let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
-    //         deps.storage,
-    //         &(
-    //             msg.data.source_nft_contract_address.clone(),
-    //             msg.data.token_id.to_string(),
-    //         ),
-    //     );
+        let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
+            deps.storage,
+            &(
+                msg.data.source_nft_contract_address.clone(),
+                msg.data.token_id.to_string(),
+            ),
+        );
 
-    //     match is_storage_is_nft_owner_option {
-    //         Some(_v) => {
-    //             let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
-    //                 token_id: msg.data.token_id.clone(),
-    //                 to: msg.data.destination_user_address.clone(),
-    //             };
+        match is_storage_is_nft_owner_option {
+            Some(_v) => {
+                let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
+                    token_id: msg.data.token_id.clone(),
+                    to: msg.data.destination_user_address.clone(),
+                };
 
-    //             let message = CosmosMsg::Wasm(WasmMsg::Execute {
-    //                 contract_addr: storage_contract.0.clone().into_string(),
-    //                 code_hash: storage_contract.1,
-    //                 msg: to_binary(&create_unlock_msg)?,
-    //                 funds: vec![],
-    //             });
+                let message = CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: storage_contract.0.clone().into_string(),
+                    code_hash: storage_contract.1,
+                    msg: to_binary(&create_unlock_msg)?,
+                    funds: vec![],
+                });
 
-    //             let log: Vec<Attribute> = vec![
-    //                 UnLock721EventInfo::new(
-    //                     msg.data.destination_user_address,
-    //                     msg.data.token_id.clone(),
-    //                     storage_contract.0.to_string(),
-    //                 )
-    //                 .try_into()?,
-    //                 Claimed721EventInfo::new(
-    //                     msg.data.lock_tx_chain,
-    //                     msg.data.source_chain,
-    //                     msg.data.transaction_hash,
-    //                     msg.data.source_nft_contract_address.clone(),
-    //                     msg.data.token_id.clone(),
-    //                 )
-    //                 .try_into()?,
-    //             ];
+                let log: Vec<Attribute> = vec![
+                    UnLock721EventInfo::new(
+                        msg.data.destination_user_address,
+                        msg.data.token_id.clone(),
+                        storage_contract.0.to_string(),
+                    )
+                    .try_into()?,
+                    Claimed721EventInfo::new(
+                        msg.data.lock_tx_chain,
+                        msg.data.source_chain,
+                        msg.data.transaction_hash,
+                        msg.data.source_nft_contract_address.clone(),
+                        msg.data.token_id.clone(),
+                    )
+                    .try_into()?,
+                ];
 
-    //             let _ = NFT_COLLECTION_OWNER.remove(
-    //                 deps.storage,
-    //                 &(
-    //                     msg.data.source_nft_contract_address.clone(),
-    //                     msg.data.token_id,
-    //                 ),
-    //             );
+                let _ = NFT_COLLECTION_OWNER.remove(
+                    deps.storage,
+                    &(
+                        msg.data.source_nft_contract_address.clone(),
+                        msg.data.token_id,
+                    ),
+                );
 
-    //             Ok(Response::new().add_message(message).add_attributes(log))
-    //         }
-    //         None => {
-    //             let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
-    //                 token_id: Some(msg.data.token_id.to_string()),
-    //                 owner: Some(msg.data.destination_user_address.into_string()),
-    //                 public_metadata: Some(Snip721Meta {
-    //                     token_uri: Some(msg.data.metadata),
-    //                     extension: Option::None,
-    //                 }),
-    //                 private_metadata: Option::None,
-    //                 serial_number: Option::None,
-    //                 royalty_info: Some(RoyaltyInfo {
-    //                     decimal_places_in_rates: 4,
-    //                     royalties: vec![Royalty {
-    //                         rate: msg.data.royalty,
-    //                         recipient: msg.data.royalty_receiver.into_string(),
-    //                     }],
-    //                 }),
-    //                 transferable: Some(true),
-    //                 memo: Option::None,
-    //                 padding: Option::None,
-    //             };
+                Ok(Response::new().add_message(message).add_attributes(log))
+            }
+            None => {
+                let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+                    token_id: Some(msg.data.token_id.to_string()),
+                    owner: Some(msg.data.destination_user_address.into_string()),
+                    public_metadata: Some(Snip721Meta {
+                        token_uri: Some(msg.data.metadata),
+                        extension: Option::None,
+                    }),
+                    private_metadata: Option::None,
+                    serial_number: Option::None,
+                    royalty_info: Some(RoyaltyInfo {
+                        decimal_places_in_rates: 4,
+                        royalties: vec![Royalty {
+                            rate: msg.data.royalty,
+                            recipient: msg.data.royalty_receiver.into_string(),
+                        }],
+                    }),
+                    transferable: Some(true),
+                    memo: Option::None,
+                    padding: Option::None,
+                };
 
-    //             let message = CosmosMsg::Wasm(WasmMsg::Execute {
-    //                 contract_addr: msg.data.source_nft_contract_address.clone(),
-    //                 code_hash,
-    //                 msg: to_binary(&create_collection_msg)?,
-    //                 funds: vec![],
-    //             });
+                let message = CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: msg.data.source_nft_contract_address.clone(),
+                    code_hash,
+                    msg: to_binary(&create_collection_msg)?,
+                    funds: vec![],
+                });
 
-    //             let clog: Vec<Attribute> = vec![Claimed721EventInfo::new(
-    //                 msg.data.lock_tx_chain,
-    //                 msg.data.source_chain,
-    //                 msg.data.transaction_hash,
-    //                 msg.data.source_nft_contract_address,
-    //                 msg.data.token_id,
-    //             )
-    //             .try_into()?];
+                let clog: Vec<Attribute> = vec![Claimed721EventInfo::new(
+                    msg.data.lock_tx_chain,
+                    msg.data.source_chain,
+                    msg.data.transaction_hash,
+                    msg.data.source_nft_contract_address,
+                    msg.data.token_id,
+                )
+                .try_into()?];
 
-    //             Ok(Response::new().add_message(message).add_attributes(clog))
-    //         }
-    //     }
-    // } else {
-    //     return Err(StdError::generic_err("Invalid bridge state"));
-    // }?;
-
+                Ok(Response::new().add_message(message).add_attributes(clog))
+            }
+        }
+    } else {
+        return Err(StdError::generic_err("Invalid bridge state"));
+    }?;
     Ok(Response::new())
 }
 
