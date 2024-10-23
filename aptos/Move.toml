@@ -4,22 +4,16 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-bridge="c9e760e1b7a72ca1e841817ca22c204d22b2a673348329ce09fee912b490d81b" # set this to the admin account when deploying to mainnet
-nftowner="763954411e5a1f5f9d7a1b595ad6ff5a6e7cdf8650e8e00ece01707fcd6c778a"
+bridge="13f8d626e383e8621a89caeb05c56a95fda38aa2dddfa8c2b1ed063f0edb23c9" # set this to the admin account when deploying to mainnet
+nftowner="b6e6997831b43973c56cfa75f283288a37587c4e76d422d2f88b399b0a9cf206"
 
-[dev-addresses]
-bridge="c9e760e1b7a72ca1e841817ca22c204d22b2a673348329ce09fee912b490d81b"
-nftowner="763954411e5a1f5f9d7a1b595ad6ff5a6e7cdf8650e8e00ece01707fcd6c778a"
+# [dev-addresses]
+# bridge="e2006dfacb95fced3793a1c9c75511abbf41c893fb9ea544bb6c43b8be53bbef"
+# nftowner="763954411e5a1f5f9d7a1b595ad6ff5a6e7cdf8650e8e00ece01707fcd6c778a"
 
 [dependencies]
 AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "devnet" }
 AptosTokenObjects = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-token-objects/", rev = "devnet" }
 AptosStdlib = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-stdlib", rev = "devnet" }
-# AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework", rev = "devnet" }
-# AptosTokenObjects = { local = "../../aptos-core/aptos-move/framework/aptos-token-objects/", rev = "devnet" }
-# AptosStdlib = { local = "../../aptos-core/aptos-move/framework/aptos-stdlib" }
 
 [dev-dependencies]
-# AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework", rev = "devnet" }
-# AptosTokenObjects = { local = "../../aptos-core/aptos-move/framework/aptos-token-objects/", rev = "devnet" }
-# AptosStdlib = { local = "../../aptos-core/aptos-move/framework/aptos-stdlib" }
