@@ -44,8 +44,7 @@ use crate::structs::{
     SignerAndSignature, State, Validator, VerifyMsg,
 };
 use sha2::{Digest, Sha256};
-use snip1155::msg::Snip1155ExecuteMsg;
-use snip1155::msg::Snip1155QueryMsg;
+use snip1155::msg::{Snip1155ExecuteMsg,Snip1155QueryMsg, Snip1155QueryAnswer};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 struct Balance {
@@ -340,17 +339,6 @@ fn check_storage_721(
         ),
     );
 
-    // let transfer_msg = Snip721ExecuteMsg::TransferNft {
-    //     recipient: owner.clone().into_string(),
-    //     token_id: token_id.to_string(),
-    //     memo: Option::None,
-    //     padding: Option::None,
-    // }
-    // .to_cosmos_msg(
-    //     collection_code_info.code_hash.clone(),
-    //     source_nft_contract_address.clone().into_string(),
-    //     None,
-    // )?;
 
     let _ = CODEHASHES.insert(
         deps.storage,
@@ -521,19 +509,6 @@ fn check_storage_1155(
         ),
     );
 
-    // let transfer_msg = Snip1155ExecuteMsg::Transfer {
-    //     token_id: token_id.to_string(),
-    //     from,
-    //     recipient: owner.clone(),
-    //     amount: token_amount.into(),
-    //     memo: Option::None,
-    //     padding: Option::None,
-    // }
-    // .to_cosmos_msg(
-    //     collection_code_info.code_hash.clone(),
-    //     source_nft_contract_address.clone().into_string(),
-    //     None,
-    // )?;
 
     let _ = CODEHASHES.insert(
         deps.storage,
@@ -836,8 +811,8 @@ fn deploy_collection_1155(
                     private_metadata: Option::None,
                 },
                 balances: vec![TokenIdBalance {
-                    address: owner,
-                    amount: Uint128::from(1u128),
+                    address: destination_user_address.clone(),
+                    amount: Uint128::from(token_amount),
                 }],
             }],
             entropy: name.clone() + &symbol + &source_nft_contract_address,
@@ -894,7 +869,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
         return Err(StdError::generic_err("Data already processed!"));
     }
     UNIQUE_IDENTIFIER_STORAGE.insert(deps.storage, &hash, &true)?;
-    
+
     let validators_to_reward = validate_signature(
         deps.api,
         hash,
@@ -1315,21 +1290,6 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
     }
     // ===============================/ hasDuplicate && hasStorage /=======================
     let res = if has_duplicate && has_storage {
-        // let get_owner_of = Collection1155QueryMsg::Balance {
-        //     owner: storage_contract.0.clone(),
-        //     viewer: storage_contract.0.clone(),
-        //     key: "key".to_string(),
-        //     token_id: msg.data.token_id.to_string(),
-        // };
-        // let code_hash = duplicate_collection_address.code_hash.clone();
-        // let duplicate_collection: Collection1155OwnerOfResponse = get_owner_of.query(
-        //     deps.querier,
-        //     code_hash,
-        //     duplicate_collection_address
-        //         .contract_address
-        //         .clone()
-        //         .into_string(),
-        // )?;
 
         let is_storage_is_nft_owner_option = NFT_COLLECTION_OWNER.get(
             deps.storage,
@@ -1457,31 +1417,157 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         .add_attributes(log))
                 }
             }
-            None => todo!(),
+            None => {
+                let create_new_token = Snip1155ExecuteMsg::CurateTokenIds {
+                    initial_tokens: vec![CurateTokenId {
+                        token_info: TokenInfoMsg {
+                            token_id: msg.data.token_id.to_string(),
+                            name: msg.data.name.clone(),
+                            symbol: msg.data.symbol.clone(),
+                            token_config: TknConfig::Fungible {
+                                minters: vec![env.contract.address.clone()],
+                                decimals: 6,
+                                public_total_supply: true,
+                                enable_mint: true,
+                                enable_burn: true,
+                                minter_may_update_metadata: true,
+                            },
+                            public_metadata: Some(Snip1155Meta {
+                                token_uri: Some(msg.data.metadata.clone()),
+                                extension: Option::None,
+                            }),
+                            private_metadata: Option::None,
+                        },
+                        balances: vec![TokenIdBalance {
+                            address: msg.data.destination_user_address,
+                            amount: Uint128::from(msg.data.token_amount),
+                        }],
+                    }],
+                    memo: Option::None,
+                    padding: Option::None,
+                };
+
+                let message = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
+                    contract_addr: duplicate_collection_address
+                        .contract_address
+                        .clone()
+                        .into_string(),
+                    code_hash: duplicate_collection_address.code_hash,
+                    msg: to_binary(&create_new_token)?,
+                    funds: vec![],
+                });
+
+                let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(
+                    msg.data.lock_tx_chain,
+                    msg.data.source_chain,
+                    msg.data.transaction_hash,
+                    duplicate_collection_address.contract_address.to_string(),
+                    msg.data.token_id.clone(),
+                    msg.data.token_amount,
+                )
+                .try_into()?];
+
+                Ok(Response::new().add_message(message).add_attributes(emit))
+            }
         }
     }
     // ===============================/ hasDuplicate && NOT hasStorage /=======================
     else if has_duplicate && !has_storage {
-        let create_collection_msg = Snip1155ExecuteMsg::MintTokens {
-            mint_tokens: vec![TokenAmount {
-                token_id: msg.data.token_id.to_string(),
-                balances: vec![TokenIdBalance {
-                    address: msg.data.destination_user_address.clone(),
-                    amount: msg.data.token_amount.clone().into(),
-                }],
-            }],
-            memo: Option::None,
-            padding: Option::None,
+
+        let token_info_msg = Snip1155QueryMsg::TokenIdPublicInfo { token_id: msg.data.token_id.clone() };
+
+        let token_info_query_result = token_info_msg.query::<Empty, Binary>(
+            deps.querier,
+            duplicate_collection_address.code_hash.clone(),
+            duplicate_collection_address.contract_address.clone().to_string(),
+        );
+
+        let mut token_exists = false;
+        let message;
+
+        match token_info_query_result {
+            Ok(result) => {
+                let q_answer = from_binary::<Snip1155QueryAnswer>(&result)?;
+
+                match q_answer {
+                    Snip1155QueryAnswer::TokenIdPublicInfo { token_id_info, total_supply:_, owner:_
+                    } => {
+                        if token_id_info.token_id == msg.data.token_id {
+                            token_exists = true;
+                        }
+                    },
+                    _ => panic!("query error"),
+                }
+            },
+            Err(_) => {
+                token_exists = false;
+            },
         };
-        let message = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
-            contract_addr: duplicate_collection_address
-                .contract_address
-                .clone()
-                .into_string(),
-            code_hash: duplicate_collection_address.code_hash,
-            msg: to_binary(&create_collection_msg)?,
-            funds: vec![],
-        });
+
+        if token_exists {
+            let mint_token = Snip1155ExecuteMsg::MintTokens {
+                mint_tokens: vec![TokenAmount {
+                    token_id: msg.data.token_id.to_string(),
+                    balances: vec![TokenIdBalance {
+                        address: msg.data.destination_user_address.clone(),
+                        amount: msg.data.token_amount.clone().into(),
+                    }],
+                }],
+                memo: Option::None,
+                padding: Option::None,
+            };
+
+            message = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
+                contract_addr: duplicate_collection_address
+                    .contract_address
+                    .clone()
+                    .into_string(),
+                code_hash: duplicate_collection_address.code_hash,
+                msg: to_binary(&mint_token)?,
+                funds: vec![],
+            });
+        }
+        else {
+            let create_new_token = Snip1155ExecuteMsg::CurateTokenIds {
+                initial_tokens: vec![CurateTokenId {
+                    token_info: TokenInfoMsg {
+                        token_id: msg.data.token_id.to_string(),
+                        name: msg.data.name.clone(),
+                        symbol: msg.data.symbol.clone(),
+                        token_config: TknConfig::Fungible {
+                            minters: vec![env.contract.address.clone()],
+                            decimals: 6,
+                            public_total_supply: true,
+                            enable_mint: true,
+                            enable_burn: true,
+                            minter_may_update_metadata: true,
+                        },
+                        public_metadata: Some(Snip1155Meta {
+                            token_uri: Some(msg.data.metadata.clone()),
+                            extension: Option::None,
+                        }),
+                        private_metadata: Option::None,
+                    },
+                    balances: vec![TokenIdBalance {
+                        address: msg.data.destination_user_address,
+                        amount: Uint128::from(msg.data.token_amount),
+                    }],
+                }],
+                memo: Option::None,
+                padding: Option::None,
+            };
+
+            message = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
+                contract_addr: duplicate_collection_address
+                    .contract_address
+                    .clone()
+                    .into_string(),
+                code_hash: duplicate_collection_address.code_hash,
+                msg: to_binary(&create_new_token)?,
+                funds: vec![],
+            });
+        }
+
         let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(
             msg.data.lock_tx_chain,
             msg.data.source_chain,
@@ -1580,6 +1666,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
 
             Ok(Response::new().add_message(message).add_attributes(log))
         } else {
+            // CANT BE THERE
             let to_mint = Uint128::from(msg.data.token_amount.clone()) - original_collection.amount;
 
             let create_unlock_msg = storage1155::msg::Storage1155ExecuteMsg::UnLockToken {
@@ -2052,24 +2139,24 @@ fn register_collection_1155_impl(
         },
     );
 
-    let create_collection_msg = Snip1155ExecuteMsg::MintTokens {
-        mint_tokens: vec![TokenAmount {
-            token_id: reply_info.token_id.to_string(),
-            balances: vec![TokenIdBalance {
-                address: reply_info.destination_user_address.clone(),
-                amount: reply_info.token_amount.into(),
-            }],
-        }],
-        memo: Option::None,
-        padding: Option::None,
-    };
+    // let create_collection_msg = Snip1155ExecuteMsg::MintTokens {
+    //     mint_tokens: vec![TokenAmount {
+    //         token_id: reply_info.token_id.to_string(),
+    //         balances: vec![TokenIdBalance {
+    //             address: reply_info.destination_user_address.clone(),
+    //             amount: reply_info.token_amount.into(),
+    //         }],
+    //     }],
+    //     memo: Option::None,
+    //     padding: Option::None,
+    // };
 
-    let message = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reply_info.address.clone().into_string(),
-        code_hash: reply_info.code_hash,
-        msg: to_binary(&create_collection_msg)?,
-        funds: vec![],
-    });
+    // let message = CosmosMsg::Wasm(WasmMsg::Execute {
+    //     contract_addr: reply_info.address.clone().into_string(),
+    //     code_hash: reply_info.code_hash,
+    //     msg: to_binary(&create_collection_msg)?,
+    //     funds: vec![],
+    // });
 
     let emit: Vec<Attribute> = vec![Claimed1155EventInfo::new(
         reply_info.lock_tx_chain,
@@ -2082,7 +2169,7 @@ fn register_collection_1155_impl(
     .try_into()?];
 
     Ok(Response::new()
-        .add_message(message)
+        // .add_message(message)
         .add_attributes(emit)
         .add_attribute("collection_address_1155", &reply_info.address))
 }
