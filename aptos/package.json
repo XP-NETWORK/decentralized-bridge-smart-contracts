@@ -15,6 +15,8 @@
   "dependencies": {
     "@aptos-labs/ts-sdk": "^1.18.0",
     "@noble/ed25519": "^1.7.1",
+    "@noble/hashes": "^1.5.0",
+    "@thalalabs/surf": "^1.7.3",
     "aptos": "^1.21.0",
     "big.js": "^6.2.1",
     "dotenv": "^16.4.5",
@@ -28,6 +30,7 @@
     "@types/node": "^20.14.1",
     "chai": "^5.1.1",
     "mocha": "^10.4.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.3"
   }
 }
