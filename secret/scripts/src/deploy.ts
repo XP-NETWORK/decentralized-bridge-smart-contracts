@@ -1,5 +1,8 @@
-import { SecretNetworkClient, Wallet } from "secretjs";
+import { SecretNetworkClient, Wallet, pubkeyToAddress } from "secretjs";
 import { readFileSync, writeFileSync } from "fs";
+import { config } from "dotenv";
+
+config();
 
 export async function deploy() {
   const wallet = new Wallet(process.env.WALLET!);
@@ -22,6 +25,8 @@ export async function deploy() {
       denom: "uscrt",
     })
   );
+
+  return
 
   const snip721_wasm = readFileSync("./artifacts/snip721.wasm.gz");
   const snip1155_wasm = readFileSync("./artifacts/snip1155.wasm.gz");
@@ -141,18 +146,22 @@ export async function deploy() {
   )?.value!;
   console.log("Uploaded Bridge contract code. Code ID: ", bridgeCodeId);
 
+  const validatorToAddPublicKeyUint8 = Buffer.from("021965a0ab2ebebd6dcf88ad65902295c0e83f1c056c95bc4cc42d9cf260658b38", "hex");
+
   const initMsg = {
     validators: [
       [
         Buffer.from(
-          "03aa85dad948edcdc8b9d301a89a2917d1d6e3b841bbcecfc79556e544a6bdadaa", "hex"
+          "021965a0ab2ebebd6dcf88ad65902295c0e83f1c056c95bc4cc42d9cf260658b38", "hex"
         ).toString("base64"),
-        validator.address,
+        pubkeyToAddress(Buffer.from(
+          "021965a0ab2ebebd6dcf88ad65902295c0e83f1c056c95bc4cc42d9cf260658b38", "hex"
+        ))
       ],
     ],
     chain_type: "SECRET",
-    storage_label: `XPContract-SF${Math.ceil(Math.random() * 10000)}`,
-    collection_label: `XPContract-CF${Math.ceil(Math.random() * 10000)}`,
+    storage_label: `D-SF${Math.ceil(Math.random() * 10000)}`,
+    collection_label: `D-CF${Math.ceil(Math.random() * 10000)}`,
     collection721_code_info: {
       code_id: parseInt(nftCodeId),
       code_hash: (

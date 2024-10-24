@@ -1154,6 +1154,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                 Ok(Response::new().add_message(message).add_attributes(log))
             }
             None => {
+                // CANT BE THERE
                 let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
                     token_id: Some(msg.data.token_id.to_string()),
                     owner: Some(msg.data.destination_user_address.into_string()),
