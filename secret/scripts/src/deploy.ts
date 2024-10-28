@@ -26,8 +26,6 @@ export async function deploy() {
     })
   );
 
-  return
-
   const snip721_wasm = readFileSync("./artifacts/snip721.wasm.gz");
   const snip1155_wasm = readFileSync("./artifacts/snip1155.wasm.gz");
   const collection_deployer_wasm = readFileSync(

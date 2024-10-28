@@ -203,9 +203,15 @@ fn add_validator(deps: DepsMut, add_validator_msg: AddValidatorMsg) -> StdResult
     }
     let required = required_threshold(state.validators_count as u128) as u128;
 
+    let serialized = add_validator_msg.validator.0.to_string();
+    let mut hasher = Sha256::new();
+    let mut hash = [0u8; 32];
+    hasher.update(serialized);
+    hash = hasher.finalize().into();
+
     let percentage = validate_signature(
         deps.api,
-        add_validator_msg.validator.0 .0.clone().try_into().unwrap(),
+        hash,
         add_validator_msg.signatures,
         required,
     )?;
@@ -254,7 +260,15 @@ fn verify_signature(
     signer_address: &[u8],
     hash: &[u8; 32],
 ) -> StdResult<bool> {
-    Ok(api.secp256k1_verify(hash, &signature, &signer_address)?)
+    let verify = api.secp256k1_verify(hash, &signature, &signer_address);
+    match verify {
+        Ok(v) => {
+            Ok(v)
+        },
+        Err(_) => {
+            Ok(false)
+        },
+    }
 }
 
 fn required_threshold(validators_count: u128) -> i128 {
