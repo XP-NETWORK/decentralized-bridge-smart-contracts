@@ -214,7 +214,6 @@ module bridge::aptos_nft_bridge {
             };
             let sig_is_valid = check_signature(signature, public_key, data);
             if (sig_is_valid) {
-                std::debug::print(&percentage);
                 simple_map::add(&mut uv, public_key, true);
                 percentage = percentage + 1;
             }
@@ -264,27 +263,27 @@ module bridge::aptos_nft_bridge {
 
     public entry fun initialize(
         admin: &signer,
-        val_public_key: vector<vector<u8>>,
-        val_address: vector<address>,
+        validator_public_keys: vector<vector<u8>>,
+        validator_addresses: vector<address>,
         seed: vector<u8>,
         self_chain: vector<u8>
     ) {
         let admin_addr = signer::address_of(admin);
         assert!(admin_addr == @bridge, E_NOT_BRIDGE_ADMIN);
         assert!(!exists<Bridge>(admin_addr), E_ALREADY_INITIALIZED);
-        let total_validators = vector::length(&val_public_key);
+        let total_validators = vector::length(&validator_public_keys);
         assert!(total_validators > 0, E_VALIDATORS_LENGTH_ZERO);
-        assert!(vector::length(&val_public_key) == vector::length(&val_address), E_VALIDATOR_AND_PUBLIC_KEYS_NOT_EQUAL_LENGTH);
+        assert!(vector::length(&validator_public_keys) == vector::length(&validator_addresses), E_VALIDATOR_AND_PUBLIC_KEYS_NOT_EQUAL_LENGTH);
 
         let (bridge_signer, signer_cap) = account::create_resource_account(admin, seed);
         let validators_to_add = simple_map::new<vector<u8>, Validator>();
 
         for (i in 0..total_validators) {
-            let validator = *vector::borrow(&val_public_key, i);
+            let validator = *vector::borrow(&validator_public_keys, i);
             let validated_pk = ed25519::new_validated_public_key_from_bytes(validator);
             assert!(option::is_some(&validated_pk), E_INVALID_PK);
             simple_map::add(
-                &mut validators_to_add, validator, Validator { pending_reward: 0, addr: *vector::borrow(&val_address, i)  }
+                &mut validators_to_add, validator, Validator { pending_reward: 0, addr: *vector::borrow(&validator_addresses, i)  }
             );
         };
 
@@ -678,7 +677,7 @@ module bridge::aptos_nft_bridge {
             royalty_payee_address,
             metadata,
             transaction_hash,
-            token_amount: 0,
+            token_amount: 1,
             nft_type,
             fee,
             symbol
@@ -777,7 +776,7 @@ module bridge::aptos_nft_bridge {
                 );
             };
 
-            let royalty = royalty::create(royalty_percentage, 100, royalty_payee_address);
+            let royalty = royalty::create(royalty_percentage, 10000, royalty_payee_address);
 
             token::create_named_token(
                 &bridge_signer_from_cap,
