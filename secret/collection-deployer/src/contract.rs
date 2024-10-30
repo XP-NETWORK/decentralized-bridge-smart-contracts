@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use secret_toolkit::utils::{pad_handle_result, InitCallback};
-use snip1155::state::state_structs::CurateTokenId;
+use snip1155::state::state_structs::{CurateTokenId, LbPair};
 
 use crate::bridge_msg::ReplyCollectionDeployerInfo;
 use crate::error::ContractError;
@@ -109,6 +109,7 @@ pub fn execute(
             curators,
             initial_tokens,
             entropy,
+            lb_pair_info,
             label,
             source_nft_contract_address,
             source_chain,
@@ -130,6 +131,7 @@ pub fn execute(
             curators,
             initial_tokens,
             entropy,
+            lb_pair_info,
             label,
             source_nft_contract_address,
             source_chain,
@@ -176,7 +178,6 @@ fn try_create_collection_721(
             lock_tx_chain: String
 ) -> Result<Response, ContractError> {
     let owner_addr = deps.api.addr_validate(&owner)?;
-
     // let factory = ContractInfo {
     //     code_hash: env.contract.code_hash,
     //     address: env.contract.address,
@@ -235,6 +236,7 @@ fn try_create_collection_1155(
     curators: Vec<Addr>,
     initial_tokens: Vec<CurateTokenId>,
     entropy: String,
+    lb_pair_info: LbPair,
     label: String,
     source_nft_contract_address: String,
     source_chain: String,
@@ -261,6 +263,7 @@ fn try_create_collection_1155(
         curators,
         initial_tokens,
         entropy,
+        lb_pair_info,
         label: label.clone(),
         source_nft_contract_address: source_nft_contract_address.clone(),
         source_chain,
@@ -271,7 +274,7 @@ fn try_create_collection_1155(
         royalty_receiver,
         metadata,
         transaction_hash,
-            lock_tx_chain
+        lock_tx_chain
     };
 
     let offspring_code = SNIP1155_CODE.load(deps.storage)?;

@@ -34,6 +34,7 @@ pub enum StorageDeployerExecuteMsg {
         owner: String,
         is_original: bool,
         token_id: String,
+        token_amount: u128,
     },
 }
 

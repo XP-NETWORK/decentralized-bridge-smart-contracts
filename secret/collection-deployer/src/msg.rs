@@ -3,7 +3,7 @@ use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use secret_toolkit::utils::{HandleCallback, InitCallback};
 use serde::{Deserialize, Serialize};
-use snip1155::state::state_structs::CurateTokenId;
+use snip1155::state::state_structs::{CurateTokenId, LbPair};
 
 use crate::state::BLOCK_SIZE;
 
@@ -51,6 +51,7 @@ pub enum CollectionDeployerExecuteMsg {
         curators: Vec<Addr>,
         initial_tokens: Vec<CurateTokenId>,
         entropy: String,
+        lb_pair_info: LbPair,
         label: String,
         source_nft_contract_address: String,
         source_chain: String,

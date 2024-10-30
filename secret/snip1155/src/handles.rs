@@ -1,6 +1,18 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage, Uint128,
+    entry_point,
+    // debug_print,
+    to_binary,
+    Addr,
+    Binary,
+    CosmosMsg,
+    DepsMut,
+    Env,
+    MessageInfo,
+    Response,
+    StdError,
+    StdResult,
+    Storage,
+    Uint256,
 };
 use secret_toolkit::{
     crypto::sha_256,
@@ -10,26 +22,24 @@ use secret_toolkit::{
 };
 
 use crate::{
-    reply::ReplyCollectionInfo,
     msg::{
-        Snip1155ExecuteAnswer, Snip1155ExecuteMsg, Snip1155InstantiateMsg, ResponseStatus::Success, SendAction,
-        TransferAction,
-    },
-    receiver::Snip1155ReceiveMsg,
-    state::{
+        ResponseStatus::Success, SendAction, Snip1155ExecuteAnswer, Snip1155ExecuteMsg, Snip1155InstantiateMsg, TransferAction
+    }, receiver::Snip1155ReceiveMsg, reply::ReplyCollectionInfo, state::{
         balances_r, balances_w, blockinfo_w, contr_conf_r, contr_conf_w,
         expiration::Expiration,
         get_receiver_hash,
         metadata::Metadata,
         permissions::{may_load_any_permission, new_permission, update_permission, Permission},
         set_receiver_hash,
-        state_structs::{ContractConfig, CurateTokenId, StoredTokenInfo, TokenAmount},
+        state_structs::{
+            ContractConfig, CurateTokenId, StoredTokenInfo, TokenAmount,
+        },
         tkn_info_r, tkn_info_w, tkn_tot_supply_r, tkn_tot_supply_w,
         txhistory::{
             append_new_owner, may_get_current_owner, store_burn, store_mint, store_transfer,
         },
         PREFIX_REVOKED_PERMITS, RESPONSE_BLOCK_SIZE,
-    },
+    }
 };
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +61,7 @@ pub fn instantiate(
     // If `has_admin` == true && msg.admin == None => admin is the instantiator
     let admin = match msg.has_admin {
         false => None,
-        true => match msg.admin {
+        true => match msg.admin.clone() {
             Some(i) => Some(i),
             None => Some(info.sender.clone()),
         },
@@ -60,8 +70,20 @@ pub fn instantiate(
     // create contract config -- save later
     let prng_seed_hashed = sha_256(msg.entropy.as_bytes());
     let prng_seed = prng_seed_hashed.to_vec();
+    // let prng_seed = sha_256(
+    //     general_purpose::STANDARD
+    //         .encode(msg.entropy.as_str())
+    //         .as_bytes(),
+    // );
 
     ViewingKey::set_seed(deps.storage, &prng_seed);
+    ViewingKey::create(
+        deps.storage,
+        &info,
+        &env,
+        &msg.admin.unwrap().to_string(),
+        "key".as_ref(),
+    );
 
     let mut config = ContractConfig {
         admin,
@@ -70,6 +92,7 @@ pub fn instantiate(
         tx_cnt: 0u64,
         prng_seed: prng_seed.to_vec(),
         contract_address: env.contract.address.clone(),
+        lb_pair_info: msg.lb_pair_info,
     };
 
     // set initial balances
@@ -96,9 +119,8 @@ pub fn instantiate(
         transaction_hash: msg.transaction_hash,
         lock_tx_chain: msg.lock_tx_chain
     };
-    Ok(Response::new().set_data(to_binary(&collection_info)?))
 
-    // Ok(Response::default())
+    Ok(Response::new().set_data(to_binary(&collection_info)?))
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -226,16 +248,16 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: Snip1155ExecuteM
             remove_curators,
             padding: _,
         } => try_remove_curators(deps, env, info, remove_curators),
-        Snip1155ExecuteMsg::AddMinters {
-            token_id,
-            add_minters,
-            padding: _,
-        } => try_add_minters(deps, env, info, token_id, add_minters),
-        Snip1155ExecuteMsg::RemoveMinters {
-            token_id,
-            remove_minters,
-            padding: _,
-        } => try_remove_minters(deps, env, info, token_id, remove_minters),
+        // Snip1155ExecuteMsg::AddMinters {
+        //     token_id,
+        //     add_minters,
+        //     padding: _,
+        // } => try_add_minters(deps, env, info, token_id, add_minters),
+        // Snip1155ExecuteMsg::RemoveMinters {
+        //     token_id,
+        //     remove_minters,
+        //     padding: _,
+        // } => try_remove_minters(deps, env, info, token_id, remove_minters),
         Snip1155ExecuteMsg::ChangeAdmin {
             new_admin,
             padding: _,
@@ -294,15 +316,17 @@ fn try_mint_tokens(
 ) -> StdResult<Response> {
     let mut config = contr_conf_r(deps.storage).load()?;
 
+    verify_curator(&config, &info)?;
+
     // mint tokens
     for mint_token in mint_tokens {
         let token_info_op = tkn_info_r(deps.storage).may_load(mint_token.token_id.as_bytes())?;
 
         // check if token_id exists
+        // NOTE: previously, if token_id missing, would curate the new token ID. Now, need to
+        // explicitly curate first
         if token_info_op.is_none() {
-            return Err(StdError::generic_err(
-                "token_id does not exist. Cannot mint non-existent `token_ids`. Use `curate_token_ids` to create tokens on new `token_ids`"
-            ));
+            return Err(StdError::generic_err("token_id does not exist"));
         }
 
         // check if enable_mint == true
@@ -319,7 +343,7 @@ fn try_mint_tokens(
         }
 
         // check if sender is a minter
-        verify_minter(token_info_op.as_ref().unwrap(), &info)?;
+        // verify_minter(token_info_op.as_ref().unwrap(), &info)?;
 
         // add balances
         for add_balance in mint_token.balances {
@@ -485,7 +509,7 @@ fn try_transfer(
     token_id: String,
     from: Addr,
     recipient: Addr,
-    amount: Uint128,
+    amount: Uint256,
     memo: Option<String>,
 ) -> StdResult<Response> {
     impl_transfer(
@@ -570,7 +594,7 @@ fn try_give_permission(
     view_balance_expiry: Option<Expiration>,
     view_private_metadata: Option<bool>,
     view_private_metadata_expiry: Option<Expiration>,
-    transfer: Option<Uint128>,
+    transfer: Option<Uint256>,
     transfer_expiry: Option<Expiration>,
 ) -> StdResult<Response> {
     // may_load current permission
@@ -582,7 +606,7 @@ fn try_give_permission(
                   view_balance_expiry: Option<Expiration>,
                   view_private_metadata: Option<bool>,
                   view_private_metadata_expiry: Option<Expiration>,
-                  transfer: Option<Uint128>,
+                  transfer: Option<Uint256>,
                   transfer_expiry: Option<Expiration>|
      -> Permission {
         Permission {
@@ -786,92 +810,6 @@ fn try_remove_curators(
     )
 }
 
-fn try_add_minters(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    token_id: String,
-    add_minters: Vec<Addr>,
-) -> StdResult<Response> {
-    let contract_config = contr_conf_r(deps.storage).load()?;
-    let token_info_op = tkn_info_r(deps.storage).may_load(token_id.as_bytes())?;
-    if token_info_op.is_none() {
-        return Err(StdError::generic_err(format!(
-            "token_id {} does not exist",
-            token_id
-        )));
-    };
-    let mut token_info = token_info_op.unwrap();
-
-    // check if either admin
-    let admin_result = verify_admin(&contract_config, &info);
-    // let curator_result = verify_curator_of_token_id(&token_info, &env); Not part of base specifications.
-
-    let verified = admin_result.is_ok(); // || curator_result.is_ok();
-    if !verified {
-        return Err(StdError::generic_err(
-            "You need to be the admin to add or remove minters",
-        ));
-    }
-
-    // add minters
-    let mut flattened_token_config = token_info.token_config.flatten();
-    for minter in add_minters {
-        flattened_token_config.minters.push(minter)
-    }
-
-    // save token info with new minters
-    token_info.token_config = flattened_token_config.to_enum();
-    tkn_info_w(deps.storage).save(token_id.as_bytes(), &token_info)?;
-
-    Ok(Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::AddMinters { status: Success })?))
-}
-
-fn try_remove_minters(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    token_id: String,
-    remove_minters: Vec<Addr>,
-) -> StdResult<Response> {
-    let contract_config = contr_conf_r(deps.storage).load()?;
-    let token_info_op = tkn_info_r(deps.storage).may_load(token_id.as_bytes())?;
-    if token_info_op.is_none() {
-        return Err(StdError::generic_err(format!(
-            "token_id {} does not exist",
-            token_id
-        )));
-    };
-    let mut token_info = token_info_op.unwrap();
-
-    // check if either admin or curator
-    let admin_result = verify_admin(&contract_config, &info);
-    // let curator_result = verify_curator_of_token_id(&token_info, &env); Not part of base specifications.
-
-    let verified = admin_result.is_ok(); // || curator_result.is_ok();
-    if !verified {
-        return Err(StdError::generic_err(
-            "You need to be the admin to add or remove minters",
-        ));
-    }
-
-    // remove minters
-    let mut flattened_token_config = token_info.token_config.flatten();
-    for minter in remove_minters {
-        flattened_token_config.minters.retain(|x| x != &minter);
-    }
-
-    // save token info with new minters
-    token_info.token_config = flattened_token_config.to_enum();
-    tkn_info_w(deps.storage).save(token_id.as_bytes(), &token_info)?;
-
-    Ok(
-        Response::new().set_data(to_binary(&Snip1155ExecuteAnswer::RemoveMinters {
-            status: Success,
-        })?),
-    )
-}
-
 fn try_change_admin(
     deps: DepsMut,
     _env: Env,
@@ -983,23 +921,6 @@ fn verify_curator(contract_config: &ContractConfig, info: &MessageInfo) -> StdRe
     Ok(())
 }
 
-// /// verifies if sender is the address that curated the token_id.
-// /// Not part of base specifications, but function left here for potential use.
-// /// If this additional feature is implemented, it is important to ensure that the instantiator
-// /// still has the ability to set initial balances without later being able to change minters.
-// fn verify_curator_of_token_id(
-//     token_info: &StoredTokenInfo,
-//     env: &Env
-// ) -> StdResult<()> {
-//     let curator = &token_info.curator;
-//     if curator != &env.message.sender {
-//         return Err(StdError::generic_err(
-//             "You are not the curator of this token_id",
-//         ));
-//     }
-//     Ok(())
-// }
-
 /// verifies if sender is a minter of the specific token_id
 fn verify_minter(token_info: &StoredTokenInfo, info: &MessageInfo) -> StdResult<()> {
     let minters = &token_info.token_config.flatten().minters;
@@ -1038,7 +959,7 @@ fn exec_curate_token_id(
                 "token_id {} is an NFT; there can only be one NFT. Balances should only have one address",
                 initial_token.token_info.token_id
             )));
-        } else if initial_token.balances[0].amount != Uint128::from(1_u64) {
+        } else if initial_token.balances[0].amount != Uint256::from(1_u64) {
             return Err(StdError::generic_err(format!(
                 "token_id {} is an NFT; there can only be one NFT. Balances.amount must == 1",
                 initial_token.token_info.token_id
@@ -1053,9 +974,10 @@ fn exec_curate_token_id(
         ));
     }
     if !is_valid_symbol(&initial_token.token_info.symbol) {
-        return Err(StdError::generic_err(
-            "Ticker symbol is not in expected format [A-Z]{3,6}",
-        ));
+        return Err(StdError::generic_err(format!(
+            "Ticker symbol is not in expected format [A-Z]{{3,6}}: {}",
+            &initial_token.token_info.symbol
+        )));
     }
     if initial_token.token_info.token_config.flatten().decimals > 18 {
         return Err(StdError::generic_err("Decimals must not exceed 18"));
@@ -1105,7 +1027,7 @@ fn exec_curate_token_id(
     Ok(())
 }
 
-/// Implements a single `Send` function. Transfers Uint128 amount of a single `token_id`,
+/// Implements a single `Send` function. Transfers Uint256 amount of a single `token_id`,
 /// saves transfer history, may register-receive, and creates callback message.
 fn impl_send(
     deps: &mut DepsMut,
@@ -1152,7 +1074,7 @@ fn impl_send(
     Ok(())
 }
 
-/// Implements a single `Transfer` function. Transfers a Uint128 amount of a
+/// Implements a single `Transfer` function. Transfers a Uint256 amount of a
 /// single `token_id` and saves the transfer history. Used by `Transfer` and
 /// `Send` (via `impl_send`) messages
 #[allow(clippy::too_many_arguments)]
@@ -1163,7 +1085,7 @@ fn impl_transfer(
     token_id: &str,
     from: &Addr,
     recipient: &Addr,
-    amount: Uint128,
+    amount: Uint256,
     memo: Option<String>,
 ) -> StdResult<()> {
     // check if `from` == message sender || has enough allowance to send tokens
@@ -1193,10 +1115,9 @@ fn impl_transfer(
             }
             // success, so need to reduce allowance
             Some(mut perm) if perm.trfer_allowance_perm >= amount => {
-                let new_allowance = Uint128::from(
+                let new_allowance = Uint256::from(
                     perm.trfer_allowance_perm
-                        .u128()
-                        .checked_sub(amount.u128())
+                        .checked_sub(amount)
                         .expect("something strange happened"),
                 );
                 perm.trfer_allowance_perm = new_allowance;
@@ -1264,7 +1185,7 @@ fn exec_change_balance(
     token_id: &str,
     remove_from: Option<&Addr>,
     add_to: Option<&Addr>,
-    amount: &Uint128,
+    amount: &Uint256,
     token_info: &StoredTokenInfo,
 ) -> StdResult<()> {
     // check whether token_id is an NFT => cannot mint. This should not be reachable in standard implementation,
@@ -1277,20 +1198,20 @@ fn exec_change_balance(
     }
 
     // check whether token_id is an NFT => assert!(amount == 1).
-    if token_info.token_config.flatten().is_nft && amount != Uint128::from(1_u64) {
+    if token_info.token_config.flatten().is_nft && amount != Uint256::from(1_u64) {
         return Err(StdError::generic_err("NFT amount must == 1"));
     }
 
     // remove balance
     if let Some(from) = remove_from {
         let from_existing_bal = balances_r(storage, token_id).load(to_binary(&from)?.as_slice())?;
-        let from_new_amount_op = from_existing_bal.u128().checked_sub(amount.u128());
-        if from_new_amount_op.is_none() {
+        let from_new_amount_op = from_existing_bal.checked_sub(*amount);
+        if from_new_amount_op.is_err() {
             return Err(StdError::generic_err("insufficient funds"));
         }
         balances_w(storage, token_id).save(
             to_binary(&from)?.as_slice(),
-            &Uint128::from(from_new_amount_op.unwrap()),
+            &Uint256::from(from_new_amount_op.unwrap()),
         )?;
 
         // NOTE: if nft, the ownership history remains in storage. Any existing viewing permissions of last owner
@@ -1304,10 +1225,10 @@ fn exec_change_balance(
         let to_existing_bal = match to_existing_bal_op {
             Some(i) => i,
             // if `to` address has no balance yet, initiate zero balance
-            None => Uint128::from(0_u64),
+            None => Uint256::from(0_u64),
         };
-        let to_new_amount_op = to_existing_bal.u128().checked_add(amount.u128());
-        if to_new_amount_op.is_none() {
+        let to_new_amount_op = to_existing_bal.checked_add(*amount);
+        if to_new_amount_op.is_err() {
             return Err(StdError::generic_err(
                 "recipient will become too rich. Total tokens exceeds 2^128",
             ));
@@ -1316,7 +1237,7 @@ fn exec_change_balance(
         // save new balances
         balances_w(storage, token_id).save(
             to_binary(&to)?.as_slice(),
-            &Uint128::from(to_new_amount_op.unwrap()),
+            &Uint256::from(to_new_amount_op.unwrap()),
         )?;
 
         // if is_nft == true, store new owner of NFT
@@ -1331,10 +1252,10 @@ fn exec_change_balance(
         (Some(_), Some(_)) => (),
         (None, Some(_)) => {
             let old_amount = tkn_tot_supply_r(storage).load(token_info.token_id.as_bytes())?;
-            let new_amount_op = old_amount.u128().checked_add(amount.u128());
+            let new_amount_op = old_amount.checked_add(*amount);
             let new_amount = match new_amount_op {
-                Some(i) => Uint128::from(i),
-                None => {
+                Ok(i) => Uint256::from(i),
+                Err(_e) => {
                     return Err(StdError::generic_err(
                         "total supply exceeds max allowed of 2^128",
                     ))
@@ -1344,10 +1265,10 @@ fn exec_change_balance(
         }
         (Some(_), None) => {
             let old_amount = tkn_tot_supply_r(storage).load(token_info.token_id.as_bytes())?;
-            let new_amount_op = old_amount.u128().checked_sub(amount.u128());
+            let new_amount_op = old_amount.checked_sub(*amount);
             let new_amount = match new_amount_op {
-                Some(i) => Uint128::from(i),
-                None => return Err(StdError::generic_err("total supply drops below zero")),
+                Ok(i) => Uint256::from(i),
+                Err(_e) => return Err(StdError::generic_err("total supply drops below zero")),
             };
             tkn_tot_supply_w(storage).save(token_info.token_id.as_bytes(), &new_amount)?;
         }
@@ -1366,7 +1287,7 @@ fn try_add_receiver_api_callback(
     sender: Addr,
     token_id: String,
     from: Addr,
-    amount: Uint128,
+    amount: Uint256,
     memo: Option<String>,
 ) -> StdResult<()> {
     if let Some(receiver_hash) = recipient_code_hash {

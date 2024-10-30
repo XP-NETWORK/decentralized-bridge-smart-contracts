@@ -3,9 +3,7 @@ use std::collections::BTreeMap;
 use collection_deployer::bridge_msg::ReplyCollectionDeployerInfo;
 use common::CodeInfo;
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg,
-    Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg,
-    SubMsgResult, Uint128, WasmMsg,
+    entry_point, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg, SubMsgResult, Uint128, Uint256, WasmMsg
 };
 use schemars::JsonSchema;
 use secret_toolkit::serialization::Bincode2;
@@ -15,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use snip1155::reply::ReplyCollectionInfo as ReplyCollection1155Info;
 use snip1155::state::metadata::Metadata as Snip1155Meta;
 use snip1155::state::state_structs::{
-    CurateTokenId, TknConfig, TokenAmount, TokenIdBalance, TokenInfoMsg,
+    CurateTokenId, LbPair, TknConfig, TokenAmount, TokenIdBalance, TokenInfoMsg
 };
 use snip721::reply::ReplyCollectionInfo as ReplyCollection721Info;
 use snip721::royalties::{Royalty, RoyaltyInfo};
@@ -44,7 +42,7 @@ use crate::structs::{
     SignerAndSignature, State, Validator, VerifyMsg,
 };
 use sha2::{Digest, Sha256};
-use snip1155::msg::{Snip1155ExecuteMsg,Snip1155QueryMsg, Snip1155QueryAnswer};
+use snip1155::msg::{Snip1155ExecuteMsg,Snip1155QueryMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 struct Balance {
@@ -533,6 +531,7 @@ fn check_storage_1155(
     match storage_address_option {
         Some(v) => transfer_to_storage_1155(
             deps.storage,
+            deps.api,
             owner,
             v.0,
             source_nft_contract_address.clone(),
@@ -549,6 +548,7 @@ fn check_storage_1155(
                     owner: owner.into_string(),
                     is_original,
                     token_id,
+                    token_amount
                 };
 
             let code_info = STORAGE_DEPLOYER_CODE.load(deps.storage)?;
@@ -568,6 +568,7 @@ fn check_storage_1155(
 
 fn transfer_to_storage_1155(
     storage: &mut dyn Storage,
+    api: &dyn Api,
     from: Addr,
     storage_address: Addr,
     source_nft_contract_address: Addr,
@@ -575,11 +576,15 @@ fn transfer_to_storage_1155(
     token_amount: u128,
     code_hash: String,
 ) -> StdResult<Response> {
+
+    api
+        .debug(format!("transfer_to_storage_1155 start").as_str());
+
     let transfer_msg = snip1155::msg::Snip1155ExecuteMsg::Transfer {
         token_id: token_id.to_string(),
         from,
         recipient: storage_address.clone(),
-        amount: token_amount.into(),
+        amount: Uint256::from(token_amount),
         memo: Option::None,
         padding: Option::None,
     }
@@ -589,6 +594,9 @@ fn transfer_to_storage_1155(
         None,
     )?;
 
+    api
+        .debug(format!("transfer_to_storage_1155 mid").as_str());
+
     let _ = NFT_COLLECTION_OWNER.insert(
         storage,
         &(
@@ -597,6 +605,9 @@ fn transfer_to_storage_1155(
         ),
         &(storage_address, token_amount),
     );
+
+    api
+        .debug(format!("transfer_to_storage_1155 end").as_str());
 
     Ok(Response::new().add_message(transfer_msg))
 }
@@ -826,10 +837,16 @@ fn deploy_collection_1155(
                 },
                 balances: vec![TokenIdBalance {
                     address: destination_user_address.clone(),
-                    amount: Uint128::from(token_amount),
+                    amount: Uint256::from(token_amount),
                 }],
             }],
             entropy: name.clone() + &symbol + &source_nft_contract_address,
+            lb_pair_info: LbPair{
+                name: name.clone(),
+                symbol: symbol.clone(),
+                lb_pair_address: Addr::unchecked(&source_nft_contract_address),
+                decimals: 18,
+            },
             label: name.clone() + &symbol + &source_nft_contract_address,
             source_nft_contract_address,
             source_chain,
@@ -1363,7 +1380,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                     Ok(Response::new().add_message(message).add_attributes(log))
                 } else {
                     let to_mint =
-                        Uint128::from(msg.data.token_amount.clone()) - Uint128::from(_v.1);
+                    Uint256::from(msg.data.token_amount.clone()) - Uint256::from(_v.1);
 
                     let create_unlock_msg = storage1155::msg::Storage1155ExecuteMsg::UnLockToken {
                         token_id: msg.data.token_id.clone(),
@@ -1455,7 +1472,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                         },
                         balances: vec![TokenIdBalance {
                             address: msg.data.destination_user_address,
-                            amount: Uint128::from(msg.data.token_amount),
+                            amount: Uint256::from(msg.data.token_amount),
                         }],
                     }],
                     memo: Option::None,
@@ -1489,9 +1506,14 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
     // ===============================/ hasDuplicate && NOT hasStorage /=======================
     else if has_duplicate && !has_storage {
 
-        let token_info_msg = Snip1155QueryMsg::TokenIdPublicInfo { token_id: msg.data.token_id.clone() };
+        let token_info_msg = Snip1155QueryMsg::Balance {
+            owner: msg.data.destination_user_address.clone(),
+            viewer: env.contract.address.clone(),
+            key: "key".to_string(),
+            token_id: msg.data.token_id.to_string(),
+        };
 
-        let token_info_query_result = token_info_msg.query::<Empty, Binary>(
+        let token_info_query_result = token_info_msg.query::<Empty, Balance>(
             deps.querier,
             duplicate_collection_address.code_hash.clone(),
             duplicate_collection_address.contract_address.clone().to_string(),
@@ -1502,19 +1524,30 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
 
         match token_info_query_result {
             Ok(result) => {
-                let q_answer = from_binary::<Snip1155QueryAnswer>(&result)?;
-
-                match q_answer {
-                    Snip1155QueryAnswer::TokenIdPublicInfo { token_id_info, total_supply:_, owner:_
-                    } => {
-                        if token_id_info.token_id == msg.data.token_id {
+                deps.api.debug(
+                    format!(
+                        "OKOKOK",
+                    )
+                    .as_str(),
+                );
+                        deps.api.debug(
+                            format!(
+                                "msg.data.token_id {}",
+                                msg.data.token_id
+                            )
+                            .as_str(),
+                        );
+                        if result.amount >= 0u128.into() {
                             token_exists = true;
                         }
-                    },
-                    _ => panic!("query error"),
-                }
             },
-            Err(_) => {
+            Err(e) => {
+                deps.api.debug(
+                    format!(
+                        "ERRRRR {}",e.to_string()
+                    )
+                    .as_str(),
+                );
                 token_exists = false;
             },
         };
@@ -1565,7 +1598,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                     },
                     balances: vec![TokenIdBalance {
                         address: msg.data.destination_user_address,
-                        amount: Uint128::from(msg.data.token_amount),
+                        amount: Uint256::from(msg.data.token_amount),
                     }],
                 }],
                 memo: Option::None,
@@ -1617,9 +1650,17 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
     else if !has_duplicate && has_storage {
+
+        deps.api.debug(
+            format!(
+                "not duplicate and has storage",
+            )
+            .as_str(),
+        );
+
         let get_owner_of = Snip1155QueryMsg::Balance {
             owner: storage_contract.0.clone(),
-            viewer: storage_contract.0.clone(),
+            viewer: env.contract.address,
             key: "key".to_string(),
             token_id: msg.data.token_id.to_string(),
         };
@@ -1637,6 +1678,13 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             code_hash.clone(),
             msg.data.source_nft_contract_address.clone(),
         )?;
+
+        deps.api.debug(
+            format!(
+                "not duplicate and has storage 13123123123123",
+            )
+            .as_str(),
+        );
 
         if original_collection.amount >= msg.data.token_amount.into() {
             let create_unlock_msg = storage1155::msg::Storage1155ExecuteMsg::UnLockToken {
@@ -1682,7 +1730,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             Ok(Response::new().add_message(message).add_attributes(log))
         } else {
             // CANT BE THERE
-            let to_mint = Uint128::from(msg.data.token_amount.clone()) - original_collection.amount;
+            let to_mint = Uint256::from(msg.data.token_amount.clone()) - Uint256::from(original_collection.amount);
 
             let create_unlock_msg = storage1155::msg::Storage1155ExecuteMsg::UnLockToken {
                 token_id: msg.data.token_id.clone(),
@@ -2017,6 +2065,10 @@ fn register_storage_1155_impl(
     reply_info: ReplyStorageInfo,
     from: Addr,
 ) -> Result<Response, ContractError> {
+
+    deps.api
+        .debug(format!("register_storage_1155_impl").as_str());
+
     let self_chain = config(deps.storage).load()?.self_chain;
     if reply_info.is_original {
         let _ = ORIGINAL_STORAGE_1155.insert(
@@ -2031,8 +2083,12 @@ fn register_storage_1155_impl(
             &(reply_info.address.clone(), reply_info.code_hash.clone()),
         );
     }
+    deps.api
+        .debug(format!("transfer_to_storage_1155").as_str());
+
     let res = transfer_to_storage_1155(
         deps.storage,
+        deps.api,
         from,
         reply_info.address.clone(),
         deps.api.addr_validate(&reply_info.label.clone())?,
@@ -2040,6 +2096,10 @@ fn register_storage_1155_impl(
         reply_info.token_amount,
         reply_info.collection_code_hash,
     )?;
+
+    deps.api
+        .debug(format!("transfer_to_storage_115522222222222").as_str());
+
     Ok(res.add_attribute("storage_address_1155", &reply_info.address))
 }
 

@@ -18,7 +18,7 @@ use crate::{
     state::OWNER,
 };
 
-use crate::offspring_msg::StorageInstantiateMsg;
+use crate::offspring_msg::{Storage721InstantiateMsg,Storage1155InstantiateMsg};
 
 ////////////////////////////////////// Init ///////////////////////////////////////
 /// Returns Result<Response, ContractError>
@@ -95,6 +95,7 @@ pub fn execute(
             owner,
             is_original,
             token_id,
+            token_amount
         } => try_create_storage_1155(
             deps,
             env,
@@ -104,6 +105,7 @@ pub fn execute(
             owner,
             is_original,
             token_id,
+            token_amount
         ),
     };
     pad_handle_result(response, BLOCK_SIZE)
@@ -141,7 +143,7 @@ fn try_create_storage_721(
 
     let owner_addr = deps.api.addr_validate(&owner)?;
 
-    let initmsg = StorageInstantiateMsg {
+    let initmsg = Storage721InstantiateMsg {
         collection_address,
         owner: owner_addr,
         collection_code_info,
@@ -182,15 +184,25 @@ fn try_create_storage_1155(
     owner: String,
     is_original: bool,
     token_id: String,
+    token_amount: u128
 ) -> Result<Response, ContractError> {
+
+    deps.api.debug(
+        format!(
+            "try_create_storage_1155",
+        )
+        .as_str(),
+    );
+
     let owner_addr = deps.api.addr_validate(&owner)?;
 
-    let initmsg = StorageInstantiateMsg {
+    let initmsg = Storage1155InstantiateMsg {
         collection_address,
         owner: owner_addr,
         collection_code_info,
         is_original,
         token_id,
+        token_amount
     };
 
     // pub collection_address: Addr,

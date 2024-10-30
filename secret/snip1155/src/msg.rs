@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Binary, StdResult, Uint128};
+use cosmwasm_std::{Addr, Binary, StdResult, Uint256};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -6,11 +6,13 @@ use crate::state::{
     expiration::Expiration,
     metadata::Metadata,
     permissions::{Permission, PermissionKey},
-    state_structs::{CurateTokenId, OwnerBalance, StoredTokenInfo, TokenAmount},
+    state_structs::{CurateTokenId, LbPair, OwnerBalance, StoredTokenInfo, TokenAmount},
     txhistory::Tx,
 };
 
 use secret_toolkit::{permit::Permit, utils::{HandleCallback, Query}};
+
+const BLOCK_SIZE: usize = 256;
 
 /////////////////////////////////////////////////////////////////////////////////
 // Init messages
@@ -29,6 +31,7 @@ pub struct Snip1155InstantiateMsg {
     pub initial_tokens: Vec<CurateTokenId>,
     /// for `create_viewing_key` function
     pub entropy: String,
+    pub lb_pair_info: LbPair,
     pub label: String,
     pub source_nft_contract_address: String,
     pub source_chain: String,
@@ -45,12 +48,6 @@ pub struct Snip1155InstantiateMsg {
 /////////////////////////////////////////////////////////////////////////////////
 // Handle Messages
 /////////////////////////////////////////////////////////////////////////////////
-/// 
-const BLOCK_SIZE: usize = 256;
-impl HandleCallback for Snip1155ExecuteMsg {
-    const BLOCK_SIZE: usize = BLOCK_SIZE;
-}
-
 
 /// Handle messages to SNIP1155 contract.
 ///
@@ -104,7 +101,7 @@ pub enum Snip1155ExecuteMsg {
         // equivalent to `owner` in SNIP20. Tokens are sent from this address.
         from: Addr,
         recipient: Addr,
-        amount: Uint128,
+        amount: Uint256,
         memo: Option<String>,
         padding: Option<String>,
     },
@@ -121,7 +118,7 @@ pub enum Snip1155ExecuteMsg {
         from: Addr,
         recipient: Addr,
         recipient_code_hash: Option<String>,
-        amount: Uint128,
+        amount: Uint256,
         msg: Option<Binary>,
         memo: Option<String>,
         padding: Option<String>,
@@ -155,7 +152,7 @@ pub enum Snip1155ExecuteMsg {
         view_private_metadata: Option<bool>,
         view_private_metadata_expiry: Option<Expiration>,
         /// set allowance by for transfer approvals. If ignored, leaves current permission settings
-        transfer: Option<Uint128>,
+        transfer: Option<Uint256>,
         transfer_expiry: Option<Expiration>,
         /// optional message length padding
         padding: Option<String>,
@@ -192,16 +189,16 @@ pub enum Snip1155ExecuteMsg {
         remove_curators: Vec<Addr>,
         padding: Option<String>,
     },
-    AddMinters {
-        token_id: String,
-        add_minters: Vec<Addr>,
-        padding: Option<String>,
-    },
-    RemoveMinters {
-        token_id: String,
-        remove_minters: Vec<Addr>,
-        padding: Option<String>,
-    },
+    // AddMinters {
+    //     token_id: String,
+    //     add_minters: Vec<Addr>,
+    //     padding: Option<String>,
+    // },
+    // RemoveMinters {
+    //     token_id: String,
+    //     remove_minters: Vec<Addr>,
+    //     padding: Option<String>,
+    // },
     ChangeAdmin {
         new_admin: Addr,
         padding: Option<String>,
@@ -223,6 +220,9 @@ pub enum Snip1155ExecuteMsg {
     },
 }
 
+impl HandleCallback for Snip1155ExecuteMsg {
+    const BLOCK_SIZE: usize = BLOCK_SIZE;
+}
 /// Handle answers in the `data` field of `HandleResponse`. See
 /// [HandleMsg](crate::msg::HandleMsg), which has more details
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
@@ -310,6 +310,10 @@ pub enum Snip1155QueryMsg {
     },
 }
 
+impl Query for Snip1155QueryMsg {
+    const BLOCK_SIZE: usize = 256;
+}
+
 impl Snip1155QueryMsg {
     pub fn get_validation_params(&self) -> StdResult<(Vec<&Addr>, String)> {
         match self {
@@ -380,7 +384,7 @@ pub enum Snip1155QueryAnswer {
     },
     /// returns balance of a specific token_id. Owners can give permission to other addresses to query their balance
     Balance {
-        amount: Uint128,
+        amount: Uint256,
     },
     /// returns all token_id balances owned by an address. Only owners can use this query
     AllBalances(Vec<OwnerBalance>),
@@ -399,21 +403,21 @@ pub enum Snip1155QueryAnswer {
         permission_keys: Vec<PermissionKey>,
         permissions: Vec<Permission>,
         /// the total number of permission entries stored for a given granter, which may include "blank"
-        /// permissions, ie: where all permissions are set to `false` or `Uint128(0)`
+        /// permissions, ie: where all permissions are set to `false` or `Uint256(0)`
         total: u64,
     },
     TokenIdPublicInfo {
         /// token_id_info.private_metadata will always = None
         token_id_info: StoredTokenInfo,
         /// if public_total_supply == false, total_supply = None
-        total_supply: Option<Uint128>,
+        total_supply: Option<Uint256>,
         /// if owner_is_public == false, total_supply = None
         owner: Option<Addr>,
     },
     TokenIdPrivateInfo {
         token_id_info: StoredTokenInfo,
         /// if public_total_supply == false, total_supply = None
-        total_supply: Option<Uint128>,
+        total_supply: Option<Uint256>,
         /// if owner_is_public == false, total_supply = None
         owner: Option<Addr>,
     },
@@ -439,10 +443,6 @@ pub enum ResponseStatus {
     Failure,
 }
 
-impl Query for Snip1155QueryMsg {
-    const BLOCK_SIZE: usize = 256;
-}
-
 #[derive(Serialize, Deserialize, Clone, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct TransferAction {
@@ -450,7 +450,7 @@ pub struct TransferAction {
     // equivalent to `owner` in SNIP20. Tokens are sent from this address.
     pub from: Addr,
     pub recipient: Addr,
-    pub amount: Uint128,
+    pub amount: Uint256,
     pub memo: Option<String>,
 }
 
@@ -462,7 +462,7 @@ pub struct SendAction {
     pub from: Addr,
     pub recipient: Addr,
     pub recipient_code_hash: Option<String>,
-    pub amount: Uint128,
+    pub amount: Uint256,
     pub msg: Option<Binary>,
     pub memo: Option<String>,
 }

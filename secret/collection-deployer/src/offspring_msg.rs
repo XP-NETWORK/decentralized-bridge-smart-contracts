@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use secret_toolkit::{snip721::Metadata, utils::InitCallback};
 use serde::{Deserialize, Serialize};
-use snip1155::state::state_structs::CurateTokenId;
+use snip1155::state::state_structs::{CurateTokenId, LbPair};
 
 use crate::state::BLOCK_SIZE;
 
@@ -91,6 +91,7 @@ pub struct Collection1155InstantiateMsg {
     pub curators: Vec<Addr>,
     pub initial_tokens: Vec<CurateTokenId>,
     pub entropy: String,
+    pub lb_pair_info: LbPair,
     pub label: String,
     pub source_nft_contract_address: String,
     pub source_chain: String,
@@ -101,7 +102,7 @@ pub struct Collection1155InstantiateMsg {
     pub royalty_receiver: Addr,
     pub metadata: String,
     pub transaction_hash: String,
-            pub lock_tx_chain: String
+    pub lock_tx_chain: String
 }
 
 impl InitCallback for Collection1155InstantiateMsg {
