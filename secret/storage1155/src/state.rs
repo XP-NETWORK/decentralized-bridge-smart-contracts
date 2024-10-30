@@ -1,8 +1,8 @@
-use common::CodeInfo;
 use cosmwasm_std::Addr;
 
 use secret_toolkit::storage::Item;
 
+use crate::structs::CodeInfo;
 
 pub const BLOCK_SIZE: usize = 256;
 

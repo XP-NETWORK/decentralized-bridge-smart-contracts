@@ -2,9 +2,8 @@ use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use secret_toolkit::utils::{HandleCallback, InitCallback};
 use serde::{Deserialize, Serialize};
-use common::CodeInfo;
 
-use crate::state::BLOCK_SIZE;
+use crate::{state::BLOCK_SIZE, structs::CodeInfo};
 
 /// Instantiation message
 #[derive(Serialize, Deserialize, JsonSchema)]

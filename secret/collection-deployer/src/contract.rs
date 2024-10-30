@@ -4,7 +4,6 @@ use cosmwasm_std::{
 };
 
 use secret_toolkit::utils::{pad_handle_result, InitCallback};
-use snip1155::state::state_structs::{CurateTokenId, LbPair};
 
 use crate::bridge_msg::ReplyCollectionDeployerInfo;
 use crate::error::ContractError;
@@ -19,7 +18,7 @@ use crate::{
 };
 
 use crate::offspring_msg::{
-    Collection1155InstantiateMsg, Collection721InstantiateMsg,
+    Collection1155InstantiateMsg, Collection721InstantiateMsg, CurateTokenId, LbPair,
 };
 
 ////////////////////////////////////// Init ///////////////////////////////////////

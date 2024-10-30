@@ -1,7 +1,7 @@
 //! Events emitted by the Bridge Contract
 use std::convert::TryInto;
 
-use cosmwasm_std::{Addr, Attribute, StdError, StdResult};
+use cosmwasm_std::{Addr, Attribute, StdError, StdResult, Uint256};
 
 use serde::Serialize;
 
@@ -111,12 +111,12 @@ pub struct UnLock1155EventInfo {
     pub to: Addr,
     pub token_id: String,
     pub contract_address: String,
-    pub amount: u128,
+    pub amount: Uint256,
 }
 bridge_event!(UnLock1155EventInfo);
 
 impl UnLock1155EventInfo {
-    pub fn new(to: Addr, token_id: String, contract_address: String, amount: u128) -> Self {
+    pub fn new(to: Addr, token_id: String, contract_address: String, amount: Uint256) -> Self {
         Self {
             to,
             token_id,

@@ -1,11 +1,9 @@
-use common::CodeInfo;
 use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use secret_toolkit::utils::{HandleCallback, InitCallback};
 use serde::{Deserialize, Serialize};
-use snip1155::state::state_structs::{CurateTokenId, LbPair};
 
-use crate::state::BLOCK_SIZE;
+use crate::{offspring_msg::{CurateTokenId, LbPair}, state::BLOCK_SIZE, structs::CodeInfo};
 
 /// Instantiation message
 #[derive(Serialize, Deserialize, JsonSchema)]

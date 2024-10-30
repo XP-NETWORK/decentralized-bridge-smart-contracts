@@ -1,7 +1,12 @@
-
 pub mod contract;
 pub mod error;
 pub mod msg;
 pub mod state;
 pub mod structs;
 pub mod events;
+pub mod snip1155_msg;
+pub mod collection_deployer_msg;
+pub mod storage_deployer_msg;
+pub mod snip721_msg;
+pub mod storage1155_msg;
+pub mod storage721_msg;

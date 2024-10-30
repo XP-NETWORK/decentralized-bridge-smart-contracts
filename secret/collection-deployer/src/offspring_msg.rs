@@ -2,7 +2,6 @@ use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use secret_toolkit::{snip721::Metadata, utils::InitCallback};
 use serde::{Deserialize, Serialize};
-use snip1155::state::state_structs::{CurateTokenId, LbPair};
 
 use crate::state::BLOCK_SIZE;
 
@@ -83,6 +82,20 @@ pub struct TokenInfoMsg {
     pub private_metadata: Option<Metadata>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CurateTokenId {
+    pub token_info: TokenInfoMsg,
+    pub balances: Vec<TokenIdBalance>,
+}
+
+/// message sent my instantiator and curators for a specific `token_id`'s token info
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LbPair {
+    pub name: String,
+    pub symbol: String,
+    pub lb_pair_address: Addr,
+    pub decimals: u8,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct Collection1155InstantiateMsg {

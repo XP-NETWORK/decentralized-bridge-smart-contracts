@@ -20,5 +20,5 @@ pub struct ReplyCollectionInfo {
     pub royalty_receiver: Addr,
     pub transaction_hash: String,
     pub metadata: String,
-    pub lock_tx_chain: String
+    pub lock_tx_chain: String,
 }

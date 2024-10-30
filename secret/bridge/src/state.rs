@@ -1,5 +1,4 @@
 
-use common::CodeInfo;
 use secret_toolkit::{
     serialization::Bincode2,
     storage::{Item, Keymap, KeymapBuilder, WithoutIter},
@@ -9,7 +8,7 @@ use cosmwasm_std::{Addr, Binary, Storage};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 
 use crate::structs::{
-     DuplicateToOriginalContractInfo, OriginalToDuplicateContractInfo, State, Validator,
+     CodeInfo, DuplicateToOriginalContractInfo, OriginalToDuplicateContractInfo, State, Validator
 };
 
 pub static CONFIG_KEY: &[u8] = b"config";

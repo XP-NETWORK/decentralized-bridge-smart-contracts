@@ -1,4 +1,3 @@
-use common::CodeInfo;
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, DepsMut, Env, MessageInfo, Reply, Response, SubMsg,
     SubMsgResult,
@@ -12,7 +11,7 @@ use crate::state::{
     BLOCK_SIZE, STORAGE1155_CODE, STORAGE1155_INSTANTIATE_REPLY_ID, STORAGE721_CODE,
     STORAGE721_INSTANTIATE_REPLY_ID,
 };
-use crate::structs::ReplyStorageInfo;
+use crate::structs::{CodeInfo, ReplyStorageInfo};
 use crate::{
     msg::{StorageDeployerExecuteMsg, StorageDeployerInstantiateMsg},
     state::OWNER,

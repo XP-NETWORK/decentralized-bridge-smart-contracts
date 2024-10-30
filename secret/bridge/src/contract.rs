@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
 
-use collection_deployer::bridge_msg::ReplyCollectionDeployerInfo;
-use common::CodeInfo;
 use cosmwasm_std::{
     entry_point, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, Storage, SubMsg, SubMsgResult, Uint128, Uint256, WasmMsg
 };
@@ -10,23 +8,18 @@ use secret_toolkit::serialization::Bincode2;
 use secret_toolkit::storage::{Keymap, WithoutIter};
 use secret_toolkit::utils::{HandleCallback, InitCallback, Query};
 use serde::{Deserialize, Serialize};
-use snip1155::reply::ReplyCollectionInfo as ReplyCollection1155Info;
-use snip1155::state::metadata::Metadata as Snip1155Meta;
-use snip1155::state::state_structs::{
-    CurateTokenId, LbPair, TknConfig, TokenAmount, TokenIdBalance, TokenInfoMsg
-};
-use snip721::reply::ReplyCollectionInfo as ReplyCollection721Info;
-use snip721::royalties::{Royalty, RoyaltyInfo};
-use snip721::token::Metadata as Snip721Meta;
-use storage_deployer::bridge_msg::ReplyStorageDeployerInfo;
-use storage_deployer::structs::ReplyStorageInfo;
 
+use secret_toolkit::snip721::Metadata;
+
+use crate::collection_deployer_msg::{CollectionDeployerExecuteMsg, CurateTokenId, InstantiateCollectionDeployer, LbPair, TknConfig, TokenIdBalance, TokenInfoMsg};
 use crate::error::ContractError;
 use crate::events::{
     AddNewValidatorEventInfo, Claimed1155EventInfo, Claimed721EventInfo, LockedEventInfo,
     RewardValidatorEventInfo, UnLock1155EventInfo, UnLock721EventInfo,
 };
 use crate::msg::{BlacklistValidatorMsg, BridgeExecuteMsg, BridgeQueryAnswer, BridgeQueryMsg};
+use crate::snip1155_msg::{Snip1155ExecuteMsg, Snip1155QueryMsg, TokenAmount};
+use crate::snip721_msg::Snip721ExecuteMsg;
 use crate::state::{
     config, config_read, BLACKLISTED_VALIDATORS, CODEHASHES, COLLECTION_DEPLOYER_1155_REPLY_ID,
     COLLECTION_DEPLOYER_721_REPLY_ID, COLLECTION_DEPLOYER_REPLY_ID, COLLETION_DEPLOYER_CODE,
@@ -36,17 +29,18 @@ use crate::state::{
     STORAGE_DEPLOYER_CODE, STORAGE_DEPLOYER_REPLY_ID, UNIQUE_IDENTIFIER_STORAGE,
     VALIDATORS_STORAGE,
 };
+use crate::storage1155_msg::Storage1155ExecuteMsg;
+use crate::storage721_msg::Storage721ExecuteMsg;
+use crate::storage_deployer_msg::{InstantiateStorageDeployer, StorageDeployerExecuteMsg};
 use crate::structs::{
-    AddValidatorMsg, BridgeInstantiateMsg, ClaimData, ClaimMsg, ClaimValidatorRewardsMsg,
-    DuplicateToOriginalContractInfo, Lock1155Msg, Lock721Msg, OriginalToDuplicateContractInfo,
-    SignerAndSignature, State, Validator, VerifyMsg,
+    AddValidatorMsg, BridgeInstantiateMsg, ClaimData, ClaimMsg, ClaimValidatorRewardsMsg, CodeInfo, DuplicateToOriginalContractInfo, Lock1155Msg, Lock721Msg, OriginalToDuplicateContractInfo, ReplyCollectionDeployerInfo, ReplyCollectionInfo, ReplyStorageDeployerInfo, ReplyStorageInfo, Royalty, RoyaltyInfo, SignerAndSignature, State, Validator, VerifyMsg
 };
 use sha2::{Digest, Sha256};
-use snip1155::msg::{Snip1155ExecuteMsg,Snip1155QueryMsg};
+// use snip1155::msg::{Snip1155ExecuteMsg,Snip1155QueryMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 struct Balance {
-    amount: Uint128,
+    amount: Uint256,
 }
 
 #[entry_point]
@@ -84,7 +78,7 @@ pub fn instantiate(
     STORAGE_DEPLOYER_CODE.save(deps.storage, &msg.storage_deployer_code_info)?;
     COLLETION_DEPLOYER_CODE.save(deps.storage, &msg.collection_deployer_code_info)?;
 
-    let init_storage_deployer_msg = storage_deployer::msg::StorageDeployerInstantiateMsg {
+    let init_storage_deployer_msg = InstantiateStorageDeployer {
         storage721_code_info: msg.storage721_code_info,
         storage1155_code_info: msg.storage1155_code_info,
     };
@@ -100,7 +94,7 @@ pub fn instantiate(
         STORAGE_DEPLOYER_REPLY_ID,
     );
 
-    let init_collection_deployer_msg = collection_deployer::msg::CollectionDeployerInstantiateMsg {
+    let init_collection_deployer_msg = InstantiateCollectionDeployer {
         collection721_code_info: msg.collection721_code_info,
         collection1155_code_info: msg.collection1155_code_info,
     };
@@ -368,7 +362,7 @@ fn check_storage_721(
         ),
         None => {
             let create_storage_msg =
-                storage_deployer::msg::StorageDeployerExecuteMsg::CreateStorage721 {
+            StorageDeployerExecuteMsg::CreateStorage721 {
                     label: source_nft_contract_address.clone().into_string(),
                     collection_address: source_nft_contract_address.clone(),
                     collection_code_info,
@@ -399,7 +393,7 @@ fn transfer_to_storage_721(
     token_id: String,
     code_hash: String,
 ) -> StdResult<Response> {
-    let transfer_msg = snip721::msg::Snip721ExecuteMsg::TransferNft {
+    let transfer_msg = Snip721ExecuteMsg::TransferNft {
         recipient: storage_address.clone().into_string(),
         token_id: token_id.to_string(),
         memo: Option::None,
@@ -541,7 +535,7 @@ fn check_storage_1155(
         ),
         None => {
             let create_storage_msg =
-                storage_deployer::msg::StorageDeployerExecuteMsg::CreateStorage1155 {
+            StorageDeployerExecuteMsg::CreateStorage1155 {
                     label: source_nft_contract_address.clone().into_string(),
                     collection_address: source_nft_contract_address.clone(),
                     collection_code_info,
@@ -580,7 +574,7 @@ fn transfer_to_storage_1155(
     api
         .debug(format!("transfer_to_storage_1155 start").as_str());
 
-    let transfer_msg = snip1155::msg::Snip1155ExecuteMsg::Transfer {
+    let transfer_msg = Snip1155ExecuteMsg::Transfer {
         token_id: token_id.to_string(),
         from,
         recipient: storage_address.clone(),
@@ -766,7 +760,7 @@ fn deploy_collection_721(
     lock_tx_chain: String,
 ) -> StdResult<Response> {
     let create_collection_msg =
-        collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection721 {
+        CollectionDeployerExecuteMsg::CreateCollection721 {
             owner,
             name,
             symbol,
@@ -812,7 +806,7 @@ fn deploy_collection_1155(
     lock_tx_chain: String,
 ) -> StdResult<Response> {
     let create_collection_msg =
-        collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection1155 {
+        CollectionDeployerExecuteMsg::CreateCollection1155 {
             has_admin: true,
             admin: Some(owner.clone()),
             curators: vec![owner.clone()],
@@ -829,7 +823,7 @@ fn deploy_collection_1155(
                         enable_burn: true,
                         minter_may_update_metadata: true,
                     },
-                    public_metadata: Some(Snip1155Meta {
+                    public_metadata: Some(Metadata {
                         token_uri: Some(metadata.clone()),
                         extension: Option::None,
                     }),
@@ -975,7 +969,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
 
         match is_storage_is_nft_owner_option {
             Some(_v) => {
-                let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
+                let create_unlock_msg = Storage721ExecuteMsg::UnLockToken {
                     token_id: msg.data.token_id.clone(),
                     to: msg.data.destination_user_address.clone(),
                 };
@@ -1018,10 +1012,10 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
                 Ok(Response::new().add_message(message).add_attributes(log))
             }
             None => {
-                let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+                let create_collection_msg = Snip721ExecuteMsg::MintNft {
                     token_id: Some(msg.data.token_id.to_string()),
                     owner: Some(msg.data.destination_user_address.into_string()),
-                    public_metadata: Some(Snip721Meta {
+                    public_metadata: Some(Metadata {
                         token_uri: Some(msg.data.metadata),
                         extension: Option::None,
                     }),
@@ -1063,10 +1057,10 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
     }
     // ===============================/ hasDuplicate && NOT hasStorage /=======================
     else if has_duplicate && !has_storage {
-        let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+        let create_collection_msg = Snip721ExecuteMsg::MintNft {
             token_id: Some(msg.data.token_id.to_string()),
             owner: Some(msg.data.destination_user_address.into_string()),
-            public_metadata: Some(Snip721Meta {
+            public_metadata: Some(Metadata {
                 token_uri: Some(msg.data.metadata),
                 extension: Option::None,
             }),
@@ -1145,7 +1139,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
 
         match is_storage_is_nft_owner_option {
             Some(_v) => {
-                let create_unlock_msg = storage721::msg::Storage721ExecuteMsg::UnLockToken {
+                let create_unlock_msg = Storage721ExecuteMsg::UnLockToken {
                     token_id: msg.data.token_id.clone(),
                     to: msg.data.destination_user_address.clone(),
                 };
@@ -1186,10 +1180,10 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
             }
             None => {
                 // CANT BE THERE
-                let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+                let create_collection_msg = Snip721ExecuteMsg::MintNft {
                     token_id: Some(msg.data.token_id.to_string()),
                     owner: Some(msg.data.destination_user_address.into_string()),
-                    public_metadata: Some(Snip721Meta {
+                    public_metadata: Some(Metadata {
                         token_uri: Some(msg.data.metadata),
                         extension: Option::None,
                     }),
@@ -1337,10 +1331,10 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
         match is_storage_is_nft_owner_option {
             Some(_v) => {
                 if _v.1 >= msg.data.token_amount {
-                    let create_unlock_msg = storage1155::msg::Storage1155ExecuteMsg::UnLockToken {
+                    let create_unlock_msg = Storage1155ExecuteMsg::UnLockToken {
                         token_id: msg.data.token_id.clone(),
                         to: msg.data.destination_user_address.clone(),
-                        amount: msg.data.token_amount.clone(),
+                        amount: Uint256::from(msg.data.token_amount.clone()),
                     };
 
                     let message = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
@@ -1355,7 +1349,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                             msg.data.destination_user_address,
                             msg.data.token_id.clone(),
                             storage_contract.0.to_string(),
-                            msg.data.token_amount,
+                            Uint256::from(msg.data.token_amount),
                         )
                         .try_into()?,
                         Claimed1155EventInfo::new(
@@ -1382,10 +1376,10 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                     let to_mint =
                     Uint256::from(msg.data.token_amount.clone()) - Uint256::from(_v.1);
 
-                    let create_unlock_msg = storage1155::msg::Storage1155ExecuteMsg::UnLockToken {
+                    let create_unlock_msg = Storage1155ExecuteMsg::UnLockToken {
                         token_id: msg.data.token_id.clone(),
                         to: msg.data.destination_user_address.clone(),
-                        amount: _v.1,
+                        amount: Uint256::from(_v.1),
                     };
 
                     let message_unlock = CosmosMsg::<Empty>::Wasm(WasmMsg::Execute {
@@ -1400,7 +1394,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                             msg.data.destination_user_address.clone(),
                             msg.data.token_id.clone(),
                             storage_contract.0.to_string(),
-                            _v.1,
+                            Uint256::from(_v.1),
                         )
                         .try_into()?,
                         Claimed1155EventInfo::new(
@@ -1464,7 +1458,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                                 enable_burn: true,
                                 minter_may_update_metadata: true,
                             },
-                            public_metadata: Some(Snip1155Meta {
+                            public_metadata: Some(Metadata {
                                 token_uri: Some(msg.data.metadata.clone()),
                                 extension: Option::None,
                             }),
@@ -1537,7 +1531,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                             )
                             .as_str(),
                         );
-                        if result.amount >= 0u128.into() {
+                        if result.amount >= Uint256::from(0u128) {
                             token_exists = true;
                         }
             },
@@ -1590,7 +1584,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                             enable_burn: true,
                             minter_may_update_metadata: true,
                         },
-                        public_metadata: Some(Snip1155Meta {
+                        public_metadata: Some(Metadata {
                             token_uri: Some(msg.data.metadata.clone()),
                             extension: Option::None,
                         }),
@@ -1687,9 +1681,9 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
         );
 
         if original_collection.amount >= msg.data.token_amount.into() {
-            let create_unlock_msg = storage1155::msg::Storage1155ExecuteMsg::UnLockToken {
+            let create_unlock_msg = Storage1155ExecuteMsg::UnLockToken {
                 token_id: msg.data.token_id.clone(),
-                amount: msg.data.token_amount,
+                amount: Uint256::from(msg.data.token_amount),
                 to: msg.data.destination_user_address.clone(),
             };
 
@@ -1705,7 +1699,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                     msg.data.destination_user_address.clone(),
                     msg.data.token_id.clone(),
                     storage_contract.0.to_string(),
-                    msg.data.token_amount,
+                    Uint256::from(msg.data.token_amount),
                 )
                 .try_into()?,
                 Claimed1155EventInfo::new(
@@ -1732,7 +1726,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             // CANT BE THERE
             let to_mint = Uint256::from(msg.data.token_amount.clone()) - Uint256::from(original_collection.amount);
 
-            let create_unlock_msg = storage1155::msg::Storage1155ExecuteMsg::UnLockToken {
+            let create_unlock_msg = Storage1155ExecuteMsg::UnLockToken {
                 token_id: msg.data.token_id.clone(),
                 amount: original_collection.amount.into(),
                 to: msg.data.destination_user_address.clone(),
@@ -1750,7 +1744,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
                     msg.data.destination_user_address.clone(),
                     msg.data.token_id.clone(),
                     storage_contract.0.to_string(),
-                    original_collection.amount.into(),
+                    original_collection.amount,
                 )
                 .try_into()?,
                 Claimed1155EventInfo::new(
@@ -1986,7 +1980,7 @@ fn handle_collection_reply_721(_deps: DepsMut, msg: Reply) -> Result<Response, C
     match msg.result {
         SubMsgResult::Ok(s) => match s.data {
             Some(bin) => {
-                let reply_info: ReplyCollection721Info = from_binary(&bin)?;
+                let reply_info: ReplyCollectionInfo = from_binary(&bin)?;
                 register_collection_721_impl(_deps, reply_info)
             }
             None => Err(ContractError::CustomError {
@@ -2001,7 +1995,7 @@ fn handle_collection_reply_1155(_deps: DepsMut, msg: Reply) -> Result<Response, 
     match msg.result {
         SubMsgResult::Ok(s) => match s.data {
             Some(bin) => {
-                let reply_info: ReplyCollection1155Info = from_binary(&bin)?;
+                let reply_info: ReplyCollectionInfo = from_binary(&bin)?;
                 register_collection_1155_impl(_deps, reply_info)
             }
             None => Err(ContractError::CustomError {
@@ -2116,7 +2110,7 @@ fn register_collection_deployer_impl(
 
 fn register_collection_721_impl(
     deps: DepsMut,
-    reply_info: ReplyCollection721Info,
+    reply_info: ReplyCollectionInfo,
 ) -> Result<Response, ContractError> {
     let self_chain = config(deps.storage).load()?.self_chain;
 
@@ -2143,10 +2137,10 @@ fn register_collection_721_impl(
         },
     );
 
-    let create_collection_msg = snip721::msg::Snip721ExecuteMsg::MintNft {
+    let create_collection_msg = Snip721ExecuteMsg::MintNft {
         token_id: Some(reply_info.token_id.to_string()),
         owner: Some(reply_info.destination_user_address.into_string()),
-        public_metadata: Some(Snip721Meta {
+        public_metadata: Some(Metadata {
             token_uri: Some(reply_info.metadata),
             extension: Option::None,
         }),
@@ -2187,7 +2181,7 @@ fn register_collection_721_impl(
 
 fn register_collection_1155_impl(
     deps: DepsMut,
-    reply_info: ReplyCollection1155Info,
+    reply_info: ReplyCollectionInfo,
 ) -> Result<Response, ContractError> {
     let self_chain = config(deps.storage).load()?.self_chain;
 
