@@ -35,6 +35,7 @@ pub enum StorageDeployerExecuteMsg {
         is_original: bool,
         token_id: String,
         token_amount: u128,
+        from: Addr
     },
 }
 

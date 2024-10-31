@@ -7,7 +7,7 @@ mkdir -p artifacts/
 for WASM in target/wasm32-unknown-unknown/release/*.wasm; do
     OUT_FILENAME=$(basename "$WASM" .wasm).wasm
     echo "Optimizing $OUT_FILENAME ..."
-    wasm-opt -Os --signext-lowering "$WASM" -o "artifacts/$OUT_FILENAME"
+    /home/d/multiversx-sdk/wasm-opt/version_112/binaryen-version_112/bin/wasm-opt -Os --signext-lowering "$WASM" -o "artifacts/$OUT_FILENAME"
     cat "artifacts/$OUT_FILENAME" | gzip -9 > ./artifacts/$OUT_FILENAME.gz
 done
 

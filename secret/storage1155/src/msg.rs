@@ -11,6 +11,7 @@ pub struct Storage1155InstantiateMsg {
     pub is_original: bool,
     pub token_id: String,
     pub token_amount: u128,
+    pub from: Addr
 }
 
 /// Executes

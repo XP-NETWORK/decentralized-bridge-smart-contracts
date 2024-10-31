@@ -8,8 +8,8 @@ export async function deploy() {
   const wallet = new Wallet(process.env.WALLET!);
 
   const sc = new SecretNetworkClient({
-    chainId: "secretdev-1",
-    url: "http://localhost:1317",
+    chainId: "pulsar-3",
+    url: "https://api.pulsar.scrttestnet.com",
     wallet,
     walletAddress: wallet.address,
   });
@@ -150,10 +150,10 @@ export async function deploy() {
     validators: [
       [
         Buffer.from(
-          "039c58a90d0cd31a5c19a2606f28e89307c569e519d15ca4380deedbdad239d169", "hex"
+          "021965a0ab2ebebd6dcf88ad65902295c0e83f1c056c95bc4cc42d9cf260658b38", "hex"
         ).toString("base64"),
         pubkeyToAddress(Buffer.from(
-          "039c58a90d0cd31a5c19a2606f28e89307c569e519d15ca4380deedbdad239d169", "hex"
+          "021965a0ab2ebebd6dcf88ad65902295c0e83f1c056c95bc4cc42d9cf260658b38", "hex"
         ))
       ],
     ],

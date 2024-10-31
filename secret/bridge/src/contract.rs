@@ -19,7 +19,7 @@ use snip721::reply::ReplyCollectionInfo as ReplyCollection721Info;
 use snip721::royalties::{Royalty, RoyaltyInfo};
 use snip721::token::Metadata as Snip721Meta;
 use storage_deployer::bridge_msg::ReplyStorageDeployerInfo;
-use storage_deployer::structs::ReplyStorageInfo;
+use storage_deployer::structs::{ReplyStorage721Info,ReplyStorage1155Info};
 
 use crate::error::ContractError;
 use crate::events::{
@@ -181,7 +181,7 @@ fn matches_current_chain(storage: &dyn Storage, destination_chain: String) -> St
 fn has_correct_fee(fee: u128, info: MessageInfo) -> StdResult<Response> {
     let msg_value = info.funds[0].amount;
 
-    if Uint128::from(fee) <= msg_value {
+    if msg_value >= Uint128::from(fee) {
         Ok(Response::default())
     } else {
         return Err(StdError::generic_err("data.fee LESS THAN sent amount!"));
@@ -342,6 +342,7 @@ fn check_storage_721(
     collection_code_info: CodeInfo,
     owner: Addr,
     is_original: bool,
+    time: u64
 ) -> StdResult<Response> {
     let storage_address_option = storage_mapping_721.get(
         deps.storage,
@@ -369,7 +370,7 @@ fn check_storage_721(
         None => {
             let create_storage_msg =
                 storage_deployer::msg::StorageDeployerExecuteMsg::CreateStorage721 {
-                    label: source_nft_contract_address.clone().into_string(),
+                    label: source_nft_contract_address.clone().into_string() + &time.to_string(),
                     collection_address: source_nft_contract_address.clone(),
                     collection_code_info,
                     owner: owner.into_string(),
@@ -466,6 +467,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 msg.collection_code_info,
                 env.contract.address,
                 false,
+                env.block.time.seconds()
             )?;
 
             Ok(res.add_attributes(log))
@@ -494,6 +496,7 @@ fn lock721(deps: DepsMut, env: Env, msg: Lock721Msg) -> StdResult<Response> {
                 msg.collection_code_info,
                 env.contract.address,
                 true,
+                env.block.time.seconds()
             )?;
 
             Ok(res.add_attributes(log))
@@ -511,7 +514,8 @@ fn check_storage_1155(
     collection_code_info: CodeInfo,
     owner: Addr,
     is_original: bool,
-    _from: Addr,
+    from: Addr,
+    time: u64,
 ) -> StdResult<Response> {
     let storage_address_option = storage_mapping_1155.get(
         deps.storage,
@@ -532,7 +536,7 @@ fn check_storage_1155(
         Some(v) => transfer_to_storage_1155(
             deps.storage,
             deps.api,
-            owner,
+            from,
             v.0,
             source_nft_contract_address.clone(),
             token_id,
@@ -542,13 +546,14 @@ fn check_storage_1155(
         None => {
             let create_storage_msg =
                 storage_deployer::msg::StorageDeployerExecuteMsg::CreateStorage1155 {
-                    label: source_nft_contract_address.clone().into_string(),
+                    label: source_nft_contract_address.clone().into_string() + &time.to_string(),
                     collection_address: source_nft_contract_address.clone(),
                     collection_code_info,
                     owner: owner.into_string(),
                     is_original,
                     token_id,
-                    token_amount
+                    token_amount,
+                    from
                 };
 
             let code_info = STORAGE_DEPLOYER_CODE.load(deps.storage)?;
@@ -662,6 +667,7 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
                 env.contract.address,
                 false,
                 info.sender.clone(),
+                env.block.time.seconds(),
             )?;
 
             Ok(res.add_attributes(log))
@@ -692,6 +698,7 @@ fn lock1155(deps: DepsMut, env: Env, info: MessageInfo, msg: Lock1155Msg) -> Std
                 env.contract.address,
                 true,
                 info.sender.clone(),
+                env.block.time.seconds(),
             )?;
             Ok(res.add_attributes(log))
         }
@@ -735,15 +742,18 @@ fn reward_validators(
     if fee <= 0 {
         return Err(StdError::generic_err("Invalid fees"));
     }
-    if balance < fee {
+    if balance <= fee {
         return Err(StdError::generic_err("No rewards available"));
     }
-    let fee_per_validator = balance / validators_to_reward.len() as u128;
+    let fee_per_validator = fee / validators_to_reward.len() as u128;
+
     for val in validators_to_reward {
         let mut validator_option = VALIDATORS_STORAGE
             .get(storage, &val)
             .expect("Unreachable: Validator not found found");
+
         validator_option.pending_reward = validator_option.pending_reward + fee_per_validator;
+        
         VALIDATORS_STORAGE.insert(storage, &val, &validator_option)?;
     }
     Ok(())
@@ -810,6 +820,7 @@ fn deploy_collection_1155(
     metadata: String,
     transaction_hash: String,
     lock_tx_chain: String,
+    time: u64
 ) -> StdResult<Response> {
     let create_collection_msg =
         collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection1155 {
@@ -847,7 +858,7 @@ fn deploy_collection_1155(
                 lb_pair_address: Addr::unchecked(&source_nft_contract_address),
                 decimals: 18,
             },
-            label: name.clone() + &symbol + &source_nft_contract_address,
+            label: name.clone() + &symbol + &source_nft_contract_address + &time.to_string(),
             source_nft_contract_address,
             source_chain,
             destination_user_address,
@@ -1646,6 +1657,7 @@ fn claim1155(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRe
             msg.data.metadata,
             msg.data.transaction_hash,
             msg.data.lock_tx_chain,
+            env.block.time.seconds(),
         )
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
@@ -1909,7 +1921,7 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
         STORAGE_DEPLOYER_REPLY_ID => handle_storage_deployer_reply(_deps, msg),
         STORAGE_DEPLOYER_721_REPLY_ID => handle_storage_reply_721(_deps, msg),
         STORAGE_DEPLOYER_1155_REPLY_ID => {
-            handle_storage_reply_1155(_deps, msg, _env.contract.address)
+            handle_storage_reply_1155(_deps, msg)
         }
         COLLECTION_DEPLOYER_REPLY_ID => handle_collection_deployer_reply(_deps, msg),
         COLLECTION_DEPLOYER_721_REPLY_ID => handle_collection_reply_721(_deps, msg),
@@ -1937,7 +1949,7 @@ fn handle_storage_reply_721(_deps: DepsMut, msg: Reply) -> Result<Response, Cont
     match msg.result {
         SubMsgResult::Ok(s) => match s.data {
             Some(bin) => {
-                let reply_info: ReplyStorageInfo = from_binary(&bin)?;
+                let reply_info: ReplyStorage721Info = from_binary(&bin)?;
                 register_storage_721_impl(_deps, reply_info)
             }
             None => Err(ContractError::CustomError {
@@ -1951,13 +1963,12 @@ fn handle_storage_reply_721(_deps: DepsMut, msg: Reply) -> Result<Response, Cont
 fn handle_storage_reply_1155(
     _deps: DepsMut,
     msg: Reply,
-    from: Addr,
 ) -> Result<Response, ContractError> {
     match msg.result {
         SubMsgResult::Ok(s) => match s.data {
             Some(bin) => {
-                let reply_info: ReplyStorageInfo = from_binary(&bin)?;
-                register_storage_1155_impl(_deps, reply_info, from)
+                let reply_info: ReplyStorage1155Info = from_binary(&bin)?;
+                register_storage_1155_impl(_deps, reply_info)
             }
             None => Err(ContractError::CustomError {
                 val: "Init didn't response with storage address 1155".to_string(),
@@ -2034,7 +2045,7 @@ fn register_storage_deployer_impl(
 
 fn register_storage_721_impl(
     deps: DepsMut,
-    reply_info: ReplyStorageInfo,
+    reply_info: ReplyStorage721Info,
 ) -> Result<Response, ContractError> {
     let self_chain = config(deps.storage).load()?.self_chain;
     if reply_info.is_original {
@@ -2062,8 +2073,7 @@ fn register_storage_721_impl(
 
 fn register_storage_1155_impl(
     deps: DepsMut,
-    reply_info: ReplyStorageInfo,
-    from: Addr,
+    reply_info: ReplyStorage1155Info,
 ) -> Result<Response, ContractError> {
 
     deps.api
@@ -2089,7 +2099,7 @@ fn register_storage_1155_impl(
     let res = transfer_to_storage_1155(
         deps.storage,
         deps.api,
-        from,
+        reply_info.from,
         reply_info.address.clone(),
         deps.api.addr_validate(&reply_info.label.clone())?,
         reply_info.token_id,

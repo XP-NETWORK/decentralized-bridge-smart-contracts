@@ -12,7 +12,7 @@ use crate::state::{
     BLOCK_SIZE, STORAGE1155_CODE, STORAGE1155_INSTANTIATE_REPLY_ID, STORAGE721_CODE,
     STORAGE721_INSTANTIATE_REPLY_ID,
 };
-use crate::structs::ReplyStorageInfo;
+use crate::structs::{ReplyStorage721Info,ReplyStorage1155Info};
 use crate::{
     msg::{StorageDeployerExecuteMsg, StorageDeployerInstantiateMsg},
     state::OWNER,
@@ -95,7 +95,8 @@ pub fn execute(
             owner,
             is_original,
             token_id,
-            token_amount
+            token_amount,
+            from
         } => try_create_storage_1155(
             deps,
             env,
@@ -105,7 +106,8 @@ pub fn execute(
             owner,
             is_original,
             token_id,
-            token_amount
+            token_amount,
+            from
         ),
     };
     pad_handle_result(response, BLOCK_SIZE)
@@ -184,7 +186,8 @@ fn try_create_storage_1155(
     owner: String,
     is_original: bool,
     token_id: String,
-    token_amount: u128
+    token_amount: u128,
+    from: Addr
 ) -> Result<Response, ContractError> {
 
     deps.api.debug(
@@ -202,7 +205,8 @@ fn try_create_storage_1155(
         collection_code_info,
         is_original,
         token_id,
-        token_amount
+        token_amount,
+        from
     };
 
     // pub collection_address: Addr,
@@ -304,7 +308,7 @@ fn handle_instantiate_reply_721(msg: Reply) -> Result<Response, ContractError> {
     match msg.result {
         SubMsgResult::Ok(s) => match s.data {
             Some(bin) => {
-                let reply_info: ReplyStorageInfo = from_binary(&bin)?;
+                let reply_info: ReplyStorage721Info = from_binary(&bin)?;
                 register_storage_721_impl(reply_info)
             }
             None => Err(ContractError::CustomError {
@@ -321,7 +325,7 @@ fn handle_instantiate_reply_1155(msg: Reply) -> Result<Response, ContractError> 
     match msg.result {
         SubMsgResult::Ok(s) => match s.data {
             Some(bin) => {
-                let reply_info: ReplyStorageInfo = from_binary(&bin)?;
+                let reply_info: ReplyStorage1155Info = from_binary(&bin)?;
                 register_storage_1155_impl(reply_info)
             }
             None => Err(ContractError::CustomError {
@@ -340,14 +344,14 @@ fn handle_instantiate_reply_1155(msg: Reply) -> Result<Response, ContractError> 
 ///
 /// * `deps`       - DepsMut containing all the contract's external dependencies
 /// * `reply_info` - reference to ReplyOffspringInfo of the offspring that is trying to register
-fn register_storage_721_impl(reply_info: ReplyStorageInfo) -> Result<Response, ContractError> {
+fn register_storage_721_impl(reply_info: ReplyStorage721Info) -> Result<Response, ContractError> {
     // Ok(Response::new().set_data(to_binary(&reply_info)?))
     Ok(Response::new()
         .add_attribute("storage_address_721", &reply_info.address)
         .set_data(to_binary(&reply_info)?))
 }
 
-fn register_storage_1155_impl(reply_info: ReplyStorageInfo) -> Result<Response, ContractError> {
+fn register_storage_1155_impl(reply_info: ReplyStorage1155Info) -> Result<Response, ContractError> {
     // Ok(Response::new().set_data(to_binary(&reply_info)?))
     Ok(Response::new()
         .add_attribute("storage_address_1155", &reply_info.address)

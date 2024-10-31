@@ -19,7 +19,7 @@ pub struct ContractInfo {
 /// an offspring in the factory after the callback.
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ReplyStorageInfo {
+pub struct ReplyStorage721Info {
     /// label used when initializing offspring
     pub label: String,
     pub address: Addr,
@@ -28,4 +28,18 @@ pub struct ReplyStorageInfo {
     pub token_id: String,
     pub token_amount: u128,
     pub collection_code_hash: String
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReplyStorage1155Info {
+    /// label used when initializing offspring
+    pub label: String,
+    pub address: Addr,
+    pub code_hash: String,
+    pub is_original: bool,
+    pub token_id: String,
+    pub token_amount: u128,
+    pub collection_code_hash: String,
+    pub from: Addr
 }

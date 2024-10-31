@@ -162,7 +162,7 @@ pub fn execute(
 /// * `description` - optional free-form text string owner may have used to describe the offspring
 fn try_create_collection_721(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     owner: String,
     name: String,
     symbol: String,
@@ -184,7 +184,7 @@ fn try_create_collection_721(
     // };
 
     let initmsg = Collection721InstantiateMsg {
-        label: name.clone() + &symbol + &source_nft_contract_address,
+        label: name.clone() + &symbol + &source_nft_contract_address + &env.block.time.seconds().to_string(),
         owner: owner_addr.clone(),
         admin: Some(owner_addr.into_string()),
         name: name.clone(),

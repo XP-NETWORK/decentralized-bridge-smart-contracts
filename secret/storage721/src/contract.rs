@@ -11,7 +11,7 @@ use crate::storage_deployer_msg::StorageDeployerInfo;
 #[entry_point]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: Storage721InstantiateMsg,
 ) -> StdResult<Response> {
@@ -23,9 +23,9 @@ pub fn instantiate(
     COLLECTION721_ADDRESS.save(deps.storage, &msg.collection_address)?;
 
     let offspring_info = StorageDeployerInfo {
-        label: msg.collection_address.clone().into_string(),
-        address: _env.contract.address,
-        code_hash: _env.contract.code_hash,
+        label: msg.collection_address.clone().into_string() + &env.block.time.seconds().to_string(),
+        address: env.contract.address,
+        code_hash: env.contract.code_hash,
         is_original: msg.is_original,
         token_id: msg.token_id,
         token_amount: 1,
