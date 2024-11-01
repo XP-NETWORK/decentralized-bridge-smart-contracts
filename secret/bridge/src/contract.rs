@@ -742,7 +742,9 @@ fn reward_validators(
     if fee <= 0 {
         return Err(StdError::generic_err("Invalid fees"));
     }
-    if balance <= fee {
+    if balance >= fee{
+    }
+    else{
         return Err(StdError::generic_err("No rewards available"));
     }
     let fee_per_validator = fee / validators_to_reward.len() as u128;
@@ -753,7 +755,7 @@ fn reward_validators(
             .expect("Unreachable: Validator not found found");
 
         validator_option.pending_reward = validator_option.pending_reward + fee_per_validator;
-        
+
         VALIDATORS_STORAGE.insert(storage, &val, &validator_option)?;
     }
     Ok(())
