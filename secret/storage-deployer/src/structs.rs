@@ -27,7 +27,8 @@ pub struct ReplyStorage721Info {
     pub is_original: bool,
     pub token_id: String,
     pub token_amount: u128,
-    pub collection_code_hash: String
+    pub collection_code_hash: String,
+    pub source_nft_contract_address: Addr,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -41,5 +42,6 @@ pub struct ReplyStorage1155Info {
     pub token_id: String,
     pub token_amount: u128,
     pub collection_code_hash: String,
-    pub from: Addr
+    pub from: Addr,
+    pub source_nft_contract_address: Addr,
 }

@@ -26,6 +26,7 @@ pub enum StorageDeployerExecuteMsg {
         owner: String,
         is_original: bool,
         token_id: String,
+        source_nft_contract_address: Addr
     },
     CreateStorage1155 {
         label: String,
@@ -35,7 +36,8 @@ pub enum StorageDeployerExecuteMsg {
         is_original: bool,
         token_id: String,
         token_amount: u128,
-        from: Addr
+        from: Addr,
+        source_nft_contract_address: Addr
     },
 }
 

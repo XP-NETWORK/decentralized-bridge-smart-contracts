@@ -376,6 +376,7 @@ fn check_storage_721(
                     owner: owner.into_string(),
                     is_original,
                     token_id,
+                    source_nft_contract_address
                 };
 
             let code_info = STORAGE_DEPLOYER_CODE.load(deps.storage)?;
@@ -553,7 +554,8 @@ fn check_storage_1155(
                     is_original,
                     token_id,
                     token_amount,
-                    from
+                    from,
+                    source_nft_contract_address
                 };
 
             let code_info = STORAGE_DEPLOYER_CODE.load(deps.storage)?;
@@ -2066,7 +2068,7 @@ fn register_storage_721_impl(
     let res = transfer_to_storage_721(
         deps.storage,
         reply_info.address.clone(),
-        deps.api.addr_validate(&reply_info.label.clone())?,
+        deps.api.addr_validate(&reply_info.source_nft_contract_address.clone().into_string())?,
         reply_info.token_id,
         reply_info.collection_code_hash,
     )?;
@@ -2103,7 +2105,7 @@ fn register_storage_1155_impl(
         deps.api,
         reply_info.from,
         reply_info.address.clone(),
-        deps.api.addr_validate(&reply_info.label.clone())?,
+        deps.api.addr_validate(&reply_info.source_nft_contract_address.clone().into_string())?,
         reply_info.token_id,
         reply_info.token_amount,
         reply_info.collection_code_hash,

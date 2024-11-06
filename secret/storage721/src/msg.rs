@@ -11,6 +11,7 @@ pub struct Storage721InstantiateMsg {
     pub collection_code_info: CodeInfo,
     pub is_original: bool,
     pub token_id: String,
+    pub source_nft_contract_address: Addr
 }
 
 /// Executes

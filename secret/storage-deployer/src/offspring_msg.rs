@@ -12,6 +12,7 @@ pub struct Storage721InstantiateMsg {
     pub collection_code_info: CodeInfo,
     pub is_original: bool,
     pub token_id: String,
+    pub source_nft_contract_address: Addr
 }
 
 #[derive(Serialize, Deserialize)]
@@ -22,7 +23,8 @@ pub struct Storage1155InstantiateMsg {
     pub is_original: bool,
     pub token_id: String,
     pub token_amount: u128,
-    pub from: Addr
+    pub from: Addr,
+    pub source_nft_contract_address: Addr
 }
 
 impl InitCallback for Storage721InstantiateMsg {

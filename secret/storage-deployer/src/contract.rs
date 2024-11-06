@@ -78,6 +78,7 @@ pub fn execute(
             owner,
             is_original,
             token_id,
+            source_nft_contract_address
         } => try_create_storage_721(
             deps,
             env,
@@ -87,6 +88,7 @@ pub fn execute(
             owner,
             is_original,
             token_id,
+            source_nft_contract_address
         ),
         StorageDeployerExecuteMsg::CreateStorage1155 {
             label,
@@ -96,7 +98,8 @@ pub fn execute(
             is_original,
             token_id,
             token_amount,
-            from
+            from,
+            source_nft_contract_address
         } => try_create_storage_1155(
             deps,
             env,
@@ -107,7 +110,8 @@ pub fn execute(
             is_original,
             token_id,
             token_amount,
-            from
+            from,
+            source_nft_contract_address
         ),
     };
     pad_handle_result(response, BLOCK_SIZE)
@@ -134,6 +138,7 @@ fn try_create_storage_721(
     owner: String,
     is_original: bool,
     token_id: String,
+    source_nft_contract_address: Addr
 ) -> Result<Response, ContractError> {
     deps.api.debug(
         format!(
@@ -151,6 +156,7 @@ fn try_create_storage_721(
         collection_code_info,
         is_original,
         token_id,
+        source_nft_contract_address
     };
 
     let offspring_code = STORAGE721_CODE.load(deps.storage)?;
@@ -187,7 +193,8 @@ fn try_create_storage_1155(
     is_original: bool,
     token_id: String,
     token_amount: u128,
-    from: Addr
+    from: Addr,
+    source_nft_contract_address: Addr
 ) -> Result<Response, ContractError> {
 
     deps.api.debug(
@@ -206,7 +213,8 @@ fn try_create_storage_1155(
         is_original,
         token_id,
         token_amount,
-        from
+        from,
+        source_nft_contract_address
     };
 
     // pub collection_address: Addr,

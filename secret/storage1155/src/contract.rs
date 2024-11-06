@@ -30,7 +30,8 @@ pub fn instantiate(
         token_id: msg.token_id,
         token_amount: msg.token_amount,
         collection_code_hash: msg.collection_code_info.code_hash,
-        from: msg.from
+        from: msg.from,
+        source_nft_contract_address: msg.source_nft_contract_address
     };
     Ok(Response::new().set_data(to_binary(&offspring_info)?))
 }

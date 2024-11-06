@@ -14,5 +14,6 @@ pub struct StorageDeployerInfo {
     pub token_id: String,
     pub token_amount: u128,
     pub collection_code_hash: String,
-    pub from: Addr
+    pub from: Addr,
+    pub source_nft_contract_address: Addr
 }
