@@ -68,6 +68,7 @@ pub enum BridgeError {
     FailedToPrepareSignature,
     FailedToGetDictItem,
     FailedToPreparePublicKey,
+    ThresholdNotReached
 }
 
 impl From<BridgeError> for ApiError {

@@ -1,5 +1,5 @@
 [package]
-name = "contract"
+name = "bridge"
 version = "0.1.0"
 edition = "2018"
 
@@ -12,7 +12,7 @@ sha2 = { version = "0.10.6", default-features = false }
 hex = { version = "0.4.3", default-features = false }
 
 [[bin]]
-name = "contract"
+name = "bridge"
 path = "src/main.rs"
 bench = false
 doctest = false
