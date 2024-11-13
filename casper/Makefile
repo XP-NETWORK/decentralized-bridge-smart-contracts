@@ -2,8 +2,10 @@ prepare:
 	rustup target add wasm32-unknown-unknown
 
 build:
-	cd bridge && cargo build --release --target wasm32-unknown-unknown
-	wasm-strip bridge/target/wasm32-unknown-unknown/release/bridge.wasm 2>/dev/null | true
+	@echo "Building release..."
+	cargo build --release --target wasm32-unknown-unknown
+	wasm-strip target/wasm32-unknown-unknown/release/bridge.wasm 2>/dev/null | true
+	wasm-strip target/wasm32-unknown-unknown/release/storage.wasm 2>/dev/null | true
 
 clean:
-	cd bridge && cargo clean
+	cargo clean

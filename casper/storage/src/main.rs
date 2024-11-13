@@ -70,7 +70,7 @@ pub const KEY_VALIDATORS_COUNT: &str = "validators_count";
 
 type Sigs = (CPublicKey, [u8; 64]);
 /// Ed25519 Signature verification logic.
-fn verify_signatures(data: Vec<u8>, signature: &[u8], key: &[u8]) -> bool {
+fn verify_signastures(data: Vec<u8>, signature: &[u8], key: &[u8]) -> bool {
 
     let mut hasher = Sha512::new();
 
@@ -162,7 +162,7 @@ pub extern "C" fn add_validator() {
 
         let sig = arg.1.to_bytes().unwrap();
 
-        let valid = verify_signatures(
+        let valid = verify_signastures(
             data.clone(),
             sig.as_slice(),
             key.as_slice(),

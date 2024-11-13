@@ -1,5 +1,5 @@
 [package]
-name = "bridge"
+name = "storage"
 version = "0.1.0"
 edition = "2018"
 
@@ -12,7 +12,7 @@ sha2 = { workspace = true }
 hex = { workspace = true }
 
 [[bin]]
-name = "bridge"
+name = "storage"
 path = "src/main.rs"
 bench = false
 doctest = false

@@ -1,0 +1,26 @@
+[workspace]
+members = [
+    "bridge",
+    "storage",
+]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+
+
+[workspace.dependencies]
+casper-contract = "1.4.4"
+casper-types = "1.4.4"
+casper-event-standard = { version = "0.2.0", default-features = false }
+ed25519-dalek = { version = "1.0.1", default-features = false }
+sha2 = { version = "0.10.6", default-features = false }
+hex = { version = "0.4.3", default-features = false }
