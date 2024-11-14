@@ -11,7 +11,7 @@ use casper_types::{
     ApiError, Key, URef,
 };
 
-use crate::errors::BridgeError;
+use crate::errors::StorageError;
 
 pub(crate) fn to_ptr<T: ToBytes>(t: T) -> (*const u8, usize, Vec<u8>) {
     let bytes = t.into_bytes().unwrap_or_revert();
@@ -39,9 +39,9 @@ pub fn named_uref_exists(name: &str) -> bool {
 
 pub fn get_named_arg_with_user_errors<T: FromBytes>(
     name: &str,
-    missing: BridgeError,
-    invalid: BridgeError,
-) -> Result<T, BridgeError> {
+    missing: StorageError,
+    invalid: StorageError,
+) -> Result<T, StorageError> {
     let arg_size = get_named_arg_size(name).ok_or(missing)?;
     let arg_bytes = if arg_size > 0 {
         let res = {
@@ -59,7 +59,7 @@ pub fn get_named_arg_with_user_errors<T: FromBytes>(
             api_error::result_from(ret).map(|_| data)
         };
         // Assumed to be safe as `get_named_arg_size` checks the argument already
-        res.unwrap_or_revert_with(BridgeError::FailedToGetArgBytes)
+        res.unwrap_or_revert_with(StorageError::FailedToGetArgBytes)
     } else {
         // Avoids allocation with 0 bytes and a call to get_named_arg
         Vec::new()
@@ -86,8 +86,8 @@ pub fn get_named_arg_size(name: &str) -> Option<usize> {
 
 pub(crate) fn get_key_with_user_errors(
     name: &str,
-    missing: BridgeError,
-    invalid: BridgeError,
+    missing: StorageError,
+    invalid: StorageError,
 ) -> Key {
     let (name_ptr, name_size, _bytes) = to_ptr(name);
     let mut key_bytes = vec![0u8; Key::max_serialized_length()];
@@ -111,8 +111,8 @@ pub(crate) fn get_key_with_user_errors(
     bytesrepr::deserialize(key_bytes).unwrap_or_revert_with(invalid)
 }
 
-pub fn get_uref(name: &str, missing: BridgeError, invalid: BridgeError) -> URef {
+pub fn get_uref(name: &str, missing: StorageError, invalid: StorageError) -> URef {
     let key = get_key_with_user_errors(name, missing, invalid);
     key.into_uref()
-        .unwrap_or_revert_with(BridgeError::UnexpectedKeyVariant)
+        .unwrap_or_revert_with(StorageError::UnexpectedKeyVariant)
 }

@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "bridge",
-    "storage",
+    "storage"
 ]
 resolver = "2"
 

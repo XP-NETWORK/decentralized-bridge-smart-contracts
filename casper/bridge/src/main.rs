@@ -43,35 +43,31 @@ use events::AddNewValidator;
 use keys::*;
 use sha2::{Digest, Sha512};
 use structs::{
-    AddValidator, Validator
+    AddValidator, Validator,
 };
 
-pub const INITIALIZED: &str = "initialized";
-pub const THIS_CONTRACT: &str = "bridge_contract";
-pub const INSTALLER: &str = "installer";
-
-// RUNTIME ARGS INITIALIZE
-pub const ARG_VALIDATORS: &str = "bootstrap_validator_arg";
-pub const ARG_CHAIN_TYPE: &str = "chain_type_arg";
-pub const ARG_COLLECTION_DEPLOYER: &str = "collection_deployer_arg";
-pub const ARG_STORAGE_DEPLOYER: &str = "storage_deployer_arg";
-
-// RUNTIME ARGS ADD VALIDATOR
-pub const ARG_NEW_VALIDATOR_PUBLIC_KEY: &str = "new_validator_public_key_arg";
-pub const ARG_SIGNATURES: &str = "signatures_arg";
-
-pub const KEY_PURSE: &str = "bridge_purse";
-pub const HASH_KEY_NAME: &str = "bridge_package";
-pub const ACCESS_KEY_NAME: &str = "access_key_name_bridge";
-pub const KEY_CHAIN_TYPE: &str = "chain_type";
-pub const KEY_COLLECTION_DEPLOYER: &str = "collection_deployer";
-pub const KEY_STORAGE_DEPLOYER: &str = "storage_deployer";
-pub const KEY_VALIDATORS_COUNT: &str = "validators_count";
-
 type Sigs = (CPublicKey, [u8; 64]);
+
+fn matches_current_chain(destination_chain: String) {
+    let self_chain_ref = utils::get_uref(
+        KEY_CHAIN_TYPE,
+        BridgeError::MissingChainTypeRef,
+        BridgeError::InvalidChainTypeRef,
+    );
+    let self_chain: String = storage::read_or_revert(self_chain_ref);
+
+    if destination_chain != self_chain {
+        runtime::revert(BridgeError::InvalidDestinationChain);
+    }
+}
+
+fn has_correct_fee(fee: U256, msg_value: U256) {
+    if msg_value < fee {
+        runtime::revert(BridgeError::FeeLessThanSentAmount);
+    }
+}
 /// Ed25519 Signature verification logic.
 fn verify_signatures(data: Vec<u8>, signature: &[u8], key: &[u8]) -> bool {
-
     let mut hasher = Sha512::new();
 
     hasher.update(data);
@@ -79,24 +75,23 @@ fn verify_signatures(data: Vec<u8>, signature: &[u8], key: &[u8]) -> bool {
     let hash = hasher.finalize();
 
     let sig = Signature::new(
-                signature
-                .try_into()
-                .map_err(|_| BridgeError::FailedToPrepareSignature)
-                .unwrap_or_revert(),
-            );
-    
+        signature
+            .try_into()
+            .map_err(|_| BridgeError::FailedToPrepareSignature)
+            .unwrap_or_revert(),
+    );
+
     let key = EPublicKey::from_bytes(key)
         .map_err(|_| BridgeError::FailedToPreparePublicKey)
         .unwrap_or_revert();
-   
+
     let res = key.verify(&hash, &sig);
 
     if res.is_err() {
-        return false
+        return false;
     }
     true
 }
-
 #[no_mangle]
 pub extern "C" fn init() {
     if utils::named_uref_exists(INITIALIZED) {
@@ -113,42 +108,63 @@ pub extern "C" fn init() {
     runtime::put_key(KEY_COLLECTION_DEPLOYER, storage::new_uref(collection_deployer).into());
     runtime::put_key(KEY_STORAGE_DEPLOYER, storage::new_uref(storage_deployer).into());
 
+    // INITIALIZING BOOTSTRAP VALIDATOR
     let validators_dict = storage::new_dictionary(KEY_VALIDATORS_DICT)
-        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
-
-    storage::new_dictionary(KEY_BLACKLIST_VALIDATORS_DICT)
         .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
 
     let validator_public_key = &validator.to_string();
 
     storage::dictionary_put(validators_dict, &validator_public_key, Validator {
         added: true,
-        pending_rewards: U256::from(0)
+        pending_rewards: U256::from(0),
     });
+
+    // INITIALIZING VALIDATOR COUNT
     runtime::put_key(KEY_VALIDATORS_COUNT, storage::new_uref(1u64).into());
 
-}
+    // INITIALIZING BLACKLIST VALIDATORS DICT
+    storage::new_dictionary(KEY_BLACKLIST_VALIDATORS_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
 
+    // INITIALIZING UNIQUE IDENTIFIERS DICT
+    storage::new_dictionary(KEY_UNIQUE_IDENTIFIERS_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+
+    // INITIALIZING ORIGINAL TO DUPLICATE DICT
+    storage::new_dictionary(KEY_ORIGINAL_TO_DUPLICATE_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+
+    // INITIALIZING DUPLICATE TO ORIGINAL DICT
+    storage::new_dictionary(KEY_DUPLICATE_TO_ORIGINAL_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+
+    // INITIALIZING ORIGINAL STORAGE DICT
+    storage::new_dictionary(KEY_ORIGINAL_STORAGE_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+
+    // INITIALIZING DUPLICATE STORAGE DICT
+    storage::new_dictionary(KEY_DUPLICATE_STORAGE_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+}
 #[no_mangle]
 pub extern "C" fn add_validator() {
-
     let new_validator_public_key: CPublicKey = utils::get_named_arg_with_user_errors(
         ARG_NEW_VALIDATOR_PUBLIC_KEY,
-        BridgeError::MissingArgumentContract,
-        BridgeError::InvalidArgumentContract,
+        BridgeError::MissingArgumentNewValidator,
+        BridgeError::InvalidArgumentNewValidator,
     ).unwrap_or_revert();
 
 
     let signatures: Vec<Sigs> = utils::get_named_arg_with_user_errors(
         ARG_SIGNATURES,
-        BridgeError::MissingArgumentContract,
-        BridgeError::InvalidArgumentContract,
+        BridgeError::MissingArgumentSignatures,
+        BridgeError::InvalidArgumentSignatures,
     ).unwrap_or_revert();
 
     let validators_dict_ref = utils::get_uref(
         KEY_VALIDATORS_DICT,
-        BridgeError::MissingConsumedActionsUref,
-        BridgeError::InvalidConsumedActionsUref,
+        BridgeError::MissingValidatorsDictRef,
+        BridgeError::InvalidValidatorsDictRef,
     );
     let mut uv: Vec<CPublicKey> = [].to_vec();
 
@@ -157,7 +173,6 @@ pub extern "C" fn add_validator() {
     let data = new_validator_public_key.to_bytes().unwrap().iter().skip(1).cloned().collect::<Vec<u8>>();
 
     for arg in signatures.into_iter() {
-
         let key = arg.0.to_bytes().unwrap().iter().skip(1).cloned().collect::<Vec<u8>>();
 
         let sig = arg.1.to_bytes().unwrap();
@@ -169,9 +184,7 @@ pub extern "C" fn add_validator() {
         );
 
         if valid {
-            let validator_exists = storage::dictionary_get::<Validator>(validators_dict_ref, &arg.0.to_string())
-                .map_err(|_| BridgeError::FailedToGetValidator)
-                .unwrap_or_revert();
+            let validator_exists = storage::dictionary_get::<Validator>(validators_dict_ref, &arg.0.to_string()).unwrap_or(None);
 
             match validator_exists {
                 Some(v) => {
@@ -181,26 +194,23 @@ pub extern "C" fn add_validator() {
                             arg.0,
                         );
                     }
-                },
-                None => {
-
-                },
+                }
+                None => {}
             }
         }
     }
 
     let validators_count_ref = utils::get_uref(
         KEY_VALIDATORS_COUNT,
-        BridgeError::MissingGroupKeyUref,
-        BridgeError::InvalidGroupKeyUref,
+        BridgeError::MissingValidatorsCountRef,
+        BridgeError::InvalidValidatorsCountRef,
     );
     let validators_count: u64 = storage::read_or_revert(validators_count_ref);
 
     if percentage >= (((validators_count * 2) / 3) + 1) {
-
         storage::dictionary_put(validators_dict_ref, &new_validator_public_key.to_string(), Validator {
             added: true,
-            pending_rewards: U256::from(0)
+            pending_rewards: U256::from(0),
         });
 
         storage::write(validators_count_ref, validators_count + 1);
@@ -209,11 +219,48 @@ pub extern "C" fn add_validator() {
         //     public_key: new_validator_public_key.clone(),
         // };
         // casper_event_standard::emit(ev);
-    }
-    else {
+    } else {
         // "Threshold not reached!"
         runtime::revert(BridgeError::ThresholdNotReached);
     }
+}
+#[no_mangle]
+pub extern "C" fn lock() {
+    let token_id: U256 = utils::get_named_arg_with_user_errors(
+        ARG_TOKEN_ID,
+        BridgeError::MissingArgumentTokenId,
+        BridgeError::InvalidArgumentTokenId,
+    ).unwrap_or_revert();
+
+    let destination_chain: String = utils::get_named_arg_with_user_errors(
+        ARG_DESTINATION_CHAIN,
+        BridgeError::MissingArgumentDestinationChain,
+        BridgeError::InvalidArgumentDestinationChain,
+    ).unwrap_or_revert();
+
+    let destination_user_address: String = utils::get_named_arg_with_user_errors(
+        ARG_DESTINATION_USER_ADDRESS,
+        BridgeError::MissingArgumentDestinationUserAddress,
+        BridgeError::InvalidArgumentDestinationUserAddress,
+    ).unwrap_or_revert();
+
+    let source_nft_contract_address: ContractHash = utils::get_named_arg_with_user_errors(
+        ARG_SOURCE_NFT_CONTRACT_ADDRESS,
+        BridgeError::MissingArgumentSourceNftContractAddress,
+        BridgeError::InvalidArgumentSourceNftContractAddress,
+    ).unwrap_or_revert();
+
+    let metadata_uri: String = utils::get_named_arg_with_user_errors(
+        ARG_METADATA_URI,
+        BridgeError::MissingArgumentMetadataUri,
+        BridgeError::InvalidArgumentMetadataUri,
+    ).unwrap_or_revert();
+
+    let validators_dict_ref = utils::get_uref(
+        KEY_VALIDATORS_DICT,
+        BridgeError::MissingValidatorsDictRef,
+        BridgeError::InvalidValidatorsDictRef,
+    );
 }
 
 
@@ -248,7 +295,6 @@ fn generate_entry_points() -> EntryPoints {
     entrypoints.add_entry_point(add_validator);
     entrypoints
 }
-
 fn install_contract() {
     let entry_points = generate_entry_points();
     let named_keys = {
@@ -272,7 +318,6 @@ fn install_contract() {
         contract_hash.into(),
     );
 }
-
 #[no_mangle]
 pub extern "C" fn call() {
     install_contract();

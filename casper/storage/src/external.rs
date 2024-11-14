@@ -34,7 +34,7 @@ pub mod xp_nft {
     }
 
     pub fn _metadata(nft_contract: ContractHash, tid: TokenIdentifier) -> String {
-        let (meta,) = match tid {
+        let (meta, ) = match tid {
             TokenIdentifier::Index(token_idx) => runtime::call_contract::<(String,)>(
                 nft_contract,
                 ENTRY_POINT_METADATA,
@@ -52,26 +52,6 @@ pub mod xp_nft {
         };
         meta
     }
-
-    pub fn burn(nft_contract: ContractHash, tid: TokenIdentifier) {
-        match tid {
-            TokenIdentifier::Index(token_idx) => runtime::call_contract::<()>(
-                nft_contract,
-                ENTRY_POINT_BURN,
-                runtime_args! {
-                    ARG_TOKEN_ID => token_idx,
-                },
-            ),
-            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<()>(
-                nft_contract,
-                ENTRY_POINT_BURN,
-                runtime_args! {
-                    ARG_TOKEN_HASH => token_hash,
-                },
-            ),
-        };
-    }
-
     pub fn transfer(
         nft_contract: ContractHash,
         source_key: Key,
