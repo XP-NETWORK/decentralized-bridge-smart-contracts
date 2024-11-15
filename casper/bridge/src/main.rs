@@ -33,9 +33,11 @@ use casper_contract::{
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
+use casper_contract::contract_api::system::{get_purse_balance, transfer_from_purse_to_purse, transfer_to_public_key};
 // Importing specific Casper types.
-use casper_types::{bytesrepr::ToBytes, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, AsymmetricType, CLType, CLTyped, ContractHash, Parameter, PublicKey as CPublicKey, U256, U512};
+use casper_types::{bytesrepr::ToBytes, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, AsymmetricType, CLType, CLTyped, ContractHash, Key, Parameter, PublicKey as CPublicKey, URef, U256, U512};
 use casper_types::bytesrepr::{Bytes, FromBytes};
+use casper_types::contracts::FromStrError::AccountHash;
 use ed25519_dalek::{PublicKey as EPublicKey, Signature, Verifier};
 use entrypoints::*;
 use errors::BridgeError;
@@ -45,6 +47,8 @@ use sha2::{Digest, Sha512};
 use structs::{
     AddValidator, Validator,
 };
+use crate::external::xp_nft::{transfer, TokenIdentifier};
+use crate::structs::ContractInfo;
 
 type Sigs = (CPublicKey, [u8; 64]);
 
@@ -60,7 +64,6 @@ fn matches_current_chain(destination_chain: String) {
         runtime::revert(BridgeError::InvalidDestinationChain);
     }
 }
-
 fn has_correct_fee(fee: U256, msg_value: U256) {
     if msg_value < fee {
         runtime::revert(BridgeError::FeeLessThanSentAmount);
@@ -92,6 +95,35 @@ fn verify_signatures(data: Vec<u8>, signature: &[u8], key: &[u8]) -> bool {
     }
     true
 }
+fn check_storage(storage_dict_ref: URef, source_nft_contract_address: ContractHash, token_id: TokenIdentifier, key: &str) {
+    let storage_address_option = storage::dictionary_get::<ContractHash>(storage_dict_ref, key).unwrap_or(None);
+
+    match storage_address_option {
+        Some(v) => {
+            // TRANSFER TO STORAGE
+            transfer_to_storage(v, source_nft_contract_address, token_id);
+        }
+        None => {
+            // EMIT CREATE STORAGE EVENT
+        }
+    }
+}
+
+fn transfer_to_storage(storage_address: ContractHash, source_nft_contract_address: ContractHash, token_id: TokenIdentifier) {
+    let this_ref = utils::get_uref(
+        THIS_CONTRACT,
+        BridgeError::MissingThisContractRef,
+        BridgeError::InvalidThisContractRef,
+    );
+
+    let this_contract: ContractHash = storage::read_or_revert(this_ref);
+    transfer(
+        source_nft_contract_address,
+        this_contract.into(),
+        storage_address.into(),
+        token_id,
+    );
+}
 #[no_mangle]
 pub extern "C" fn init() {
     if utils::named_uref_exists(INITIALIZED) {
@@ -102,11 +134,14 @@ pub extern "C" fn init() {
     let chain_type: String = runtime::get_named_arg(ARG_CHAIN_TYPE);
     let collection_deployer: ContractHash = runtime::get_named_arg(ARG_COLLECTION_DEPLOYER);
     let storage_deployer: ContractHash = runtime::get_named_arg(ARG_STORAGE_DEPLOYER);
+    let service_account: CPublicKey = runtime::get_named_arg(ARG_SERVICE_ACCOUNT);
 
     runtime::put_key(INITIALIZED, storage::new_uref(true).into());
     runtime::put_key(KEY_CHAIN_TYPE, storage::new_uref(chain_type).into());
     runtime::put_key(KEY_COLLECTION_DEPLOYER, storage::new_uref(collection_deployer).into());
     runtime::put_key(KEY_STORAGE_DEPLOYER, storage::new_uref(storage_deployer).into());
+    runtime::put_key(KEY_SERVICE_ACCOUNT, storage::new_uref(service_account).into());
+
 
     // INITIALIZING BOOTSTRAP VALIDATOR
     let validators_dict = storage::new_dictionary(KEY_VALIDATORS_DICT)
@@ -145,6 +180,8 @@ pub extern "C" fn init() {
     // INITIALIZING DUPLICATE STORAGE DICT
     storage::new_dictionary(KEY_DUPLICATE_STORAGE_DICT)
         .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+
+    utils::init_events();
 }
 #[no_mangle]
 pub extern "C" fn add_validator() {
@@ -182,7 +219,6 @@ pub extern "C" fn add_validator() {
             sig.as_slice(),
             key.as_slice(),
         );
-
         if valid {
             let validator_exists = storage::dictionary_get::<Validator>(validators_dict_ref, &arg.0.to_string()).unwrap_or(None);
 
@@ -215,18 +251,14 @@ pub extern "C" fn add_validator() {
 
         storage::write(validators_count_ref, validators_count + 1);
 
-        // let ev = AddNewValidator {
-        //     public_key: new_validator_public_key.clone(),
-        // };
-        // casper_event_standard::emit(ev);
+        casper_event_standard::emit(AddNewValidator::new(new_validator_public_key));
     } else {
-        // "Threshold not reached!"
         runtime::revert(BridgeError::ThresholdNotReached);
     }
 }
 #[no_mangle]
 pub extern "C" fn lock() {
-    let token_id: U256 = utils::get_named_arg_with_user_errors(
+    let token_id: TokenIdentifier = utils::get_named_arg_with_user_errors(
         ARG_TOKEN_ID,
         BridgeError::MissingArgumentTokenId,
         BridgeError::InvalidArgumentTokenId,
@@ -256,11 +288,49 @@ pub extern "C" fn lock() {
         BridgeError::InvalidArgumentMetadataUri,
     ).unwrap_or_revert();
 
-    let validators_dict_ref = utils::get_uref(
-        KEY_VALIDATORS_DICT,
-        BridgeError::MissingValidatorsDictRef,
-        BridgeError::InvalidValidatorsDictRef,
+    let service_account_ref = utils::get_uref(
+        ARG_SERVICE_ACCOUNT,
+        BridgeError::MissingServiceAccountRef,
+        BridgeError::MissingServiceAccountRef,
     );
+
+    let service_account: CPublicKey = storage::read_or_revert(service_account_ref);
+
+    let res = transfer_to_public_key(service_account, U512::from(10u32.pow(9)), 1.into());
+
+    // let balance: U512 = get_purse_balance(caller_purse).unwrap_or_revert_with(BridgeError::CouldntGetPurseBalance);
+    // let self_chain_ref = utils::get_uref(
+    //     KEY_CHAIN_TYPE,
+    //     BridgeError::MissingChainTypeRef,
+    //     BridgeError::InvalidChainTypeRef,
+    // );
+    //
+    // let self_chain: String = storage::read_or_revert(self_chain_ref);
+    //
+    // let duplicate_to_original_dict_ref = utils::get_uref(
+    //     KEY_DUPLICATE_TO_ORIGINAL_DICT,
+    //     BridgeError::MissingOTDDictRef,
+    //     BridgeError::InvalidOTDDictRef,
+    // );
+    //
+    // let key = &*(source_nft_contract_address.to_string() + self_chain.as_str());
+    //
+    // let original_collection_address_option = storage::dictionary_get::<ContractInfo>(duplicate_to_original_dict_ref, key).unwrap_or(None);
+    //
+    // match original_collection_address_option {
+    //     Some(v) => {
+    //         // notOriginal
+    //         let duplicate_storage_dict_ref = utils::get_uref(
+    //             KEY_DUPLICATE_STORAGE_DICT,
+    //             BridgeError::MissingDSRef,
+    //             BridgeError::InvalidDSRef,
+    //         );
+    //         check_storage(duplicate_storage_dict_ref, source_nft_contract_address, token_id, key);
+    //     }
+    //     None => {
+    //         // isOriginal
+    //     }
+    // }
 }
 
 

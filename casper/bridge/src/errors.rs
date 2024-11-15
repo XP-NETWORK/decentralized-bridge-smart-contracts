@@ -44,6 +44,26 @@ pub enum BridgeError {
 
     MissingArgumentMetadataUri, // 27
     InvalidArgumentMetadataUri, // 28
+
+    MissingOTDDictRef, // 29
+    InvalidOTDDictRef, // 30
+
+    MissingOSRef, // 31
+    InvalidOSRef, // 32
+
+    MissingDSRef, // 33
+    InvalidDSRef, // 34
+
+    MissingThisContractRef, // 35
+    InvalidThisContractRef, // 36
+
+    CouldntGetPurseBalance, // 37
+
+    MissingArgumentCallerPurse, // 38
+    InvalidArgumentCallerPurse, // 39
+
+    MissingServiceAccountRef, // 40
+    InvalidServiceAccountRef, // 41
 }
 
 impl From<BridgeError> for ApiError {

@@ -3,6 +3,7 @@ pub const ARG_VALIDATORS: &str = "bootstrap_validator_arg";
 pub const ARG_CHAIN_TYPE: &str = "chain_type_arg";
 pub const ARG_COLLECTION_DEPLOYER: &str = "collection_deployer_arg";
 pub const ARG_STORAGE_DEPLOYER: &str = "storage_deployer_arg";
+pub const ARG_SERVICE_ACCOUNT: &str = "service_account_arg";
 
 // RUNTIME ARGS ADD VALIDATOR
 pub const ARG_NEW_VALIDATOR_PUBLIC_KEY: &str = "new_validator_public_key_arg";
@@ -14,6 +15,7 @@ pub const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
 pub const ARG_DESTINATION_USER_ADDRESS: &str = "destination_user_address_arg";
 pub const ARG_SOURCE_NFT_CONTRACT_ADDRESS: &str = "source_nft_contract_address_arg";
 pub const ARG_METADATA_URI: &str = "metadata_uri_arg";
+pub const ARG_CALLER_PURSE: &str = "caller_purse_arg";
 
 // CONTRACT STATE
 pub const INITIALIZED: &str = "initialized";
@@ -26,6 +28,7 @@ pub const KEY_CHAIN_TYPE: &str = "chain_type";
 pub const KEY_COLLECTION_DEPLOYER: &str = "collection_deployer";
 pub const KEY_STORAGE_DEPLOYER: &str = "storage_deployer";
 pub const KEY_VALIDATORS_COUNT: &str = "validators_count";
+pub const KEY_SERVICE_ACCOUNT: &str = "service_account";
 
 // DICTIONARIES
 pub const KEY_VALIDATORS_DICT: &str = "validators_dict";

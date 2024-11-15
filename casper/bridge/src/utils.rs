@@ -5,6 +5,7 @@ use casper_contract::{
     ext_ffi,
     unwrap_or_revert::UnwrapOrRevert,
 };
+use casper_event_standard::Schemas;
 use casper_types::{
     api_error,
     bytesrepr::{self, FromBytes, ToBytes},
@@ -12,6 +13,14 @@ use casper_types::{
 };
 
 use crate::errors::BridgeError;
+use crate::events::AddNewValidator;
+
+// Initializes events-releated named keys and records all event schemas.
+pub fn init_events() {
+    let schemas = Schemas::new()
+        .with::<AddNewValidator>();
+    casper_event_standard::init(schemas);
+}
 
 pub(crate) fn to_ptr<T: ToBytes>(t: T) -> (*const u8, usize, Vec<u8>) {
     let bytes = t.into_bytes().unwrap_or_revert();
