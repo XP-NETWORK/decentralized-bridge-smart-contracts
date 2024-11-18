@@ -21,6 +21,7 @@ pub mod xp_nft {
     const ARG_SOURCE_KEY: &str = "source_key";
     const ENTRY_POINT_TRANSFER: &str = "transfer";
     const ENTRY_POINT_METADATA: &str = "metadata";
+    const ENTRY_POINT_OWNER_OF: &str = "owner_of";
 
     pub fn mint(nft_contract: ContractHash, token_owner: Key, token_metadata: String) {
         let (_, _, _token_id_string) = runtime::call_contract::<(String, Key, String)>(
@@ -32,25 +33,24 @@ pub mod xp_nft {
             },
         );
     }
-
-    pub fn _metadata(nft_contract: ContractHash, tid: TokenIdentifier) -> String {
-        let (meta, ) = match tid {
-            TokenIdentifier::Index(token_idx) => runtime::call_contract::<(String,)>(
+    pub fn owner_of(nft_contract: ContractHash, tid: TokenIdentifier) -> Key {
+        let key = match tid {
+            TokenIdentifier::Index(idx) => runtime::call_contract::<Key>(
                 nft_contract,
-                ENTRY_POINT_METADATA,
+                ENTRY_POINT_OWNER_OF,
                 runtime_args! {
-                ARG_TOKEN_ID => token_idx,
-                                },
+                    ARG_TOKEN_ID => idx,
+                },
             ),
-            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<(String,)>(
+            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<Key>(
                 nft_contract,
-                ENTRY_POINT_METADATA,
+                ENTRY_POINT_OWNER_OF,
                 runtime_args! {
-                ARG_TOKEN_HASH => token_hash,
-                                },
+                    ARG_TOKEN_HASH => token_hash,
+                },
             ),
         };
-        meta
+        key
     }
     pub fn transfer(
         nft_contract: ContractHash,

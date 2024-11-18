@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "bridge",
-    "storage"
+    "storage",
+    "lock-nft"
 ]
 resolver = "2"
 

@@ -1,102 +1,35 @@
-use alloc::{string::String, vec::Vec};
-use casper_types::{
-    account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, CLType, CLTyped, ContractHash, Key, U256, U512, PublicKey
-};
+use alloc::string::{String, ToString};
+use casper_types::{CLType, CLTyped};
+use casper_types::bytesrepr::{FromBytes, ToBytes};
+use crate::external::xp_nft::TokenIdentifier;
 
-pub struct Validator {
-    pub added: bool,
-    pub pending_rewards: U256,
-}
-
-impl FromBytes for Validator {
-    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
-
-        let (added, remainder) = bool::from_bytes(bytes)?;
-        let (pending_rewards, remainder) = U256::from_bytes(remainder)?;
-
-        Ok((Self { added,pending_rewards }, remainder))
+impl CLTyped for TokenIdentifier {
+    fn cl_type() -> casper_types::CLType {
+        CLType::String
     }
 }
 
-impl ToBytes for Validator {
-    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
-        let mut result = bytesrepr::allocate_buffer(self)?;
-        result.extend(self.added.to_bytes()?);
-        result.extend(self.pending_rewards.to_bytes()?);
-        Ok(result)
-    }
-
-    fn serialized_length(&self) -> usize {
-        self.added.serialized_length() + self.pending_rewards.serialized_length()
+impl FromBytes for TokenIdentifier {
+    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), casper_types::bytesrepr::Error> {
+        let (tid, remainder) = String::from_bytes(bytes)?;
+        match tid.parse::<u64>() {
+            Ok(e) => Ok((TokenIdentifier::Index(e), remainder)),
+            Err(_) => Ok((TokenIdentifier::Hash(tid), remainder)),
+        }
     }
 }
-
-impl CLTyped for Validator {
-    fn cl_type() -> CLType {
-        CLType::Any
-    }
-}
-
-
-pub struct SignerAndSignature {
-    pub public_key: PublicKey,
-    pub signature: Bytes,
-}
-
-impl FromBytes for SignerAndSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
-
-        let (public_key, remainder) = PublicKey::from_bytes(bytes)?;
-        let (signature, remainder) = Bytes::from_bytes(remainder)?;
-
-        Ok((Self { public_key, signature }, remainder))
-    }
-}
-
-impl ToBytes for SignerAndSignature {
-    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
-        let mut result = bytesrepr::allocate_buffer(self)?;
-        result.extend(self.public_key.to_bytes()?);
-        result.extend(self.signature.to_bytes()?);
-        Ok(result)
+impl ToBytes for TokenIdentifier {
+    fn to_bytes(&self) -> Result<alloc::vec::Vec<u8>, casper_types::bytesrepr::Error> {
+        match self {
+            TokenIdentifier::Index(index) => index.to_string().to_bytes(),
+            TokenIdentifier::Hash(hash) => hash.to_bytes(),
+        }
     }
 
     fn serialized_length(&self) -> usize {
-        self.public_key.serialized_length() + self.signature.serialized_length()
-    }
-}
-
-
-pub struct AddValidator {
-    pub new_validator_public_key: PublicKey,
-    pub signatures: Vec<SignerAndSignature>,
-}
-
-impl FromBytes for AddValidator {
-    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
-
-        let (new_validator_public_key, remainder) = PublicKey::from_bytes(bytes)?;
-        let (signatures, remainder) = Vec::from_bytes(remainder)?;
-
-        Ok((Self { new_validator_public_key, signatures }, remainder))
-    }
-}
-
-impl ToBytes for AddValidator {
-    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
-        let mut result = bytesrepr::allocate_buffer(self)?;
-        result.extend(self.new_validator_public_key.to_bytes()?);
-        result.extend(self.signatures.to_bytes()?);
-        Ok(result)
-    }
-
-    fn serialized_length(&self) -> usize {
-        self.new_validator_public_key.serialized_length() + self.signatures.serialized_length()
-    }
-}
-
-impl CLTyped for AddValidator {
-    fn cl_type() -> CLType {
-        CLType::Any
+        match self {
+            TokenIdentifier::Index(e) => e.to_string().serialized_length(),
+            TokenIdentifier::Hash(h) => h.serialized_length(),
+        }
     }
 }

@@ -13,12 +13,13 @@ use casper_types::{
 };
 
 use crate::errors::BridgeError;
-use crate::events::AddNewValidator;
+use crate::events::{AddNewValidator, DeployStorage};
 
 // Initializes events-releated named keys and records all event schemas.
 pub fn init_events() {
     let schemas = Schemas::new()
-        .with::<AddNewValidator>();
+        .with::<AddNewValidator>()
+        .with::<DeployStorage>();
     casper_event_standard::init(schemas);
 }
 

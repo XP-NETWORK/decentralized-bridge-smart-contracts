@@ -19,6 +19,14 @@ pub enum StorageError {
 
     FailedToGetArgBytes, // 9
     UnexpectedKeyVariant, // 10
+
+    MissingCollectionRef, // 11
+    InvalidCollectionRef, // 12
+
+    MissingThisContractRef, // 13
+    InvalidThisContractRef, // 14
+
+    ThisContractIsNotTheOwnerOfThisToken, // 15
 }
 
 impl From<StorageError> for ApiError {

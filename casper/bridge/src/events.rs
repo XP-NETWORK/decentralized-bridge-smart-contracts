@@ -49,24 +49,24 @@ impl AddNewValidator {
 
 #[derive(Event, Debug, PartialEq, Eq)]
 pub struct Locked {
-    pub token_id: U256,
+    pub token_id: TokenIdentifier,
     pub destination_chain: String,
     pub destination_user_address: String,
     pub source_nft_contract_address: ContractHash,
     pub token_amount: U256,
     pub nft_type: String,
-    pub chain: String,
+    pub source_chain: String,
     pub metadata_uri: String,
 }
 
 impl Locked {
-    pub fn new(token_id: U256,
+    pub fn new(token_id: TokenIdentifier,
                destination_chain: String,
                destination_user_address: String,
                source_nft_contract_address: ContractHash,
                token_amount: U256,
                nft_type: String,
-               chain: String,
+               source_chain: String,
                metadata_uri: String) -> Self {
         Self {
             token_id,
@@ -75,7 +75,36 @@ impl Locked {
             source_nft_contract_address,
             token_amount,
             nft_type,
-            chain,
+            source_chain,
+            metadata_uri,
+        }
+    }
+}
+
+#[derive(Event, Debug, PartialEq, Eq)]
+pub struct DeployStorage {
+    pub is_original: bool,
+    pub token_id: TokenIdentifier,
+    pub destination_chain: String,
+    pub destination_user_address: String,
+    pub source_nft_contract_address: ContractHash,
+    pub metadata_uri: String,
+}
+
+impl DeployStorage {
+    pub fn new(is_original: bool,
+               token_id: TokenIdentifier,
+               destination_chain: String,
+               destination_user_address: String,
+               source_nft_contract_address: ContractHash,
+               metadata_uri: String,
+    ) -> Self {
+        Self {
+            is_original,
+            token_id,
+            destination_chain,
+            destination_user_address,
+            source_nft_contract_address,
             metadata_uri,
         }
     }

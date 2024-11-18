@@ -7,24 +7,19 @@ compile_error!("target arch should be wasm32: compile with '--target wasm32-unkn
 // This code imports necessary aspects of external crates that we will use in our contract code.
 extern crate alloc;
 
-mod entrypoints;
+mod endpoints;
 mod errors;
-mod events;
 mod external;
 mod keys;
 mod structs;
 mod utils;
 
-use core::convert::TryInto;
 
 // Importing Rust types.
 use alloc::{
-    string::{String, ToString},
+    string::{ToString},
     vec,
-    vec::Vec,
 };
-use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
 // Importing aspects of the Casper platform.
 use casper_contract::{
     contract_api::{
@@ -34,18 +29,11 @@ use casper_contract::{
     unwrap_or_revert::UnwrapOrRevert,
 };
 // Importing specific Casper types.
-use casper_types::{bytesrepr::ToBytes, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, AsymmetricType, CLType, CLTyped, ContractHash, Parameter, PublicKey as CPublicKey, PublicKey, U256, U512};
-use casper_types::bytesrepr::{Bytes, FromBytes};
-use ed25519_dalek::{PublicKey as EPublicKey, Signature, Verifier};
-use entrypoints::*;
+use casper_types::{contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter, PublicKey, U512};
+use endpoints::*;
 use errors::StorageError;
-use events::AddNewValidator;
 use keys::*;
-use sha2::{Digest, Sha512};
-use structs::{
-    AddValidator, Validator,
-};
-
+use crate::external::xp_nft::{owner_of, transfer, TokenIdentifier};
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -72,18 +60,52 @@ pub extern "C" fn init() {
 
 #[no_mangle]
 pub extern "C" fn unlock_token() {
-    let token_id: U256 = utils::get_named_arg_with_user_errors(
+    let token_id: TokenIdentifier = utils::get_named_arg_with_user_errors(
         ARG_TOKEN_ID,
         StorageError::MissingArgumentTokenId,
         StorageError::InvalidArgumentTokenId,
     ).unwrap_or_revert();
 
 
-    let signatures: PublicKey = utils::get_named_arg_with_user_errors(
+    let to: PublicKey = utils::get_named_arg_with_user_errors(
         ARG_TO,
         StorageError::MissingArgumentTo,
         StorageError::InvalidArgumentTo,
     ).unwrap_or_revert();
+
+
+    let collection_ref = utils::get_uref(
+        KEY_COLLECTION,
+        StorageError::MissingCollectionRef,
+        StorageError::InvalidCollectionRef,
+    );
+
+    let this_ref = utils::get_uref(
+        THIS_CONTRACT,
+        StorageError::MissingThisContractRef,
+        StorageError::InvalidThisContractRef,
+    );
+
+    let this_contract: ContractHash = storage::read_or_revert(this_ref);
+
+    let collection: ContractHash = storage::read_or_revert(collection_ref);
+
+    let nft_owner = owner_of(collection, token_id.clone());
+
+    let this_contract_key = Key::from(this_contract);
+
+    let to_key = Key::from(to.to_account_hash());
+
+    if nft_owner == this_contract_key {
+        transfer(
+            collection,
+            this_contract_key,
+            to_key,
+            token_id,
+        );
+    } else {
+        runtime::revert(StorageError::ThisContractIsNotTheOwnerOfThisToken);
+    }
 }
 
 
@@ -117,7 +139,7 @@ fn generate_entry_points() -> EntryPoints {
     entrypoints
 }
 
-fn install_contract() {
+fn install_storage() {
     let entry_points = generate_entry_points();
     let named_keys = {
         let mut named_keys = NamedKeys::new();
@@ -143,5 +165,5 @@ fn install_contract() {
 
 #[no_mangle]
 pub extern "C" fn call() {
-    install_contract();
+    install_storage();
 }

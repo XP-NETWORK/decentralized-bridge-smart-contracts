@@ -12,5 +12,5 @@ pub const THIS_CONTRACT: &str = "storage_contract_";
 pub const INSTALLER: &str = "installer";
 pub const HASH_KEY_NAME: &str = "storage_package";
 pub const ACCESS_KEY_NAME: &str = "access_key_name_storage";
-pub const KEY_COLLECTION: &str = "chain_type";
-pub const KEY_OWNER: &str = "collection_deployer";
+pub const KEY_COLLECTION: &str = "collection";
+pub const KEY_OWNER: &str = "owner";

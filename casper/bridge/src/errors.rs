@@ -64,6 +64,11 @@ pub enum BridgeError {
 
     MissingServiceAccountRef, // 40
     InvalidServiceAccountRef, // 41
+
+    MissingArgumentStorageAddress, // 42
+    InvalidArgumentStorageAddress, // 43
+
+    InvalidServiceAddress, // 44
 }
 
 impl From<BridgeError> for ApiError {

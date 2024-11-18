@@ -16,10 +16,11 @@ pub const ARG_DESTINATION_USER_ADDRESS: &str = "destination_user_address_arg";
 pub const ARG_SOURCE_NFT_CONTRACT_ADDRESS: &str = "source_nft_contract_address_arg";
 pub const ARG_METADATA_URI: &str = "metadata_uri_arg";
 pub const ARG_CALLER_PURSE: &str = "caller_purse_arg";
+pub const ARG_STORAGE_ADDRESS: &str = "storage_address_arg";
 
 // CONTRACT STATE
 pub const INITIALIZED: &str = "initialized";
-pub const THIS_CONTRACT: &str = "bridge_contract";
+pub const THIS_CONTRACT: &str = "bridge_contract_";
 pub const INSTALLER: &str = "installer";
 pub const KEY_PURSE: &str = "bridge_purse";
 pub const HASH_KEY_NAME: &str = "bridge_package";
@@ -29,6 +30,7 @@ pub const KEY_COLLECTION_DEPLOYER: &str = "collection_deployer";
 pub const KEY_STORAGE_DEPLOYER: &str = "storage_deployer";
 pub const KEY_VALIDATORS_COUNT: &str = "validators_count";
 pub const KEY_SERVICE_ACCOUNT: &str = "service_account";
+pub const KEY_TYPE_ERC721: &str = "nft_type";
 
 // DICTIONARIES
 pub const KEY_VALIDATORS_DICT: &str = "validators_dict";
