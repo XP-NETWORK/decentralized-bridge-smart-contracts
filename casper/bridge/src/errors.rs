@@ -69,6 +69,10 @@ pub enum BridgeError {
     InvalidArgumentStorageAddress, // 43
 
     InvalidServiceAddress, // 44
+
+    FailedToUnWrapStorageAddress, // 45
+    InvalidStorageAddress, // 46
+
 }
 
 impl From<BridgeError> for ApiError {

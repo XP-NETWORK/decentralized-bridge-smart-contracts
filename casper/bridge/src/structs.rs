@@ -1,7 +1,5 @@
 use alloc::{string::String, vec::Vec};
-use casper_types::{
-    bytesrepr::{self, Bytes, FromBytes, ToBytes}, CLType, CLTyped, PublicKey, U256,
-};
+use casper_types::{bytesrepr::{self, Bytes, FromBytes, ToBytes}, CLType, CLTyped, ContractHash, PublicKey, U256};
 
 pub struct Validator {
     pub added: bool,
@@ -101,13 +99,13 @@ impl CLTyped for AddValidator {
 
 pub struct ContractInfo {
     pub chain: String,
-    pub contract_address: String,
+    pub contract_address: ContractHash,
 }
 
 impl FromBytes for ContractInfo {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
         let (chain, remainder) = String::from_bytes(bytes)?;
-        let (contract_address, remainder) = String::from_bytes(remainder)?;
+        let (contract_address, remainder) = ContractHash::from_bytes(remainder)?;
 
         Ok((Self { chain, contract_address }, remainder))
     }

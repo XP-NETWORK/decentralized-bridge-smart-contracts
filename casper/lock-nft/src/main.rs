@@ -26,19 +26,19 @@ pub const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
 pub const ARG_DESTINATION_USER_ADDRESS: &str = "destination_user_address_arg";
 pub const ARG_SOURCE_NFT_CONTRACT_ADDRESS: &str = "source_nft_contract_address_arg";
 pub const ARG_METADATA_URI: &str = "metadata_uri_arg";
+pub const ARG_STORAGE_ADDRESS: &str = "storage_address_arg";
 const ARG_BRIDGE_CONTRACT_HASH: &str = "bridge_contract";
 const ARG_AMOUNT: &str = "amount";
 
 #[no_mangle]
 pub extern "C" fn call() {
-    let bridge_contract_hash: ContractHash =
-        runtime::get_named_arg::<ContractHash>(ARG_BRIDGE_CONTRACT_HASH);
-
+    let bridge_contract_hash: ContractHash = runtime::get_named_arg::<ContractHash>(ARG_BRIDGE_CONTRACT_HASH);
     let token_id: String = runtime::get_named_arg(ARG_TOKEN_ID);
     let destination_chain: String = runtime::get_named_arg(ARG_DESTINATION_CHAIN);
     let destination_user_address: String = runtime::get_named_arg(ARG_DESTINATION_USER_ADDRESS);
     let source_nft_contract_address: ContractHash = runtime::get_named_arg(ARG_SOURCE_NFT_CONTRACT_ADDRESS);
     let metadata_uri: String = runtime::get_named_arg(ARG_METADATA_URI);
+    let storage_address: Option<ContractHash> = runtime::get_named_arg(ARG_STORAGE_ADDRESS);
 
     let amount: U512 = runtime::get_named_arg(ARG_AMOUNT);
     const ENTRY_POINT_FREEZE_NFT: &str = "lock";
@@ -66,6 +66,7 @@ pub extern "C" fn call() {
             ARG_DESTINATION_USER_ADDRESS => destination_user_address,
             ARG_SOURCE_NFT_CONTRACT_ADDRESS => source_nft_contract_address,
             ARG_METADATA_URI => metadata_uri,
+            ARG_STORAGE_ADDRESS => storage_address
         },
     );
 }

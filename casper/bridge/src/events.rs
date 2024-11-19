@@ -83,7 +83,6 @@ impl Locked {
 
 #[derive(Event, Debug, PartialEq, Eq)]
 pub struct DeployStorage {
-    pub is_original: bool,
     pub token_id: TokenIdentifier,
     pub destination_chain: String,
     pub destination_user_address: String,
@@ -92,15 +91,14 @@ pub struct DeployStorage {
 }
 
 impl DeployStorage {
-    pub fn new(is_original: bool,
-               token_id: TokenIdentifier,
-               destination_chain: String,
-               destination_user_address: String,
-               source_nft_contract_address: ContractHash,
-               metadata_uri: String,
+    pub fn new(
+        token_id: TokenIdentifier,
+        destination_chain: String,
+        destination_user_address: String,
+        source_nft_contract_address: ContractHash,
+        metadata_uri: String,
     ) -> Self {
         Self {
-            is_original,
             token_id,
             destination_chain,
             destination_user_address,
