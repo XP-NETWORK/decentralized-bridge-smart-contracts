@@ -1,0 +1,11 @@
+# Move Build Output
+build/
+# Aptos CLI / local testnet files
+.aptos
+# VSCode settings
+.vscode/
+
+.env
+.DS_Store
+dist/
+node_modules/

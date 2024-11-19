@@ -66,6 +66,7 @@ message HiFromDeployNFT721Collection{
     newlyDeployCollection: Address;
     sourceChain: String;
     transactionHash: String;
+    lockTxChain: String;
 }
 message CollectionDeploy {
     newOwner: Address;

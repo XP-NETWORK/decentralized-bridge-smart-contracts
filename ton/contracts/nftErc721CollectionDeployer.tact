@@ -9,6 +9,7 @@ message DeployNFT721Collection {
     transaction_hash: String;
     metadata: Cell;
     token_id: Int;
+    lockTxChain: String;
 }
 message CreatedCollection {
     collectionAddress: Address;
@@ -49,7 +50,8 @@ contract NFTCollectionDeployer {
                     tokenId: msg.token_id,
                     newlyDeployCollection: collectionAddress,
                     sourceChain: msg.source_chain,
-                    transactionHash: msg.transaction_hash
+                    transactionHash: msg.transaction_hash,
+                    lockTxChain: msg.lockTxChain
                 }.toCell()
             }
         );

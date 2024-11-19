@@ -96,6 +96,7 @@ contract Bridge {
         uint256 tokenAmount; // Number of NFTs being transferred
         string nftType; // Type of the NFT (could be ERC721 or ERC1155)
         uint256 fee; // fee that needs to be paid by the user to the bridge,
+        string lockTxChain; // The tx on which the nft is locked.
     }
 
     event AddNewValidator(address _validator);
@@ -121,6 +122,7 @@ contract Bridge {
     );
 
     event Claimed721(
+        string lockTxChain, // Chain on which the lock txn hapenned.
         string sourceChain, // Chain from where the NFT is being transferred
         string transactionHash, // Transaction hash of the transfer on the source chain
         address nftContract, // The contract address from which tokens were claimed
@@ -128,7 +130,8 @@ contract Bridge {
     );
 
     event Claim1155(
-            string sourceChain, // Chain from where the NFT is being transferred
+        string lockTxChain, // Chain on which the lock txn hapenned.
+        string sourceChain, // Chain from where the NFT is being transferred
         string transactionHash, // Transaction hash of the transfer on the source chain
         address nftContract, // The contract address from which tokens were claimed
         uint256 tokenId,  // The tokenId that was claimed
@@ -217,30 +220,12 @@ contract Bridge {
     }
 
     function claimValidatorRewards(
-        address _validator,
-        bytes[] memory signatures
+        address _validator
     ) external {
         require(_validator != address(0), "Address cannot be zero address!");
-        require(signatures.length > 0, "Must have signatures!");
         require(
             validators[_validator].added == true,
             "Validator does not exist!"
-        );
-
-        uint256 percentage = 0;
-        for (uint256 i = 0; i < signatures.length; i++) {
-            address signer = recover(
-                keccak256(abi.encode(_validator)),
-                signatures[i]
-            );
-            if (validators[signer].added) {
-                percentage += 1;
-            }
-        }
-
-        require(
-            percentage >= ((validatorsCount * 2) / 3) + 1,
-            "Threshold not reached!"
         );
 
         emit RewardValidator(address(_validator));
@@ -449,7 +434,7 @@ contract Bridge {
                     data.metadata
                 );
             }
-            emit Claimed721(data.sourceChain, data.transactionHash, address(duplicateCollection), data.tokenId);
+            emit Claimed721(data.lockTxChain, data.sourceChain, data.transactionHash, address(duplicateCollection), data.tokenId);
         }
         // ===============================/ hasDuplicate && NOT hasStorage /=======================
         else if (hasDuplicate && !hasStorage) {
@@ -464,7 +449,7 @@ contract Bridge {
                 data.metadata
             );
 
-        emit Claimed721(data.sourceChain, data.transactionHash, address(nft721Collection), data.tokenId);
+        emit Claimed721(data.lockTxChain, data.sourceChain, data.transactionHash, address(nft721Collection), data.tokenId);
         }
         // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
         else if (!hasDuplicate && !hasStorage) {
@@ -499,7 +484,7 @@ contract Bridge {
                 data.metadata
             );
 
-        emit Claimed721(data.sourceChain, data.transactionHash, address(newCollectionAddress), data.tokenId);
+        emit Claimed721(data.lockTxChain, data.sourceChain, data.transactionHash, address(newCollectionAddress), data.tokenId);
             // ===============================/ NOT hasDuplicate && hasStorage /=======================
         } else if (!hasDuplicate && hasStorage) {
             IERC721Royalty originalCollection = IERC721Royalty(
@@ -525,7 +510,7 @@ contract Bridge {
                 );
             }
 
-        emit Claimed721(data.sourceChain, data.transactionHash, address(originalCollection), data.tokenId);
+        emit Claimed721(data.lockTxChain, data.sourceChain, data.transactionHash, address(originalCollection), data.tokenId);
             // ============= This could be wrong. Need verification ============
         } else {
             // TODO: remove after testing
@@ -611,7 +596,7 @@ contract Bridge {
                     data.metadata
                 );
             }
-            emit Claim1155(data.sourceChain, data.transactionHash, address(collecAddress), data.tokenId, data.tokenAmount);
+            emit Claim1155(data.lockTxChain, data.sourceChain, data.transactionHash, address(collecAddress), data.tokenId, data.tokenAmount);
         }
         // ===============================/ Is Duplicate && No Storage /=======================
         else if (hasDuplicate && !hasStorage) {
@@ -626,7 +611,7 @@ contract Bridge {
                 data.royaltyReceiver,
                 data.metadata
             );
-             emit Claim1155(data.sourceChain, data.transactionHash, address(nft1155Collection), data.tokenId, data.tokenAmount);
+             emit Claim1155(data.lockTxChain, data.sourceChain, data.transactionHash, address(nft1155Collection), data.tokenId, data.tokenAmount);
             
         }
         // ===============================/ Not Duplicate && No Storage /=======================
@@ -658,7 +643,7 @@ contract Bridge {
                 data.royaltyReceiver,
                 data.metadata
             );
-                emit Claim1155(data.sourceChain, data.transactionHash, address(newCollectionAddress), data.tokenId, data.tokenAmount);
+                emit Claim1155(data.lockTxChain, data.sourceChain, data.transactionHash, address(newCollectionAddress), data.tokenId, data.tokenAmount);
             // ===============================/ Duplicate && No Storage /=======================
         } else if (!hasDuplicate && hasStorage) {
             IERC1155Royalty collecAddress = IERC1155Royalty(
@@ -694,7 +679,7 @@ contract Bridge {
                     data.metadata
                 );
             }
-            emit Claim1155(data.sourceChain, data.transactionHash, address(collecAddress), data.tokenId, data.tokenAmount);
+            emit Claim1155(data.lockTxChain, data.sourceChain, data.transactionHash, address(collecAddress), data.tokenId, data.tokenAmount);
         } else {
             // TODO: remove after testing
             require(false, "Invalid bridge state");
@@ -910,7 +895,8 @@ contract Bridge {
                 data.transactionHash,
                 data.tokenAmount,
                 data.nftType,
-                data.fee
+                data.fee,
+                data.lockTxChain
             )
         );
 

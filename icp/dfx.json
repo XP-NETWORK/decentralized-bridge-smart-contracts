@@ -1,0 +1,55 @@
+{
+  "canisters": {
+    "bridge": {
+      "main": "src/bridge/main.mo",
+      "type": "motoko",
+      "gzip": true,
+      "dependencies": [
+        "icp_ledger_canister"
+      ]
+    },
+    "user_nft_minter": {
+      "main": "src/nft/user_nft_minter.mo",
+      "type": "motoko",
+      "gzip": true
+    },
+    "nft": {
+      "main": "src/nft/main.mo",
+      "type": "motoko",
+      "gzip": true
+    },
+    "storage": {
+      "main": "src/storage/main.mo",
+      "type": "motoko",
+      "gzip": true
+    },
+    "storage_factory": {
+      "main": "src/storage-factory/main.mo",
+      "type": "motoko",
+      "gzip": true
+    },
+    "collection_factory": {
+      "main": "src/collection-factory/main.mo",
+      "type": "motoko",
+      "gzip": true
+    },
+    "icp_ledger_canister": {
+      "type": "custom",
+      "candid": "https://raw.githubusercontent.com/dfinity/ic/d87954601e4b22972899e9957e800406a0a6b929/rs/rosetta-api/icp_ledger/ledger.did",
+      "wasm": "https://download.dfinity.systems/ic/d87954601e4b22972899e9957e800406a0a6b929/canisters/ledger-canister.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
+        }
+      }
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": "mops sources"
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

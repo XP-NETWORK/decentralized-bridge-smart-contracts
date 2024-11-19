@@ -1,0 +1,23 @@
+{
+  "name": "icp",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "imsk17",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@dfinity/agent": "^2.0.0",
+    "@dfinity/candid": "^2.0.0",
+    "@dfinity/principal": "^2.0.0",
+    "@noble/ed25519": "^1.6.0",
+    "isomorphic-fetch": "^3.0.0",
+    "vitest": "^2.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "typescript": "^5.5.3"
+  }
+}
