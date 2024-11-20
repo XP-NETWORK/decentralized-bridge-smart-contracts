@@ -42,8 +42,8 @@ pub enum BridgeError {
     MissingArgumentSourceNftContractAddress, // 25
     InvalidArgumentSourceNftContractAddress, // 26
 
-    MissingArgumentMetadataUri, // 27
-    InvalidArgumentMetadataUri, // 28
+    MissingArgumentMetadata, // 27
+    InvalidArgumentMetadata, // 28
 
     MissingOTDDictRef, // 29
     InvalidOTDDictRef, // 30
@@ -54,16 +54,16 @@ pub enum BridgeError {
     MissingDSRef, // 33
     InvalidDSRef, // 34
 
-    MissingThisContractRef, // 35
-    InvalidThisContractRef, // 36
+    MissingSelfHashRef, // 35
+    InvalidSelfHashRef, // 36
 
     CouldntGetPurseBalance, // 37
 
     MissingArgumentCallerPurse, // 38
     InvalidArgumentCallerPurse, // 39
 
-    MissingServiceAccountRef, // 40
-    InvalidServiceAccountRef, // 41
+    MissingServiceAddressRef, // 40
+    InvalidServiceAddressRef, // 41
 
     MissingArgumentStorageAddress, // 42
     InvalidArgumentStorageAddress, // 43
@@ -71,7 +71,67 @@ pub enum BridgeError {
     InvalidServiceAddress, // 44
 
     FailedToUnWrapStorageAddress, // 45
+
     InvalidStorageAddress, // 46
+
+    MissingArgumentNftSenderAddress, // 47
+    InvalidArgumentNftSenderAddress, // 48
+
+    FailedToRegisterOwnerToCollection, // 49
+
+    MissingArgumentSourceChain,  // 50
+    InvalidArgumentSourceChain,  // 51
+
+    MissingArgumentName, // 52
+    InvalidArgumentName, // 53
+
+    MissingArgumentSymbol, // 54
+    InvalidArgumentSymbol, // 55
+
+    MissingArgumentRoyalty, // 56
+    InvalidArgumentRoyalty, // 57
+
+    MissingArgumentRoyaltyReceiver, // 58
+    InvalidArgumentRoyaltyReceiver, // 59
+
+    MissingArgumentTransactionHash, // 60
+    InvalidArgumentTransactionHash, // 61
+
+    MissingArgumentTokenAmount, // 62
+    InvalidArgumentTokenAmount, // 63
+
+    MissingArgumentNftType, // 64
+    InvalidArgumentNftType, // 65
+
+    MissingArgumentFee, // 66
+    InvalidArgumentFee, // 67
+
+    MissingArgumentLockTxChain, // 68
+    InvalidArgumentLockTxChain, // 69
+
+    MissingArgumentCollectionAddress, // 70
+    InvalidArgumentCollectionAddress, // 71
+
+    InvalidNftType, // 72
+
+    MissingUniqueIdentifiersDictRef, // 73
+    InvalidUniqueIdentifiersDictRef, // 74
+
+    DataAlreadyProcessed, // 75
+
+    MissingDTODictRef, // 76
+    InvalidDTODictRef, // 77
+
+    InvalidFee, // 78
+
+    MissingThisPurseRef, // 79
+    InvalidThisPurseRef, // 80
+
+    NoRewardsAvailable, // 81
+
+    FailedToGetValidatorForReward, // 82
+
+    FailedToUnlockNft, // 83
 
 }
 

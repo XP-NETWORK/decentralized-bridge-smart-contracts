@@ -11,7 +11,6 @@ pub mod xp_nft {
     }
 
     const ENTRY_POINT_MINT: &str = "mint";
-
     const ARG_TOKEN_OWNER: &str = "token_owner";
     const ARG_TOKEN_META_DATA: &str = "token_meta_data";
     const ARG_TOKEN_ID: &str = "token_id";
@@ -21,6 +20,8 @@ pub mod xp_nft {
     const ARG_SOURCE_KEY: &str = "source_key";
     const ENTRY_POINT_TRANSFER: &str = "transfer";
     const ENTRY_POINT_METADATA: &str = "metadata";
+    pub const ENTRY_POINT_REGISTER_OWNER: &str = "register_owner";
+    const ENTRY_POINT_OWNER_OF: &str = "owner_of";
 
     pub fn mint(nft_contract: ContractHash, token_owner: Key, token_metadata: String) {
         let (_, _, _token_id_string) = runtime::call_contract::<(String, Key, String)>(
@@ -34,7 +35,7 @@ pub mod xp_nft {
     }
 
     pub fn _metadata(nft_contract: ContractHash, tid: TokenIdentifier) -> String {
-        let (meta,) = match tid {
+        let (meta, ) = match tid {
             TokenIdentifier::Index(token_idx) => runtime::call_contract::<(String,)>(
                 nft_contract,
                 ENTRY_POINT_METADATA,
@@ -72,6 +73,26 @@ pub mod xp_nft {
         };
     }
 
+    pub fn owner_of(nft_contract: ContractHash, tid: TokenIdentifier) -> Key {
+        let key = match tid {
+            TokenIdentifier::Index(idx) => runtime::call_contract::<Key>(
+                nft_contract,
+                ENTRY_POINT_OWNER_OF,
+                runtime_args! {
+                    ARG_TOKEN_ID => idx,
+                },
+            ),
+            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<Key>(
+                nft_contract,
+                ENTRY_POINT_OWNER_OF,
+                runtime_args! {
+                    ARG_TOKEN_HASH => token_hash,
+                },
+            ),
+        };
+        key
+    }
+
     pub fn transfer(
         nft_contract: ContractHash,
         source_key: Key,
@@ -98,5 +119,69 @@ pub mod xp_nft {
                 },
             ),
         };
+    }
+
+    pub fn register(
+        nft_contract: ContractHash,
+        target_key: Key,
+    ) -> Result<(String,), bool> {
+        let call_result: Result<(String,), String> = runtime::call_contract(nft_contract, ENTRY_POINT_REGISTER_OWNER, runtime_args! {
+                    ARG_TOKEN_OWNER => target_key,
+                }, );
+
+        match call_result {
+            Ok(v) => {
+                // Successful call
+                Ok(v)
+            }
+            Err(_) => {
+                // Handle error gracefully
+                Err(false)
+            }
+        }
+    }
+}
+
+pub mod xp_storage {
+    use crate::external::xp_nft::TokenIdentifier;
+    use casper_contract::contract_api::runtime;
+    use casper_types::{runtime_args, ContractHash, PublicKey, RuntimeArgs};
+    use casper_types::account::AccountHash;
+
+    const ENTRY_POINT_STORAGE_UNLOCK_TOKEN: &str = "unlock_token";
+    const ARG_TOKEN_ID: &str = "token_id";
+    const ARG_TO: &str = "to_arg";
+
+    pub fn unlock_token(
+        storage_contract: ContractHash,
+        token_id: TokenIdentifier,
+        to: AccountHash,
+    ) -> Result<bool, bool> {
+        let call_result = match token_id {
+            TokenIdentifier::Index(token_idx) => runtime::call_contract::<Result<_, _>>(
+                storage_contract,
+                ENTRY_POINT_STORAGE_UNLOCK_TOKEN, runtime_args! {
+                    ARG_TOKEN_ID => token_idx,
+                    ARG_TO => to
+                },
+            ),
+            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<Result<_, _>>(
+                storage_contract,
+                ENTRY_POINT_STORAGE_UNLOCK_TOKEN, runtime_args! {
+                    ARG_TOKEN_ID => token_hash,
+                    ARG_TO => to
+                },
+            ),
+        };
+        match call_result {
+            Ok(_) => {
+                // Successful call
+                Ok(true)
+            }
+            Err(_) => {
+                // Handle error gracefully
+                Err(false)
+            }
+        }
     }
 }

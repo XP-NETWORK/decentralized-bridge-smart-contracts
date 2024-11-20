@@ -30,6 +30,7 @@ use casper_contract::{
 };
 // Importing specific Casper types.
 use casper_types::{contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter, PublicKey, U512};
+use casper_types::account::AccountHash;
 use endpoints::*;
 use errors::StorageError;
 use keys::*;
@@ -53,9 +54,16 @@ pub extern "C" fn init() {
         StorageError::InvalidArgumentOwner,
     ).unwrap_or_revert();
 
+    let self_hash: ContractHash = utils::get_named_arg_with_user_errors(
+        ARG_SELF_HASH,
+        StorageError::MissingArgumentSelfHash,
+        StorageError::InvalidArgumentSelfHash,
+    ).unwrap_or_revert();
+
     runtime::put_key(INITIALIZED, storage::new_uref(true).into());
     runtime::put_key(KEY_COLLECTION, storage::new_uref(collection).into());
     runtime::put_key(KEY_OWNER, storage::new_uref(owner).into());
+    runtime::put_key(KEY_SELF_HASH, storage::new_uref(self_hash).into());
 }
 
 #[no_mangle]
@@ -67,7 +75,7 @@ pub extern "C" fn unlock_token() {
     ).unwrap_or_revert();
 
 
-    let to: PublicKey = utils::get_named_arg_with_user_errors(
+    let to: AccountHash = utils::get_named_arg_with_user_errors(
         ARG_TO,
         StorageError::MissingArgumentTo,
         StorageError::InvalidArgumentTo,
@@ -80,21 +88,35 @@ pub extern "C" fn unlock_token() {
         StorageError::InvalidCollectionRef,
     );
 
-    let this_ref = utils::get_uref(
-        THIS_CONTRACT,
-        StorageError::MissingThisContractRef,
-        StorageError::InvalidThisContractRef,
+    let self_hash_ref = utils::get_uref(
+        KEY_SELF_HASH,
+        StorageError::MissingSelfHashRef,
+        StorageError::InvalidSelfHashRef,
     );
 
-    let this_contract: ContractHash = storage::read_or_revert(this_ref);
+    let owner_ref = utils::get_uref(
+        KEY_OWNER,
+        StorageError::MissingOwnerRef,
+        StorageError::InvalidOwnerRef,
+    );
+
+    let caller = runtime::get_caller();
+
+    let owner: ContractHash = storage::read_or_revert(owner_ref);
+
+    if Key::from(owner) != Key::from(caller) {
+        runtime::revert(StorageError::OnlyOwnerCanCallThisFunction);
+    }
+
+    let self_hash: ContractHash = storage::read_or_revert(self_hash_ref);
 
     let collection: ContractHash = storage::read_or_revert(collection_ref);
 
     let nft_owner = owner_of(collection, token_id.clone());
 
-    let this_contract_key = Key::from(this_contract);
+    let this_contract_key = Key::from(self_hash);
 
-    let to_key = Key::from(to.to_account_hash());
+    let to_key = Key::from(to);
 
     if nft_owner == this_contract_key {
         transfer(
@@ -117,6 +139,7 @@ fn generate_entry_points() -> EntryPoints {
         vec![
             Parameter::new(ARG_COLLECTION, CLType::ByteArray(32)),
             Parameter::new(ARG_OWNER, CLType::ByteArray(32)),
+            Parameter::new(ARG_SELF_HASH, CLType::ByteArray(32)),
         ],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -127,7 +150,7 @@ fn generate_entry_points() -> EntryPoints {
         ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
         vec![
             Parameter::new(ARG_TOKEN_ID, CLType::U256),
-            Parameter::new(ARG_TO, CLType::PublicKey),
+            Parameter::new(ARG_TO, CLType::ByteArray(32)),
         ],
         CLType::Unit,
         EntryPointAccess::Public,

@@ -11,22 +11,30 @@ pub enum StorageError {
     MissingArgumentOwner, // 3
     InvalidArgumentOwner, // 4
 
-    MissingArgumentTokenId, // 5
-    InvalidArgumentTokenId, // 6
+    MissingArgumentSelfHash, // 5
+    InvalidArgumentSelfHash, // 6
 
-    MissingArgumentTo, // 7
-    InvalidArgumentTo, // 8
+    MissingArgumentTokenId, // 7
+    InvalidArgumentTokenId, // 8
 
-    FailedToGetArgBytes, // 9
-    UnexpectedKeyVariant, // 10
+    MissingArgumentTo, // 9
+    InvalidArgumentTo, // 10
 
-    MissingCollectionRef, // 11
-    InvalidCollectionRef, // 12
+    FailedToGetArgBytes, // 11
+    UnexpectedKeyVariant, // 12
 
-    MissingThisContractRef, // 13
-    InvalidThisContractRef, // 14
+    MissingCollectionRef, // 13
+    InvalidCollectionRef, // 14
 
-    ThisContractIsNotTheOwnerOfThisToken, // 15
+    MissingSelfHashRef, // 15
+    InvalidSelfHashRef, // 16
+
+    MissingOwnerRef, // 17
+    InvalidOwnerRef, // 18
+
+    ThisContractIsNotTheOwnerOfThisToken, // 19
+
+    OnlyOwnerCanCallThisFunction, // 20
 }
 
 impl From<StorageError> for ApiError {

@@ -1,6 +1,7 @@
 use alloc::string::{String, ToString};
 use casper_event_standard::Event;
 use casper_types::{bytesrepr::{FromBytes, ToBytes}, CLType, CLTyped, ContractHash, PublicKey, U256};
+use casper_types::account::AccountHash;
 use crate::external::xp_nft::TokenIdentifier;
 
 impl CLTyped for TokenIdentifier {
@@ -52,7 +53,7 @@ pub struct Locked {
     pub token_id: TokenIdentifier,
     pub destination_chain: String,
     pub destination_user_address: String,
-    pub source_nft_contract_address: ContractHash,
+    pub source_nft_contract_address: String,
     pub token_amount: U256,
     pub nft_type: String,
     pub source_chain: String,
@@ -63,7 +64,7 @@ impl Locked {
     pub fn new(token_id: TokenIdentifier,
                destination_chain: String,
                destination_user_address: String,
-               source_nft_contract_address: ContractHash,
+               source_nft_contract_address: String,
                token_amount: U256,
                nft_type: String,
                source_chain: String,
@@ -80,14 +81,32 @@ impl Locked {
         }
     }
 }
+#[derive(Event, Debug, PartialEq, Eq)]
+pub struct UnLock {
+    pub to: String,
+    pub token_id: String,
+    pub contract_address: String,
+}
 
+impl UnLock {
+    pub fn new(to: String,
+               token_id: String,
+               contract_address: String) -> Self {
+        Self {
+            to,
+            token_id,
+            contract_address,
+        }
+    }
+}
 #[derive(Event, Debug, PartialEq, Eq)]
 pub struct DeployStorage {
     pub token_id: TokenIdentifier,
     pub destination_chain: String,
     pub destination_user_address: String,
-    pub source_nft_contract_address: ContractHash,
+    pub source_nft_contract_address: String,
     pub metadata_uri: String,
+    pub sender_address: String,
 }
 
 impl DeployStorage {
@@ -95,8 +114,9 @@ impl DeployStorage {
         token_id: TokenIdentifier,
         destination_chain: String,
         destination_user_address: String,
-        source_nft_contract_address: ContractHash,
+        source_nft_contract_address: String,
         metadata_uri: String,
+        sender_address: String,
     ) -> Self {
         Self {
             token_id,
@@ -104,6 +124,7 @@ impl DeployStorage {
             destination_user_address,
             source_nft_contract_address,
             metadata_uri,
+            sender_address,
         }
     }
 }

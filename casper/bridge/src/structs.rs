@@ -1,15 +1,18 @@
 use alloc::{string::String, vec::Vec};
-use casper_types::{bytesrepr::{self, Bytes, FromBytes, ToBytes}, CLType, CLTyped, ContractHash, PublicKey, U256};
+use casper_types::{bytesrepr::{self, Bytes, FromBytes, ToBytes}, CLType, CLTyped, ContractHash, PublicKey, U256, U512};
+use casper_types::account::AccountHash;
+use casper_types::CLType::String;
+use crate::external::xp_nft::TokenIdentifier;
 
 pub struct Validator {
     pub added: bool,
-    pub pending_rewards: U256,
+    pub pending_rewards: U512,
 }
 
 impl FromBytes for Validator {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
         let (added, remainder) = bool::from_bytes(bytes)?;
-        let (pending_rewards, remainder) = U256::from_bytes(remainder)?;
+        let (pending_rewards, remainder) = U512::from_bytes(remainder)?;
 
         Ok((Self { added, pending_rewards }, remainder))
     }
@@ -97,12 +100,12 @@ impl CLTyped for AddValidator {
 }
 
 
-pub struct ContractInfo {
+pub struct OriginalToDuplicateContractInfo {
     pub chain: String,
     pub contract_address: ContractHash,
 }
 
-impl FromBytes for ContractInfo {
+impl FromBytes for OriginalToDuplicateContractInfo {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
         let (chain, remainder) = String::from_bytes(bytes)?;
         let (contract_address, remainder) = ContractHash::from_bytes(remainder)?;
@@ -111,7 +114,7 @@ impl FromBytes for ContractInfo {
     }
 }
 
-impl ToBytes for ContractInfo {
+impl ToBytes for OriginalToDuplicateContractInfo {
     fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
         let mut result = bytesrepr::allocate_buffer(self)?;
         result.extend(self.chain.to_bytes()?);
@@ -124,47 +127,79 @@ impl ToBytes for ContractInfo {
     }
 }
 
-impl CLTyped for ContractInfo {
+impl CLTyped for OriginalToDuplicateContractInfo {
     fn cl_type() -> CLType {
         CLType::Any
     }
 }
 
+pub struct DuplicateToOriginalContractInfo {
+    pub chain: String,
+    pub contract_address: String,
+}
+
+impl FromBytes for DuplicateToOriginalContractInfo {
+    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
+        let (chain, remainder) = String::from_bytes(bytes)?;
+        let (contract_address, remainder) = String::from_bytes(remainder)?;
+
+        Ok((Self { chain, contract_address }, remainder))
+    }
+}
+
+impl ToBytes for DuplicateToOriginalContractInfo {
+    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
+        let mut result = bytesrepr::allocate_buffer(self)?;
+        result.extend(self.chain.to_bytes()?);
+        result.extend(self.contract_address.to_bytes()?);
+        Ok(result)
+    }
+
+    fn serialized_length(&self) -> usize {
+        self.chain.serialized_length() + self.contract_address.serialized_length()
+    }
+}
+
+impl CLTyped for crate::structs::DuplicateToOriginalContractInfo {
+    fn cl_type() -> CLType {
+        CLType::Any
+    }
+}
 
 pub struct ClaimData {
-    pub token_id: U256,
+    pub token_id: String,
     pub source_chain: String,
     pub destination_chain: String,
-    pub destination_user_address: PublicKey,
+    pub destination_user_address: AccountHash,
     pub source_nft_contract_address: String,
     pub name: String,
     pub symbol: String,
-    pub royalty: U256,
-    pub royalty_receiver: PublicKey,
+    pub royalty: U512,
+    pub royalty_receiver: AccountHash,
     pub metadata: String,
     pub transaction_hash: String,
-    pub token_amount: U256,
+    pub token_amount: U512,
     pub nft_type: String,
-    pub fee: U256,
+    pub fee: U512,
     pub lock_tx_chain: String,
 }
 
 impl FromBytes for ClaimData {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
-        let (token_id, remainder) = U256::from_bytes(bytes)?;
+        let (token_id, remainder) = String::from_bytes(bytes)?;
         let (source_chain, remainder) = String::from_bytes(remainder)?;
         let (destination_chain, remainder) = String::from_bytes(bytes)?;
-        let (destination_user_address, remainder) = PublicKey::from_bytes(remainder)?;
+        let (destination_user_address, remainder) = AccountHash::from_bytes(remainder)?;
         let (source_nft_contract_address, remainder) = String::from_bytes(bytes)?;
         let (name, remainder) = String::from_bytes(remainder)?;
         let (symbol, remainder) = String::from_bytes(bytes)?;
-        let (royalty, remainder) = U256::from_bytes(remainder)?;
-        let (royalty_receiver, remainder) = PublicKey::from_bytes(bytes)?;
+        let (royalty, remainder) = U512::from_bytes(remainder)?;
+        let (royalty_receiver, remainder) = AccountHash::from_bytes(bytes)?;
         let (metadata, remainder) = String::from_bytes(remainder)?;
         let (transaction_hash, remainder) = String::from_bytes(bytes)?;
-        let (token_amount, remainder) = U256::from_bytes(remainder)?;
+        let (token_amount, remainder) = U512::from_bytes(remainder)?;
         let (nft_type, remainder) = String::from_bytes(bytes)?;
-        let (fee, remainder) = U256::from_bytes(remainder)?;
+        let (fee, remainder) = U512::from_bytes(remainder)?;
         let (lock_tx_chain, remainder) = String::from_bytes(bytes)?;
 
         Ok((Self {
