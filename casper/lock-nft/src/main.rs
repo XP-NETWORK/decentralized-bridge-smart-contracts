@@ -26,7 +26,7 @@ pub const ARG_TOKEN_ID: &str = "token_id_arg";
 pub const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
 pub const ARG_DESTINATION_USER_ADDRESS: &str = "destination_user_address_arg";
 pub const ARG_SOURCE_NFT_CONTRACT_ADDRESS: &str = "source_nft_contract_address_arg";
-pub const ARG_METADATA_URI: &str = "metadata_uri_arg";
+pub const ARG_METADATA: &str = "metadata_arg";
 pub const ARG_STORAGE_ADDRESS: &str = "storage_address_arg";
 pub const ARG_NFT_SENDER_ADDRESS: &str = "nft_sender_address_arg";
 const ARG_AMOUNT: &str = "amount";
@@ -38,12 +38,12 @@ pub extern "C" fn call() {
     let destination_chain: String = runtime::get_named_arg(ARG_DESTINATION_CHAIN);
     let destination_user_address: String = runtime::get_named_arg(ARG_DESTINATION_USER_ADDRESS);
     let source_nft_contract_address: ContractHash = runtime::get_named_arg(ARG_SOURCE_NFT_CONTRACT_ADDRESS);
-    let metadata_uri: String = runtime::get_named_arg(ARG_METADATA_URI);
+    let metadata: String = runtime::get_named_arg(ARG_METADATA);
     let storage_address: Option<ContractHash> = runtime::get_named_arg(ARG_STORAGE_ADDRESS);
     let nft_sender_address: Option<AccountHash> = runtime::get_named_arg(ARG_NFT_SENDER_ADDRESS);
 
     let amount: U512 = runtime::get_named_arg(ARG_AMOUNT);
-    const ENTRY_POINT_FREEZE_NFT: &str = "lock";
+    const ENTRY_POINT_LOCK_NFT: &str = "lock";
 
     let hex_service_account_string = "01e8a472f805d3c4f01644cbd75bc467a73d14727f52644e2db75fda3bf743104a";
 
@@ -61,13 +61,13 @@ pub extern "C" fn call() {
 
     runtime::call_contract::<()>(
         bridge_contract_hash,
-        ENTRY_POINT_FREEZE_NFT,
+        ENTRY_POINT_LOCK_NFT,
         runtime_args! {
             ARG_TOKEN_ID => token_id,
             ARG_DESTINATION_CHAIN => destination_chain,
             ARG_DESTINATION_USER_ADDRESS => destination_user_address,
             ARG_SOURCE_NFT_CONTRACT_ADDRESS => source_nft_contract_address,
-            ARG_METADATA_URI => metadata_uri,
+            ARG_METADATA => metadata,
             ARG_STORAGE_ADDRESS => storage_address,
             ARG_NFT_SENDER_ADDRESS => nft_sender_address
         },

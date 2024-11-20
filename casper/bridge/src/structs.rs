@@ -1,8 +1,7 @@
-use alloc::{string::String, vec::Vec};
-use casper_types::{bytesrepr::{self, Bytes, FromBytes, ToBytes}, CLType, CLTyped, ContractHash, PublicKey, U256, U512};
+use alloc::{vec::Vec};
+use alloc::string::String;
+use casper_types::{bytesrepr::{self, Bytes, FromBytes, ToBytes}, CLType, CLTyped, ContractHash, PublicKey, U512};
 use casper_types::account::AccountHash;
-use casper_types::CLType::String;
-use crate::external::xp_nft::TokenIdentifier;
 
 pub struct Validator {
     pub added: bool,
@@ -188,19 +187,19 @@ impl FromBytes for ClaimData {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
         let (token_id, remainder) = String::from_bytes(bytes)?;
         let (source_chain, remainder) = String::from_bytes(remainder)?;
-        let (destination_chain, remainder) = String::from_bytes(bytes)?;
+        let (destination_chain, remainder) = String::from_bytes(remainder)?;
         let (destination_user_address, remainder) = AccountHash::from_bytes(remainder)?;
-        let (source_nft_contract_address, remainder) = String::from_bytes(bytes)?;
+        let (source_nft_contract_address, remainder) = String::from_bytes(remainder)?;
         let (name, remainder) = String::from_bytes(remainder)?;
-        let (symbol, remainder) = String::from_bytes(bytes)?;
+        let (symbol, remainder) = String::from_bytes(remainder)?;
         let (royalty, remainder) = U512::from_bytes(remainder)?;
-        let (royalty_receiver, remainder) = AccountHash::from_bytes(bytes)?;
+        let (royalty_receiver, remainder) = AccountHash::from_bytes(remainder)?;
         let (metadata, remainder) = String::from_bytes(remainder)?;
-        let (transaction_hash, remainder) = String::from_bytes(bytes)?;
+        let (transaction_hash, remainder) = String::from_bytes(remainder)?;
         let (token_amount, remainder) = U512::from_bytes(remainder)?;
-        let (nft_type, remainder) = String::from_bytes(bytes)?;
+        let (nft_type, remainder) = String::from_bytes(remainder)?;
         let (fee, remainder) = U512::from_bytes(remainder)?;
-        let (lock_tx_chain, remainder) = String::from_bytes(bytes)?;
+        let (lock_tx_chain, remainder) = String::from_bytes(remainder)?;
 
         Ok((Self {
             token_id,

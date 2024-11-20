@@ -9,9 +9,7 @@ extern crate alloc;
 
 mod endpoints;
 mod errors;
-mod external;
 mod keys;
-mod structs;
 mod utils;
 
 
@@ -29,12 +27,12 @@ use casper_contract::{
     unwrap_or_revert::UnwrapOrRevert,
 };
 // Importing specific Casper types.
-use casper_types::{contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter, PublicKey, U512};
+use casper_types::{contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter, U512};
 use casper_types::account::AccountHash;
 use endpoints::*;
 use errors::StorageError;
 use keys::*;
-use crate::external::xp_nft::{owner_of, transfer, TokenIdentifier};
+use common::collection::{owner_of, transfer, TokenIdentifier};
 
 #[no_mangle]
 pub extern "C" fn init() {

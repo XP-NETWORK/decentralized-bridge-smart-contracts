@@ -10,12 +10,15 @@ pub const ARG_SELF_HASH: &str = "self_hash_arg";
 pub const ARG_NEW_VALIDATOR_PUBLIC_KEY: &str = "new_validator_public_key_arg";
 pub const ARG_SIGNATURES: &str = "signatures_arg";
 
+// RUNTIME ARGS BLACKLIST VALIDATOR
+pub const ARG_VALIDATOR_PUBLIC_KEY: &str = "validator_public_key_arg";
+
 // RUNTIME ARGS LOCK
 pub const ARG_TOKEN_ID: &str = "token_id_arg";
 pub const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
 pub const ARG_DESTINATION_USER_ADDRESS: &str = "destination_user_address_arg";
 pub const ARG_SOURCE_NFT_CONTRACT_ADDRESS: &str = "source_nft_contract_address_arg";
-pub const ARG_CALLER_PURSE: &str = "caller_purse_arg";
+// pub const ARG_CALLER_PURSE: &str = "caller_purse_arg";
 pub const ARG_STORAGE_ADDRESS: &str = "storage_address_arg";
 pub const ARG_NFT_SENDER_ADDRESS: &str = "nft_sender_address_arg";
 

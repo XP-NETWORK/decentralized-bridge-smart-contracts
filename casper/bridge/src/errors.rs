@@ -133,6 +133,23 @@ pub enum BridgeError {
 
     FailedToUnlockNft, // 83
 
+    FailedToMintNft, // 84
+
+    InvalidBridgeState, // 85
+
+    CantBeThere, // 86
+
+    MissingArgumentValidator,  // 87
+    InvalidArgumentValidator,  // 88
+
+    ValidatorNotAdded, // 89
+
+    MissingBlackListValidatorsDictRef, // 90
+    InvalidBlackListValidatorsDictRef, // 91
+
+    AlreadyBlacklisted, // 92
+
+    ValidatorDoesNotExist, // 93
 }
 
 impl From<BridgeError> for ApiError {

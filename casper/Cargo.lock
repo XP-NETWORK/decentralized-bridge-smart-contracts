@@ -73,6 +73,7 @@ dependencies = [
  "casper-contract",
  "casper-event-standard",
  "casper-types",
+ "common",
  "ed25519-dalek",
  "hex",
  "sha2 0.10.8",
@@ -154,6 +155,23 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "claim_session"
+version = "1.3.0"
+dependencies = [
+ "casper-contract",
+ "casper-types",
+ "hex",
+]
+
+[[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "casper-contract",
+ "casper-types",
+]
 
 [[package]]
 name = "cpufeatures"
@@ -653,6 +671,7 @@ version = "0.1.0"
 dependencies = [
  "casper-contract",
  "casper-types",
+ "common",
 ]
 
 [[package]]

@@ -13,14 +13,19 @@ use casper_types::{
 };
 
 use crate::errors::BridgeError;
-use crate::events::{AddNewValidator, DeployStorage, Locked};
+use crate::events::{AddNewValidator, BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked, RewardValidator};
 
-// Initializes events-releated named keys and records all event schemas.
+// Initializes events-related named keys and records all event schemas.
 pub fn init_events() {
     let schemas = Schemas::new()
         .with::<AddNewValidator>()
         .with::<DeployStorage>()
-        .with::<Locked>();
+        .with::<Locked>()
+        .with::<DeployCollection>()
+        .with::<Claimed>()
+        .with::<BlackListValidator>()
+        .with::<RewardValidator>();
+
     casper_event_standard::init(schemas);
 }
 
@@ -46,16 +51,6 @@ pub fn named_uref_exists(name: &str) -> bool {
     };
 
     api_error::result_from(ret).is_ok()
-}
-
-pub fn get_optional_named_arg_with_user_errors<T: FromBytes>(
-    name: &str,
-    invalid: BridgeError,
-) -> Option<T> {
-    match get_named_arg_with_user_errors::<T>(name, invalid, invalid) {
-        Ok(val) => Some(val),
-        Err(_) => None,
-    }
 }
 
 pub fn get_named_arg_with_user_errors<T: FromBytes>(

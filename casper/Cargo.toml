@@ -2,7 +2,8 @@
 members = [
     "bridge",
     "storage",
-    "lock-nft"
+    "lock-nft",
+    "claim-nft"
 ]
 resolver = "2"
 
