@@ -3,6 +3,13 @@ use alloc::string::String;
 use casper_types::{bytesrepr::{self, Bytes, FromBytes, ToBytes}, CLType, CLTyped, ContractHash, PublicKey, U512};
 use casper_types::account::AccountHash;
 
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum Receiver {
+    Sender,
+    Service,
+    Bridge,
+}
+
 pub struct Validator {
     pub added: bool,
     pub pending_rewards: U512,

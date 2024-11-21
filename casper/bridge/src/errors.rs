@@ -150,6 +150,25 @@ pub enum BridgeError {
     AlreadyBlacklisted, // 92
 
     ValidatorDoesNotExist, // 93
+
+    MissingArgumentSenderPurse, // 94
+    InvalidArgumentSenderPurse, // 95
+
+    MissingArgumentAmount, // 96
+    InvalidArgumentAmount, // 97
+
+    MissingStorageDeployFeeRef, // 98
+    InvalidStorageDeployFeeRef, // 99
+
+    MissingCollectionDeployFeeRef, // 100
+    InvalidCollectionDeployFeeRef, // 101
+
+    MissingClaimFeeRef, // 102
+    InvalidClaimFeeRef, // 103
+
+    StorageFeeLessThanSentAmount, // 104
+
+    CollectionFeeLessThanSentAmount, // 105
 }
 
 impl From<BridgeError> for ApiError {

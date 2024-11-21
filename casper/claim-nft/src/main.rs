@@ -8,20 +8,19 @@ compile_error!("target arch should be wasm32: compile with '--target wasm32-unkn
 
 extern crate alloc;
 use alloc::string::String;
-
+use alloc::vec::Vec;
 use casper_contract::{
     contract_api::{
         runtime,
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_contract::contract_api::system::transfer_to_public_key;
+use casper_contract::contract_api::account;
+use casper_contract::contract_api::system::{create_purse, transfer_from_purse_to_purse};
 use casper_types::{runtime_args, ContractHash, RuntimeArgs, U512};
 use casper_types::account::AccountHash;
-use casper_types::bytesrepr::{FromBytes};
 use casper_types::PublicKey;
 use crate::errors::ClaimError;
-const ARG_BRIDGE_CONTRACT_HASH: &str = "bridge_contract";
 const ARG_TOKEN_ID: &str = "token_id_arg";
 const ARG_SOURCE_CHAIN: &str = "source_chain_arg";
 const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
@@ -37,12 +36,19 @@ const ARG_TOKEN_AMOUNT: &str = "token_amount_arg";
 const ARG_NFT_TYPE: &str = "nft_type_arg";
 const ARG_FEE: &str = "fee_arg";
 const ARG_LOCK_TX_CHAIN: &str = "lock_tx_chain_arg";
+pub const ARG_SIGNATURES: &str = "signatures_arg";
 const ARG_COLLECTION_ADDRESS: &str = "collection_address_arg";
 const ARG_AMOUNT: &str = "amount";
-
+const ARG_SENDER_PURSE: &str = "sender_purse";
+type Sigs = (PublicKey, [u8; 64]);
+fn has_correct_fee(fee: U512, msg_value: U512) {
+    if msg_value < fee {
+        runtime::revert(ClaimError::FeeLessThanSentAmount);
+    }
+}
 #[no_mangle]
 pub extern "C" fn call() {
-    let bridge_contract_hash: ContractHash = runtime::get_named_arg::<ContractHash>(ARG_BRIDGE_CONTRACT_HASH);
+    let bridge_contract_hash = ContractHash::from_formatted_str("contract-03148d41bc85f95102c8fdcd1f713635da9712692b70e43760b0ab872f853b5e").unwrap();
     let token_id: String = runtime::get_named_arg(ARG_TOKEN_ID);
     let source_chain: String = runtime::get_named_arg(ARG_SOURCE_CHAIN);
     let destination_chain: String = runtime::get_named_arg(ARG_DESTINATION_CHAIN);
@@ -58,38 +64,16 @@ pub extern "C" fn call() {
     let nft_type: String = runtime::get_named_arg(ARG_NFT_TYPE);
     let fee: U512 = runtime::get_named_arg(ARG_FEE);
     let lock_tx_chain: String = runtime::get_named_arg(ARG_LOCK_TX_CHAIN);
+    let signatures: Option<Vec<Sigs>> = runtime::get_named_arg(ARG_SIGNATURES);
     let collection_address: Option<ContractHash> = runtime::get_named_arg(ARG_COLLECTION_ADDRESS);
     let amount: U512 = runtime::get_named_arg(ARG_AMOUNT);
     const ENTRY_POINT_CLAIM_NFT: &str = "claim";
 
-    let amount_for_service: U512 = amount - U512::from(40).pow(U512::from(9));
-    let amount_for_bridge: U512 = U512::from(40).pow(U512::from(9));
+    has_correct_fee(fee, amount);
 
-    let hex_service_account_string = "01e8a472f805d3c4f01644cbd75bc467a73d14727f52644e2db75fda3bf743104a";
-    let hex_bridge_account_string = "4e8b075dfbf361e7bcd53a9f72313402e7ba457c36dd2ecaf6703115c51d6126";
+    let tw_purse = create_purse();
 
-    let public_key_bytes = hex::decode(hex_service_account_string)
-        .map_err(|_| ClaimError::FailedToDecodeHex)
-        .unwrap_or_revert();
-
-    let service_public_key = PublicKey::from_bytes(&*public_key_bytes)
-        .map_err(|_| ClaimError::FailedToPrepareServicePublicKey)
-        .unwrap_or_revert().0;
-
-    transfer_to_public_key(service_public_key, amount_for_service, None)
-        .map_err(|_| ClaimError::FailedToTransferFunds)
-        .unwrap_or_revert();
-
-    let bridge_public_key_bytes = hex::decode(hex_bridge_account_string)
-        .map_err(|_| ClaimError::FailedToDecodeHex)
-        .unwrap_or_revert();
-
-    let bridge_public_key = PublicKey::from_bytes(&*bridge_public_key_bytes)
-        .map_err(|_| ClaimError::FailedToPrepareServicePublicKey)
-        .unwrap_or_revert().0;
-
-    transfer_to_public_key(bridge_public_key, amount_for_bridge, None)
-        .map_err(|_| ClaimError::FailedToTransferFunds)
+    transfer_from_purse_to_purse(account::get_main_purse(), tw_purse, amount, None)
         .unwrap_or_revert();
 
     runtime::call_contract::<()>(
@@ -111,7 +95,10 @@ pub extern "C" fn call() {
             ARG_NFT_TYPE => nft_type,
             ARG_FEE => fee,
             ARG_LOCK_TX_CHAIN => lock_tx_chain,
+            ARG_SIGNATURES => signatures,
             ARG_COLLECTION_ADDRESS => collection_address,
+            ARG_AMOUNT => amount,
+            ARG_SENDER_PURSE => tw_purse
         },
     );
 }

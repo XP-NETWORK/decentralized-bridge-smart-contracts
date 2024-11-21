@@ -1,10 +1,13 @@
 // RUNTIME ARGS INITIALIZE
-pub const ARG_VALIDATORS: &str = "bootstrap_validator_arg";
+pub const ARG_VALIDATOR: &str = "bootstrap_validator_arg";
 pub const ARG_CHAIN_TYPE: &str = "chain_type_arg";
 pub const ARG_COLLECTION_DEPLOYER: &str = "collection_deployer_arg";
 pub const ARG_STORAGE_DEPLOYER: &str = "storage_deployer_arg";
 pub const ARG_SERVICE_ADDRESS: &str = "service_address_arg";
 pub const ARG_SELF_HASH: &str = "self_hash_arg";
+pub const ARG_STORAGE_DEPLOY_FEE: &str = "storage_deploy_fee_arg";
+pub const ARG_COLLECTION_DEPLOY_FEE: &str = "collection_deploy_fee_arg";
+pub const ARG_CLAIM_FEE: &str = "claim_fee_arg";
 
 // RUNTIME ARGS ADD VALIDATOR
 pub const ARG_NEW_VALIDATOR_PUBLIC_KEY: &str = "new_validator_public_key_arg";
@@ -18,7 +21,9 @@ pub const ARG_TOKEN_ID: &str = "token_id_arg";
 pub const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
 pub const ARG_DESTINATION_USER_ADDRESS: &str = "destination_user_address_arg";
 pub const ARG_SOURCE_NFT_CONTRACT_ADDRESS: &str = "source_nft_contract_address_arg";
-// pub const ARG_CALLER_PURSE: &str = "caller_purse_arg";
+pub const ARG_SENDER_PURSE: &str = "sender_purse";
+pub const ARG_AMOUNT: &str = "amount";
+
 pub const ARG_STORAGE_ADDRESS: &str = "storage_address_arg";
 pub const ARG_NFT_SENDER_ADDRESS: &str = "nft_sender_address_arg";
 
@@ -52,6 +57,10 @@ pub const KEY_VALIDATORS_COUNT: &str = "validators_count";
 pub const KEY_SERVICE_ADDRESS: &str = "service_address";
 pub const KEY_TYPE_ERC721: &str = "nft_type";
 pub const KEY_SELF_HASH: &str = "self_hash";
+
+pub const KEY_STORAGE_DEPLOY_FEE: &str = "storage_deploy_fee";
+pub const KEY_COLLECTION_DEPLOY_FEE: &str = "collection_deploy_fee";
+pub const KEY_CLAIM_FEE: &str = "claim_fee";
 
 // DICTIONARIES
 pub const KEY_VALIDATORS_DICT: &str = "validators_dict";

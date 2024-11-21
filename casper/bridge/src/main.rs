@@ -30,7 +30,8 @@ use casper_contract::{
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_contract::contract_api::system::{create_purse, get_purse_balance, transfer_from_purse_to_public_key};
+use casper_contract::contract_api::account;
+use casper_contract::contract_api::system::{create_purse, get_purse_balance, transfer_from_purse_to_account, transfer_from_purse_to_public_key, transfer_from_purse_to_purse};
 // Importing specific Casper types.
 use casper_types::{bytesrepr::ToBytes, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter, PublicKey as CPublicKey, URef, U256, U512};
 use casper_types::account::AccountHash;
@@ -46,20 +47,41 @@ use structs::{
 use crate::events::{BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked, RewardValidator, UnLock};
 use common::collection::{mint, owner_of, register, transfer, TokenIdentifier};
 use common::storage::unlock_token;
-use crate::structs::{ClaimData, DuplicateToOriginalContractInfo, OriginalToDuplicateContractInfo};
+use crate::structs::{ClaimData, DuplicateToOriginalContractInfo, OriginalToDuplicateContractInfo, Receiver};
 
 type Sigs = (CPublicKey, [u8; 64]);
 
+pub fn get_service_acc_hash() -> AccountHash {
+    let service_ref = utils::get_uref(
+        KEY_SERVICE_ADDRESS,
+        BridgeError::MissingServiceAddressRef,
+        BridgeError::InvalidServiceAddressRef,
+    );
+    let receiver_acc_hash: CPublicKey = storage::read_or_revert(service_ref);
+    receiver_acc_hash.to_account_hash()
+}
+pub fn transfer_tx_fees(amount: U512, sender_purse: URef, to: Receiver) {
+    match to {
+        Receiver::Sender => {
+            let caller = runtime::get_caller();
+            transfer_from_purse_to_account(sender_purse, caller, amount, None)
+                .unwrap_or_revert();
+        }
+        Receiver::Service => {
+            transfer_from_purse_to_account(sender_purse, get_service_acc_hash(), amount, None)
+                .unwrap_or_revert();
+        }
+        Receiver::Bridge => {
+            transfer_from_purse_to_purse(sender_purse, account::get_main_purse(), amount, None)
+                .unwrap_or_revert();
+        }
+    }
+}
 fn matches_current_chain(destination_chain: String, self_chain: String) {
     if destination_chain != self_chain {
         runtime::revert(BridgeError::InvalidDestinationChain);
     }
 }
-// fn has_correct_fee(fee: U256, msg_value: U256) {
-//     if msg_value < fee {
-//         runtime::revert(BridgeError::FeeLessThanSentAmount);
-//     }
-// }
 /// Ed25519 Signature verification logic.
 fn verify_signatures(data: Vec<u8>, signatures: Vec<Sigs>) -> Vec<CPublicKey> {
     let mut percentage: u64 = 0;
@@ -235,12 +257,16 @@ pub extern "C" fn init() {
         runtime::revert(BridgeError::AlreadyInitialized);
     }
 
-    let validator: CPublicKey = runtime::get_named_arg(ARG_VALIDATORS);
+    let validator: CPublicKey = runtime::get_named_arg(ARG_VALIDATOR);
     let chain_type: String = runtime::get_named_arg(ARG_CHAIN_TYPE);
     let collection_deployer: ContractHash = runtime::get_named_arg(ARG_COLLECTION_DEPLOYER);
     let storage_deployer: ContractHash = runtime::get_named_arg(ARG_STORAGE_DEPLOYER);
     let service_account: CPublicKey = runtime::get_named_arg(ARG_SERVICE_ADDRESS);
     let self_hash: ContractHash = runtime::get_named_arg(ARG_SELF_HASH);
+
+    let storage_deploy_fee: U512 = runtime::get_named_arg(ARG_STORAGE_DEPLOY_FEE);
+    let collection_deploy_fee: U512 = runtime::get_named_arg(ARG_COLLECTION_DEPLOY_FEE);
+    let claim_fee: U512 = runtime::get_named_arg(ARG_CLAIM_FEE);
 
     runtime::put_key(INITIALIZED, storage::new_uref(true).into());
     runtime::put_key(KEY_CHAIN_TYPE, storage::new_uref(chain_type).into());
@@ -250,6 +276,9 @@ pub extern "C" fn init() {
     runtime::put_key(KEY_TYPE_ERC721, storage::new_uref("singular").into());
     runtime::put_key(KEY_SELF_HASH, storage::new_uref(self_hash).into());
     runtime::put_key(KEY_PURSE, create_purse().into());
+    runtime::put_key(KEY_STORAGE_DEPLOY_FEE, storage::new_uref(storage_deploy_fee).into());
+    runtime::put_key(KEY_COLLECTION_DEPLOY_FEE, storage::new_uref(collection_deploy_fee).into());
+    runtime::put_key(KEY_CLAIM_FEE, storage::new_uref(claim_fee).into());
 
     // INITIALIZING BOOTSTRAP VALIDATOR
     let validators_dict = storage::new_dictionary(KEY_VALIDATORS_DICT)
@@ -480,18 +509,44 @@ pub extern "C" fn lock() {
         BridgeError::InvalidArgumentNftSenderAddress,
     ).unwrap_or_revert();
 
+    let sender_purse: Option<URef> = utils::get_named_arg_with_user_errors(
+        ARG_SENDER_PURSE,
+        BridgeError::MissingArgumentSenderPurse,
+        BridgeError::InvalidArgumentSenderPurse,
+    ).unwrap_or_revert();
+
+    let amount: Option<U512> = utils::get_named_arg_with_user_errors(
+        ARG_AMOUNT,
+        BridgeError::MissingArgumentAmount,
+        BridgeError::InvalidArgumentAmount,
+    ).unwrap_or_revert();
+
     // RUNTIME ARGS END
+    let storage_deploy_fee_ref = utils::get_uref(
+        KEY_STORAGE_DEPLOY_FEE,
+        BridgeError::MissingStorageDeployFeeRef,
+        BridgeError::InvalidStorageDeployFeeRef,
+    );
 
     let service_account_ref = utils::get_uref(
         KEY_SERVICE_ADDRESS,
         BridgeError::MissingServiceAddressRef,
         BridgeError::InvalidServiceAddressRef,
     );
+    let storage_deploy_fee: U512 = storage::read_or_revert(storage_deploy_fee_ref);
 
     let caller = runtime::get_caller();
 
     let service_account: CPublicKey = storage::read_or_revert(service_account_ref);
 
+    let sent_amount = amount.unwrap_or(U512::zero());
+
+    // SENDER IS NOT SERVICE THEN CHECK STORAGE DEPLOY FEE
+    if service_account.to_account_hash() != caller && sent_amount < storage_deploy_fee {
+        runtime::revert(BridgeError::StorageFeeLessThanSentAmount);
+    }
+
+    // HAS STORAGE ADDRESS BUT SENDER IS NOT SERVICE
     if storage_address_option.is_some() && service_account.to_account_hash() != caller {
         runtime::revert(BridgeError::InvalidServiceAddress);
     }
@@ -554,8 +609,14 @@ pub extern "C" fn lock() {
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone());
-
+            if !is_event {
+                // SEND MONEY TO SERVICE
+                transfer_tx_fees(sent_amount, sender_purse.unwrap(), Receiver::Service);
+            }
             if is_event {
+                if service_account.to_account_hash() != caller {
+                    transfer_tx_fees(sent_amount, sender_purse.unwrap(), Receiver::Sender);
+                }
                 casper_event_standard::emit(
                     Locked::new(token_id,
                                 destination_chain,
@@ -584,8 +645,14 @@ pub extern "C" fn lock() {
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone());
-
+            if !is_event {
+                // SEND MONEY TO SERVICE
+                transfer_tx_fees(sent_amount, sender_purse.unwrap(), Receiver::Service);
+            }
             if is_event {
+                if service_account.to_account_hash() != caller {
+                    transfer_tx_fees(sent_amount, sender_purse.unwrap(), Receiver::Sender);
+                }
                 casper_event_standard::emit(
                     Locked::new(token_id,
                                 destination_chain,
@@ -692,7 +759,7 @@ pub extern "C" fn claim() {
         BridgeError::InvalidArgumentLockTxChain,
     ).unwrap_or_revert();
 
-    let signatures: Vec<Sigs> = utils::get_named_arg_with_user_errors(
+    let signatures: Option<Vec<Sigs>> = utils::get_named_arg_with_user_errors(
         ARG_SIGNATURES,
         BridgeError::MissingArgumentSignatures,
         BridgeError::InvalidArgumentSignatures,
@@ -704,7 +771,30 @@ pub extern "C" fn claim() {
         BridgeError::InvalidArgumentCollectionAddress,
     ).unwrap_or_revert();
 
+    let sender_purse: Option<URef> = utils::get_named_arg_with_user_errors(
+        ARG_SENDER_PURSE,
+        BridgeError::MissingArgumentSenderPurse,
+        BridgeError::InvalidArgumentSenderPurse,
+    ).unwrap_or_revert();
+
+    let amount: Option<U512> = utils::get_named_arg_with_user_errors(
+        ARG_AMOUNT,
+        BridgeError::MissingArgumentAmount,
+        BridgeError::InvalidArgumentAmount,
+    ).unwrap_or_revert();
     // RUNTIME ARGS END
+
+    let collection_deploy_fee_ref = utils::get_uref(
+        KEY_COLLECTION_DEPLOY_FEE,
+        BridgeError::MissingCollectionDeployFeeRef,
+        BridgeError::InvalidCollectionDeployFeeRef,
+    );
+
+    let claim_fee_ref = utils::get_uref(
+        KEY_CLAIM_FEE,
+        BridgeError::MissingClaimFeeRef,
+        BridgeError::InvalidClaimFeeRef,
+    );
 
     let data = ClaimData {
         token_id,
@@ -729,11 +819,21 @@ pub extern "C" fn claim() {
         BridgeError::MissingServiceAddressRef,
         BridgeError::InvalidServiceAddressRef,
     );
+    let collection_deploy_fee: U512 = storage::read_or_revert(collection_deploy_fee_ref);
+    let claim_fee: U512 = storage::read_or_revert(claim_fee_ref);
 
     let caller = runtime::get_caller();
 
     let service_account: CPublicKey = storage::read_or_revert(service_account_ref);
 
+    let sent_amount = amount.unwrap_or(U512::zero());
+
+    // SENDER IS NOT SERVICE THEN CHECK COLLECTION DEPLOY FEE
+    if service_account.to_account_hash() != caller && sent_amount < collection_deploy_fee {
+        runtime::revert(BridgeError::CollectionFeeLessThanSentAmount);
+    }
+
+    // HAS COLLECTION ADDRESS BUT SENDER IS NOT SERVICE
     if collection_address_option.is_some() && service_account.to_account_hash() != caller {
         runtime::revert(BridgeError::InvalidServiceAddress);
     }
@@ -785,8 +885,8 @@ pub extern "C" fn claim() {
         runtime::revert(BridgeError::DataAlreadyProcessed);
     }
 
-    if collection_address_option.is_some() {
-        let validators_to_rewards = verify_signatures(data.to_bytes().unwrap(), signatures);
+    if collection_address_option.is_some() && signatures.is_some() {
+        let validators_to_rewards = verify_signatures(data.to_bytes().unwrap(), signatures.unwrap());
 
         reward_validators(data.fee, validators_to_rewards);
     }
@@ -894,6 +994,17 @@ pub extern "C" fn claim() {
         }
         None => {}
     }
+
+    if has_duplicate {
+        if service_account.to_account_hash() != caller {
+            transfer_tx_fees(sent_amount - claim_fee, sender_purse.unwrap(), Receiver::Sender);
+        }
+        transfer_tx_fees(claim_fee, sender_purse.unwrap(), Receiver::Bridge);
+    } else {
+        transfer_tx_fees(sent_amount - claim_fee, sender_purse.unwrap(), Receiver::Service);
+        transfer_tx_fees(claim_fee, sender_purse.unwrap(), Receiver::Bridge);
+    }
+
     // ===============================/ hasDuplicate && hasStorage /=======================
     if has_duplicate && has_storage {
         let nft_owner = owner_of(duplicate_collection_address.contract_address, TokenIdentifier::Hash(data.token_id.clone()));
@@ -1029,12 +1140,15 @@ fn generate_entry_points() -> EntryPoints {
     let init = EntryPoint::new(
         ENTRY_POINT_BRIDGE_INITIALIZE,
         vec![
-            Parameter::new(ARG_VALIDATORS, CLType::PublicKey),
+            Parameter::new(ARG_VALIDATOR, CLType::PublicKey),
             Parameter::new(ARG_CHAIN_TYPE, CLType::String),
             Parameter::new(ARG_COLLECTION_DEPLOYER, CLType::ByteArray(32)),
             Parameter::new(ARG_STORAGE_DEPLOYER, CLType::ByteArray(32)),
             Parameter::new(ARG_SERVICE_ADDRESS, CLType::ByteArray(32)),
             Parameter::new(ARG_SELF_HASH, CLType::ByteArray(32)),
+            Parameter::new(ARG_STORAGE_DEPLOY_FEE, CLType::U512),
+            Parameter::new(ARG_COLLECTION_DEPLOY_FEE, CLType::U512),
+            Parameter::new(ARG_CLAIM_FEE, CLType::U512),
         ],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -1082,7 +1196,9 @@ fn generate_entry_points() -> EntryPoints {
             Parameter::new(ARG_SOURCE_NFT_CONTRACT_ADDRESS, CLType::ByteArray(32)),
             Parameter::new(ARG_METADATA, CLType::String),
             Parameter::new(ARG_STORAGE_ADDRESS, CLType::Option(Box::new(CLType::ByteArray(32)))),
-            Parameter::new(ARG_NFT_SENDER_ADDRESS, CLType::Option(Box::new(CLType::ByteArray(32))))
+            Parameter::new(ARG_NFT_SENDER_ADDRESS, CLType::Option(Box::new(CLType::ByteArray(32)))),
+            Parameter::new(ARG_SENDER_PURSE, CLType::Option(Box::new(CLType::URef))),
+            Parameter::new(ARG_AMOUNT, CLType::Option(Box::new(CLType::U512)))
         ],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -1107,8 +1223,10 @@ fn generate_entry_points() -> EntryPoints {
             Parameter::new(ARG_NFT_TYPE, CLType::String),
             Parameter::new(ARG_FEE, CLType::U512),
             Parameter::new(ARG_LOCK_TX_CHAIN, CLType::String),
-            Parameter::new(ARG_SIGNATURES, CLType::List(Box::new(CLType::Tuple2([Box::new(CLType::PublicKey), Box::new(CLType::ByteArray(64))])))),
+            Parameter::new(ARG_SIGNATURES, CLType::Option(Box::new(CLType::List(Box::new(CLType::Tuple2([Box::new(CLType::PublicKey), Box::new(CLType::ByteArray(64))])))))),
             Parameter::new(ARG_COLLECTION_ADDRESS, CLType::Option(Box::new(CLType::ByteArray(32)))),
+            Parameter::new(ARG_SENDER_PURSE, CLType::Option(Box::new(CLType::URef))),
+            Parameter::new(ARG_AMOUNT, CLType::Option(Box::new(CLType::U512)))
         ],
         CLType::Unit,
         EntryPointAccess::Public,

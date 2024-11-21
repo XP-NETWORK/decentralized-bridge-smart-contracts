@@ -18,6 +18,7 @@ use alloc::{
     string::{ToString},
     vec,
 };
+use alloc::string::String;
 // Importing aspects of the Casper platform.
 use casper_contract::{
     contract_api::{
@@ -27,7 +28,7 @@ use casper_contract::{
     unwrap_or_revert::UnwrapOrRevert,
 };
 // Importing specific Casper types.
-use casper_types::{contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter, U512};
+use casper_types::{contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter};
 use casper_types::account::AccountHash;
 use endpoints::*;
 use errors::StorageError;
@@ -176,10 +177,10 @@ fn install_storage() {
         Some(ACCESS_KEY_NAME.to_string()),
     );
 
-    let num: U512 = runtime::get_named_arg("number");
+    let s: String = runtime::get_named_arg("source_nft_contract_address");
 
     runtime::put_key(
-        &(THIS_CONTRACT.to_string() + &num.to_string()),
+        &(THIS_CONTRACT.to_string() + &s),
         contract_hash.into(),
     );
 }
