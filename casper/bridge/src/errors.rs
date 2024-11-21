@@ -68,7 +68,7 @@ pub enum BridgeError {
     MissingArgumentStorageAddress, // 42
     InvalidArgumentStorageAddress, // 43
 
-    InvalidServiceAddress, // 44
+    OnlyServiceCanCallThis, // 44
 
     FailedToUnWrapStorageAddress, // 45
 
@@ -169,6 +169,10 @@ pub enum BridgeError {
     StorageFeeLessThanSentAmount, // 104
 
     CollectionFeeLessThanSentAmount, // 105
+
+    Gando, // 106
+
+    Gando1, // 107
 }
 
 impl From<BridgeError> for ApiError {

@@ -2,7 +2,7 @@
 pub mod collection {
     use alloc::string::{String, ToString};
     use casper_contract::contract_api::runtime;
-    use casper_types::{runtime_args, CLType, CLTyped, ContractHash, Key, RuntimeArgs};
+    use casper_types::{runtime_args, CLType, CLTyped, ContractHash, Key, URef, RuntimeArgs};
     use casper_types::bytesrepr::{FromBytes, ToBytes};
 
     #[derive(PartialEq, Eq, Clone, Debug)]
@@ -149,21 +149,14 @@ pub mod collection {
     pub fn register(
         nft_contract: ContractHash,
         target_key: Key,
-    ) -> Result<(String,), bool> {
-        let call_result: Result<(String,), String> = runtime::call_contract(nft_contract, ENTRY_POINT_REGISTER_OWNER, runtime_args! {
+    ) {
+        runtime::call_contract::<(String, URef)>(
+            nft_contract,
+            ENTRY_POINT_REGISTER_OWNER,
+            runtime_args! {
                     ARG_TOKEN_OWNER => target_key,
-                }, );
-
-        match call_result {
-            Ok(v) => {
-                // Successful call
-                Ok(v)
-            }
-            Err(_) => {
-                // Handle error gracefully
-                Err(false)
-            }
-        }
+                },
+        );
     }
 }
 
