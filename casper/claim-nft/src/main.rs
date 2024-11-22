@@ -7,19 +7,14 @@ mod errors;
 compile_error!("target arch should be wasm32: compile with '--target wasm32-unknown-unknown'");
 
 extern crate alloc;
+use crate::errors::ClaimError;
 use alloc::string::String;
 use alloc::vec::Vec;
-use casper_contract::{
-    contract_api::{
-        runtime,
-    },
-    unwrap_or_revert::UnwrapOrRevert,
-};
 use casper_contract::contract_api::account;
 use casper_contract::contract_api::system::{create_purse, transfer_from_purse_to_purse};
-use casper_types::{runtime_args, ContractHash, PublicKey, RuntimeArgs, U512};
+use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
 use casper_types::account::AccountHash;
-use crate::errors::ClaimError;
+use casper_types::{runtime_args, ContractHash, PublicKey, RuntimeArgs, U512};
 type Sigs = (PublicKey, [u8; 64]);
 const ARG_TOKEN_ID: &str = "token_id_arg";
 const ARG_SOURCE_CHAIN: &str = "source_chain_arg";
@@ -46,12 +41,17 @@ fn has_correct_fee(fee: U512, msg_value: U512) {
 }
 #[no_mangle]
 pub extern "C" fn call() {
-    let bridge_contract_hash = ContractHash::from_formatted_str("contract-08211cafb0698da442b68064f49c3d5e8cc303016a6ed46587d82725d42f98dc").unwrap();
+    let bridge_contract_hash = ContractHash::from_formatted_str(
+        "contract-1c525fb8d64bf8eaefb652dcc30734a9c409fc8377e24776c74f5806ff52b16e",
+    )
+    .unwrap();
     let token_id: String = runtime::get_named_arg(ARG_TOKEN_ID);
     let source_chain: String = runtime::get_named_arg(ARG_SOURCE_CHAIN);
     let destination_chain: String = runtime::get_named_arg(ARG_DESTINATION_CHAIN);
-    let destination_user_address: AccountHash = runtime::get_named_arg(ARG_DESTINATION_USER_ADDRESS);
-    let source_nft_contract_address: ContractHash = runtime::get_named_arg(ARG_SOURCE_NFT_CONTRACT_ADDRESS);
+    let destination_user_address: AccountHash =
+        runtime::get_named_arg(ARG_DESTINATION_USER_ADDRESS);
+    let source_nft_contract_address: String =
+        runtime::get_named_arg(ARG_SOURCE_NFT_CONTRACT_ADDRESS);
     let name: String = runtime::get_named_arg(ARG_NAME);
     let symbol: String = runtime::get_named_arg(ARG_SYMBOL);
     let royalty: U512 = runtime::get_named_arg(ARG_ROYALTY);

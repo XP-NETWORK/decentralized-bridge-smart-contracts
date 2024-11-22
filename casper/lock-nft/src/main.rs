@@ -9,14 +9,9 @@ compile_error!("target arch should be wasm32: compile with '--target wasm32-unkn
 extern crate alloc;
 use alloc::string::String;
 
-use casper_contract::{
-    contract_api::{
-        runtime,
-    },
-    unwrap_or_revert::UnwrapOrRevert,
-};
 use casper_contract::contract_api::account;
 use casper_contract::contract_api::system::{create_purse, transfer_from_purse_to_purse};
+use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
 use casper_types::{runtime_args, ContractHash, RuntimeArgs, U512};
 const ARG_TOKEN_ID: &str = "token_id_arg";
 const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
@@ -27,11 +22,15 @@ const ARG_AMOUNT: &str = "amount";
 const ARG_SENDER_PURSE: &str = "sender_purse";
 #[no_mangle]
 pub extern "C" fn call() {
-    let bridge_contract_hash = ContractHash::from_formatted_str("contract-08211cafb0698da442b68064f49c3d5e8cc303016a6ed46587d82725d42f98dc").unwrap();
+    let bridge_contract_hash = ContractHash::from_formatted_str(
+        "contract-1c525fb8d64bf8eaefb652dcc30734a9c409fc8377e24776c74f5806ff52b16e",
+    )
+    .unwrap();
     let token_id: String = runtime::get_named_arg(ARG_TOKEN_ID);
     let destination_chain: String = runtime::get_named_arg(ARG_DESTINATION_CHAIN);
     let destination_user_address: String = runtime::get_named_arg(ARG_DESTINATION_USER_ADDRESS);
-    let source_nft_contract_address: ContractHash = runtime::get_named_arg(ARG_SOURCE_NFT_CONTRACT_ADDRESS);
+    let source_nft_contract_address: ContractHash =
+        runtime::get_named_arg(ARG_SOURCE_NFT_CONTRACT_ADDRESS);
     let metadata: String = runtime::get_named_arg(ARG_METADATA);
     let amount: U512 = runtime::get_named_arg(ARG_AMOUNT);
     const ENTRY_POINT_LOCK_NFT: &str = "lock";

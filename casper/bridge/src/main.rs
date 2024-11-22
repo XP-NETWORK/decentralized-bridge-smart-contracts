@@ -16,13 +16,18 @@ mod utils;
 use core::convert::TryInto;
 
 // Importing Rust types.
+use alloc::boxed::Box;
 use alloc::{
     string::{String, ToString},
     vec,
     vec::Vec,
 };
-use alloc::boxed::Box;
 // Importing aspects of the Casper platform.
+use casper_contract::contract_api::account;
+use casper_contract::contract_api::system::{
+    create_purse, get_purse_balance, transfer_from_purse_to_account,
+    transfer_from_purse_to_public_key, transfer_from_purse_to_purse,
+};
 use casper_contract::{
     contract_api::{
         runtime::{self},
@@ -30,24 +35,28 @@ use casper_contract::{
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_contract::contract_api::account;
-use casper_contract::contract_api::system::{create_purse, get_purse_balance, transfer_from_purse_to_account, transfer_from_purse_to_public_key, transfer_from_purse_to_purse};
 // Importing specific Casper types.
-use casper_types::{bytesrepr::ToBytes, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter, PublicKey as CPublicKey, URef, U256, U512};
+use crate::events::{
+    BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked, RewardValidator, UnLock,
+};
+use crate::structs::{
+    ClaimData, DuplicateToOriginalContractInfo, OriginalToDuplicateContractInfo, Receiver,
+};
 use casper_types::account::AccountHash;
+use casper_types::{
+    bytesrepr::ToBytes,
+    contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
+    CLType, ContractHash, Key, Parameter, PublicKey as CPublicKey, URef, U256, U512,
+};
+use common::collection::{mint, owner_of, register, transfer, TokenIdentifier};
+use common::storage::unlock_token;
 use ed25519_dalek::{PublicKey as EPublicKey, Signature, Verifier};
 use endpoints::*;
 use errors::BridgeError;
 use events::AddNewValidator;
 use keys::*;
 use sha2::{Digest, Sha256, Sha512};
-use structs::{
-    Validator,
-};
-use crate::events::{BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked, RewardValidator, UnLock};
-use common::collection::{mint, owner_of, register, transfer, TokenIdentifier};
-use common::storage::unlock_token;
-use crate::structs::{ClaimData, DuplicateToOriginalContractInfo, OriginalToDuplicateContractInfo, Receiver};
+use structs::Validator;
 
 type Sigs = (CPublicKey, [u8; 64]);
 
@@ -64,8 +73,7 @@ pub fn transfer_tx_fees(amount: U512, sender_purse: URef, to: Receiver) {
     match to {
         Receiver::Sender => {
             let caller = runtime::get_caller();
-            transfer_from_purse_to_account(sender_purse, caller, amount, None)
-                .unwrap_or_revert();
+            transfer_from_purse_to_account(sender_purse, caller, amount, None).unwrap_or_revert();
         }
         Receiver::Service => {
             transfer_from_purse_to_account(sender_purse, get_service_acc_hash(), amount, None)
@@ -100,7 +108,14 @@ fn verify_signatures(data: Vec<u8>, signatures: Vec<Sigs>) -> Vec<CPublicKey> {
     let hash = hasher.finalize();
 
     for arg in signatures.into_iter() {
-        let key = arg.0.to_bytes().unwrap().iter().skip(1).cloned().collect::<Vec<u8>>();
+        let key = arg
+            .0
+            .to_bytes()
+            .unwrap()
+            .iter()
+            .skip(1)
+            .cloned()
+            .collect::<Vec<u8>>();
         let sig = arg.1.to_bytes().unwrap();
 
         let signature = Signature::new(
@@ -117,15 +132,15 @@ fn verify_signatures(data: Vec<u8>, signatures: Vec<Sigs>) -> Vec<CPublicKey> {
         let valid = key.verify(&hash, &signature);
 
         if valid.is_ok() {
-            let validator_exists = storage::dictionary_get::<Validator>(validators_dict_ref, &arg.0.to_string()).unwrap_or(None);
+            let validator_exists =
+                storage::dictionary_get::<Validator>(validators_dict_ref, &arg.0.to_string())
+                    .unwrap_or(None);
 
             match validator_exists {
                 Some(v) => {
                     if v.added && !uv.contains(&arg.0) {
                         percentage = percentage + 1;
-                        uv.push(
-                            arg.0.clone(),
-                        );
+                        uv.push(arg.0.clone());
                         validators_to_reward.push(arg.0);
                     }
                 }
@@ -155,48 +170,70 @@ fn check_storage(
     destination_chain: String,
     destination_user_address: String,
     source_nft_contract_address: ContractHash,
-    metadata_uri: String) -> bool {
-    let storage_address_option = storage::dictionary_get::<ContractHash>(storage_dict_ref, key).unwrap_or(None);
+    metadata_uri: String,
+) -> bool {
+    let storage_address_option =
+        storage::dictionary_get::<ContractHash>(storage_dict_ref, key).unwrap_or(None);
     match storage_address_option {
         Some(v) => {
             // TRANSFER TO STORAGE
-            transfer_to_storage(v, nft_sender_address_option, source_nft_contract_address, token_id);
+            transfer_to_storage(
+                v,
+                nft_sender_address_option,
+                source_nft_contract_address,
+                token_id,
+            );
             true
         }
         None => {
             if newly_created_storage_option.is_some() {
                 // SAVE STORAGE DATA
-                let storage = newly_created_storage_option.unwrap_or_revert_with(BridgeError::FailedToUnWrapStorageAddress);
+                let storage = newly_created_storage_option
+                    .unwrap_or_revert_with(BridgeError::FailedToUnWrapStorageAddress);
 
                 storage::dictionary_put(storage_dict_ref, key, storage);
 
-                transfer_to_storage(storage, nft_sender_address_option, source_nft_contract_address, token_id);
+                transfer_to_storage(
+                    storage,
+                    nft_sender_address_option,
+                    source_nft_contract_address,
+                    token_id,
+                );
                 true
             } else {
                 // EMIT CREATE STORAGE EVENT
-                casper_event_standard::emit(
-                    DeployStorage::new(
-                        token_id,
-                        destination_chain,
-                        destination_user_address,
-                        source_nft_contract_address.to_string(),
-                        metadata_uri,
-                        runtime::get_caller().to_string(),
-                    ));
+                casper_event_standard::emit(DeployStorage::new(
+                    token_id,
+                    destination_chain,
+                    destination_user_address,
+                    source_nft_contract_address.to_string(),
+                    metadata_uri,
+                    runtime::get_caller().to_string(),
+                ));
                 false
                 // runtime::ret(CLValue::from_t("deploy_storage").unwrap_or_revert());
             }
         }
     }
 }
-fn transfer_to_storage(storage_address: ContractHash, nft_sender_address_option: Option<AccountHash>, source_nft_contract_address: ContractHash, token_id: TokenIdentifier) {
+fn transfer_to_storage(
+    storage_address: ContractHash,
+    nft_sender_address_option: Option<AccountHash>,
+    source_nft_contract_address: ContractHash,
+    token_id: TokenIdentifier,
+) {
     let from_address;
+
     if nft_sender_address_option.is_some() {
         from_address = Key::from(nft_sender_address_option.unwrap());
     } else {
         from_address = Key::from(runtime::get_caller());
     }
-    register(source_nft_contract_address, Key::from(storage_address));
+
+    // register(source_nft_contract_address, from_address);
+
+    // register(source_nft_contract_address, Key::from(storage_address));
+
     transfer(
         source_nft_contract_address,
         from_address,
@@ -232,7 +269,9 @@ fn reward_validators(fee: U512, validators: Vec<CPublicKey>) {
     );
 
     for arg in validators {
-        let validator_option = storage::dictionary_get::<Validator>(validators_dict_ref, &arg.to_string()).unwrap_or_revert_with(BridgeError::FailedToGetValidatorForReward);
+        let validator_option =
+            storage::dictionary_get::<Validator>(validators_dict_ref, &arg.to_string())
+                .unwrap_or_revert_with(BridgeError::FailedToGetValidatorForReward);
         match validator_option {
             Some(mut v) => {
                 v.pending_rewards += fee_per_validator;
@@ -262,14 +301,29 @@ pub extern "C" fn init() {
 
     runtime::put_key(INITIALIZED, storage::new_uref(true).into());
     runtime::put_key(KEY_CHAIN_TYPE, storage::new_uref(chain_type).into());
-    runtime::put_key(KEY_COLLECTION_DEPLOYER, storage::new_uref(collection_deployer).into());
-    runtime::put_key(KEY_STORAGE_DEPLOYER, storage::new_uref(storage_deployer).into());
-    runtime::put_key(KEY_SERVICE_ADDRESS, storage::new_uref(service_account).into());
+    runtime::put_key(
+        KEY_COLLECTION_DEPLOYER,
+        storage::new_uref(collection_deployer).into(),
+    );
+    runtime::put_key(
+        KEY_STORAGE_DEPLOYER,
+        storage::new_uref(storage_deployer).into(),
+    );
+    runtime::put_key(
+        KEY_SERVICE_ADDRESS,
+        storage::new_uref(service_account).into(),
+    );
     runtime::put_key(KEY_TYPE_ERC721, storage::new_uref("singular").into());
     runtime::put_key(KEY_SELF_HASH, storage::new_uref(self_hash).into());
     runtime::put_key(KEY_PURSE, create_purse().into());
-    runtime::put_key(KEY_STORAGE_DEPLOY_FEE, storage::new_uref(storage_deploy_fee).into());
-    runtime::put_key(KEY_COLLECTION_DEPLOY_FEE, storage::new_uref(collection_deploy_fee).into());
+    runtime::put_key(
+        KEY_STORAGE_DEPLOY_FEE,
+        storage::new_uref(storage_deploy_fee).into(),
+    );
+    runtime::put_key(
+        KEY_COLLECTION_DEPLOY_FEE,
+        storage::new_uref(collection_deploy_fee).into(),
+    );
     runtime::put_key(KEY_CLAIM_FEE, storage::new_uref(claim_fee).into());
 
     // INITIALIZING BOOTSTRAP VALIDATOR
@@ -278,10 +332,14 @@ pub extern "C" fn init() {
 
     let validator_public_key = &validator.to_string();
 
-    storage::dictionary_put(validators_dict, &validator_public_key, Validator {
-        added: true,
-        pending_rewards: U512::from(0),
-    });
+    storage::dictionary_put(
+        validators_dict,
+        &validator_public_key,
+        Validator {
+            added: true,
+            pending_rewards: U512::from(0),
+        },
+    );
 
     // INITIALIZING VALIDATOR COUNT
     runtime::put_key(KEY_VALIDATORS_COUNT, storage::new_uref(1u64).into());
@@ -318,14 +376,15 @@ pub extern "C" fn add_validator() {
         ARG_NEW_VALIDATOR_PUBLIC_KEY,
         BridgeError::MissingArgumentNewValidator,
         BridgeError::InvalidArgumentNewValidator,
-    ).unwrap_or_revert();
-
+    )
+    .unwrap_or_revert();
 
     let signatures: Vec<Sigs> = utils::get_named_arg_with_user_errors(
         ARG_SIGNATURES,
         BridgeError::MissingArgumentSignatures,
         BridgeError::InvalidArgumentSignatures,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let validators_dict_ref = utils::get_uref(
         KEY_VALIDATORS_DICT,
@@ -333,7 +392,13 @@ pub extern "C" fn add_validator() {
         BridgeError::InvalidValidatorsDictRef,
     );
 
-    let data = new_validator_public_key.to_bytes().unwrap().iter().skip(1).cloned().collect::<Vec<u8>>();
+    let data = new_validator_public_key
+        .to_bytes()
+        .unwrap()
+        .iter()
+        .skip(1)
+        .cloned()
+        .collect::<Vec<u8>>();
 
     verify_signatures(data, signatures);
 
@@ -344,10 +409,14 @@ pub extern "C" fn add_validator() {
     );
     let validators_count: u64 = storage::read_or_revert(validators_count_ref);
 
-    storage::dictionary_put(validators_dict_ref, &new_validator_public_key.to_string(), Validator {
-        added: true,
-        pending_rewards: U512::from(0),
-    });
+    storage::dictionary_put(
+        validators_dict_ref,
+        &new_validator_public_key.to_string(),
+        Validator {
+            added: true,
+            pending_rewards: U512::from(0),
+        },
+    );
 
     storage::write(validators_count_ref, validators_count + 1);
 
@@ -359,13 +428,15 @@ pub extern "C" fn blacklist_validator() {
         ARG_VALIDATOR_PUBLIC_KEY,
         BridgeError::MissingArgumentValidator,
         BridgeError::InvalidArgumentValidator,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let signatures: Vec<Sigs> = utils::get_named_arg_with_user_errors(
         ARG_SIGNATURES,
         BridgeError::MissingArgumentSignatures,
         BridgeError::InvalidArgumentSignatures,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let validators_dict_ref = utils::get_uref(
         KEY_VALIDATORS_DICT,
@@ -379,8 +450,13 @@ pub extern "C" fn blacklist_validator() {
         BridgeError::InvalidBlackListValidatorsDictRef,
     );
 
-    storage::dictionary_get::<Validator>(validators_dict_ref, &validator_public_key.to_string()).unwrap_or_revert_with(BridgeError::ValidatorNotAdded);
-    let blacklist_exists = storage::dictionary_get::<bool>(blacklist_validators_dict_ref, &validator_public_key.to_string()).unwrap_or(Option::from(false));
+    storage::dictionary_get::<Validator>(validators_dict_ref, &validator_public_key.to_string())
+        .unwrap_or_revert_with(BridgeError::ValidatorNotAdded);
+    let blacklist_exists = storage::dictionary_get::<bool>(
+        blacklist_validators_dict_ref,
+        &validator_public_key.to_string(),
+    )
+    .unwrap_or(Option::from(false));
 
     match blacklist_exists {
         Some(_) => {
@@ -389,7 +465,13 @@ pub extern "C" fn blacklist_validator() {
         None => {}
     }
 
-    let data = validator_public_key.to_bytes().unwrap().iter().skip(1).cloned().collect::<Vec<u8>>();
+    let data = validator_public_key
+        .to_bytes()
+        .unwrap()
+        .iter()
+        .skip(1)
+        .cloned()
+        .collect::<Vec<u8>>();
 
     verify_signatures(data, signatures);
 
@@ -400,9 +482,17 @@ pub extern "C" fn blacklist_validator() {
     );
     let validators_count: u64 = storage::read_or_revert(validators_count_ref);
 
-    storage::dictionary_put(validators_dict_ref, &validator_public_key.to_string(), Option::<String>::None);
+    storage::dictionary_put(
+        validators_dict_ref,
+        &validator_public_key.to_string(),
+        Option::<String>::None,
+    );
 
-    storage::dictionary_put(blacklist_validators_dict_ref, &validator_public_key.to_string(), true);
+    storage::dictionary_put(
+        blacklist_validators_dict_ref,
+        &validator_public_key.to_string(),
+        true,
+    );
     storage::write(validators_count_ref, validators_count - 1);
 
     casper_event_standard::emit(BlackListValidator::new(validator_public_key));
@@ -413,7 +503,8 @@ pub extern "C" fn claim_reward_validator() {
         ARG_VALIDATOR_PUBLIC_KEY,
         BridgeError::MissingArgumentValidator,
         BridgeError::InvalidArgumentValidator,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let this_contract_purse_ref = utils::get_uref(
         KEY_PURSE,
@@ -428,7 +519,11 @@ pub extern "C" fn claim_reward_validator() {
         BridgeError::MissingValidatorsDictRef,
         BridgeError::InvalidValidatorsDictRef,
     );
-    let validator_option = storage::dictionary_get::<Validator>(validators_dict_ref, &validator_public_key.to_string()).unwrap_or(None);
+    let validator_option = storage::dictionary_get::<Validator>(
+        validators_dict_ref,
+        &validator_public_key.to_string(),
+    )
+    .unwrap_or(None);
     let rewards;
     match validator_option {
         Some(v) => {
@@ -436,13 +531,22 @@ pub extern "C" fn claim_reward_validator() {
                 runtime::revert(BridgeError::ValidatorDoesNotExist);
             } else {
                 rewards = v.pending_rewards;
-                let res = transfer_from_purse_to_public_key(purse, validator_public_key.clone(), rewards, None);
+                let res = transfer_from_purse_to_public_key(
+                    purse,
+                    validator_public_key.clone(),
+                    rewards,
+                    None,
+                );
                 match res {
                     Ok(_) => {
-                        storage::dictionary_put(validators_dict_ref, &validator_public_key.to_string(), Validator {
-                            added: true,
-                            pending_rewards: U512::from(0),
-                        });
+                        storage::dictionary_put(
+                            validators_dict_ref,
+                            &validator_public_key.to_string(),
+                            Validator {
+                                added: true,
+                                pending_rewards: U512::from(0),
+                            },
+                        );
                         casper_event_standard::emit(RewardValidator::new(validator_public_key));
                     }
                     Err(e) => {
@@ -463,43 +567,50 @@ pub extern "C" fn lock() {
         ARG_TOKEN_ID,
         BridgeError::MissingArgumentTokenId,
         BridgeError::InvalidArgumentTokenId,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let destination_chain: String = utils::get_named_arg_with_user_errors(
         ARG_DESTINATION_CHAIN,
         BridgeError::MissingArgumentDestinationChain,
         BridgeError::InvalidArgumentDestinationChain,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let destination_user_address: String = utils::get_named_arg_with_user_errors(
         ARG_DESTINATION_USER_ADDRESS,
         BridgeError::MissingArgumentDestinationUserAddress,
         BridgeError::InvalidArgumentDestinationUserAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let source_nft_contract_address: ContractHash = utils::get_named_arg_with_user_errors(
         ARG_SOURCE_NFT_CONTRACT_ADDRESS,
         BridgeError::MissingArgumentSourceNftContractAddress,
         BridgeError::InvalidArgumentSourceNftContractAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let metadata_uri: String = utils::get_named_arg_with_user_errors(
         ARG_METADATA,
         BridgeError::MissingArgumentMetadata,
         BridgeError::InvalidArgumentMetadata,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let sender_purse: URef = utils::get_named_arg_with_user_errors(
         ARG_SENDER_PURSE,
         BridgeError::MissingArgumentSenderPurse,
         BridgeError::InvalidArgumentSenderPurse,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let amount: U512 = utils::get_named_arg_with_user_errors(
         ARG_AMOUNT,
         BridgeError::MissingArgumentAmount,
         BridgeError::InvalidArgumentAmount,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     // RUNTIME ARGS END
 
@@ -554,7 +665,10 @@ pub extern "C" fn lock() {
 
     let key = binding.as_str();
 
-    let original_collection_address_option = storage::dictionary_get::<DuplicateToOriginalContractInfo>(duplicate_to_original_dict_ref, key).unwrap_or(None);
+    let original_collection_address_option = storage::dictionary_get::<
+        DuplicateToOriginalContractInfo,
+    >(duplicate_to_original_dict_ref, key)
+    .unwrap_or(None);
 
     match original_collection_address_option {
         Some(v) => {
@@ -573,22 +687,24 @@ pub extern "C" fn lock() {
                 destination_chain.clone(),
                 destination_user_address.clone(),
                 source_nft_contract_address,
-                metadata_uri.clone());
+                metadata_uri.clone(),
+            );
             if !is_event {
                 // SEND MONEY TO SERVICE
                 transfer_tx_fees(amount, sender_purse, Receiver::Service);
             }
             if is_event {
                 transfer_tx_fees(amount, sender_purse, Receiver::Sender);
-                casper_event_standard::emit(
-                    Locked::new(token_id,
-                                destination_chain,
-                                destination_user_address,
-                                v.contract_address.to_string(),
-                                U256::from(1),
-                                nft_type,
-                                v.chain,
-                                metadata_uri));
+                casper_event_standard::emit(Locked::new(
+                    token_id,
+                    destination_chain,
+                    destination_user_address,
+                    v.contract_address.to_string(),
+                    U256::from(1),
+                    nft_type,
+                    v.chain,
+                    metadata_uri,
+                ));
             }
         }
         None => {
@@ -607,22 +723,24 @@ pub extern "C" fn lock() {
                 destination_chain.clone(),
                 destination_user_address.clone(),
                 source_nft_contract_address,
-                metadata_uri.clone());
+                metadata_uri.clone(),
+            );
             if !is_event {
                 // SEND MONEY TO SERVICE
                 transfer_tx_fees(amount, sender_purse, Receiver::Service);
             }
             if is_event {
                 transfer_tx_fees(amount, sender_purse, Receiver::Sender);
-                casper_event_standard::emit(
-                    Locked::new(token_id,
-                                destination_chain,
-                                destination_user_address,
-                                source_nft_contract_address.to_string(),
-                                U256::from(1),
-                                nft_type,
-                                self_chain,
-                                metadata_uri));
+                casper_event_standard::emit(Locked::new(
+                    token_id,
+                    destination_chain,
+                    destination_user_address,
+                    source_nft_contract_address.to_string(),
+                    U256::from(1),
+                    nft_type,
+                    self_chain,
+                    metadata_uri,
+                ));
             }
         }
     }
@@ -634,43 +752,50 @@ pub extern "C" fn update_storage_and_process_lock() {
         ARG_TOKEN_ID,
         BridgeError::MissingArgumentTokenId,
         BridgeError::InvalidArgumentTokenId,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let destination_chain: String = utils::get_named_arg_with_user_errors(
         ARG_DESTINATION_CHAIN,
         BridgeError::MissingArgumentDestinationChain,
         BridgeError::InvalidArgumentDestinationChain,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let destination_user_address: String = utils::get_named_arg_with_user_errors(
         ARG_DESTINATION_USER_ADDRESS,
         BridgeError::MissingArgumentDestinationUserAddress,
         BridgeError::InvalidArgumentDestinationUserAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let source_nft_contract_address: ContractHash = utils::get_named_arg_with_user_errors(
         ARG_SOURCE_NFT_CONTRACT_ADDRESS,
         BridgeError::MissingArgumentSourceNftContractAddress,
         BridgeError::InvalidArgumentSourceNftContractAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let metadata_uri: String = utils::get_named_arg_with_user_errors(
         ARG_METADATA,
         BridgeError::MissingArgumentMetadata,
         BridgeError::InvalidArgumentMetadata,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let storage_address_option: ContractHash = utils::get_named_arg_with_user_errors(
         ARG_STORAGE_ADDRESS,
         BridgeError::MissingArgumentStorageAddress,
         BridgeError::InvalidArgumentStorageAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let nft_sender_address_option: AccountHash = utils::get_named_arg_with_user_errors(
         ARG_NFT_SENDER_ADDRESS,
         BridgeError::MissingArgumentNftSenderAddress,
         BridgeError::InvalidArgumentNftSenderAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
     // RUNTIME ARGS END
 
     // CHECKING IF CALLER IS SERVICE OR NOT START
@@ -724,7 +849,10 @@ pub extern "C" fn update_storage_and_process_lock() {
 
     let key = binding.as_str();
 
-    let original_collection_address_option = storage::dictionary_get::<DuplicateToOriginalContractInfo>(duplicate_to_original_dict_ref, key).unwrap_or(None);
+    let original_collection_address_option = storage::dictionary_get::<
+        DuplicateToOriginalContractInfo,
+    >(duplicate_to_original_dict_ref, key)
+    .unwrap_or(None);
 
     match original_collection_address_option {
         Some(v) => {
@@ -743,17 +871,19 @@ pub extern "C" fn update_storage_and_process_lock() {
                 destination_chain.clone(),
                 destination_user_address.clone(),
                 source_nft_contract_address,
-                metadata_uri.clone());
+                metadata_uri.clone(),
+            );
             if is_event {
-                casper_event_standard::emit(
-                    Locked::new(token_id,
-                                destination_chain,
-                                destination_user_address,
-                                v.contract_address.to_string(),
-                                U256::from(1),
-                                nft_type,
-                                v.chain,
-                                metadata_uri));
+                casper_event_standard::emit(Locked::new(
+                    token_id,
+                    destination_chain,
+                    destination_user_address,
+                    v.contract_address.to_string(),
+                    U256::from(1),
+                    nft_type,
+                    v.chain,
+                    metadata_uri,
+                ));
             }
         }
         None => {
@@ -772,17 +902,19 @@ pub extern "C" fn update_storage_and_process_lock() {
                 destination_chain.clone(),
                 destination_user_address.clone(),
                 source_nft_contract_address,
-                metadata_uri.clone());
+                metadata_uri.clone(),
+            );
             if is_event {
-                casper_event_standard::emit(
-                    Locked::new(token_id,
-                                destination_chain,
-                                destination_user_address,
-                                source_nft_contract_address.to_string(),
-                                U256::from(1),
-                                nft_type,
-                                self_chain,
-                                metadata_uri));
+                casper_event_standard::emit(Locked::new(
+                    token_id,
+                    destination_chain,
+                    destination_user_address,
+                    source_nft_contract_address.to_string(),
+                    U256::from(1),
+                    nft_type,
+                    self_chain,
+                    metadata_uri,
+                ));
             }
         }
     }
@@ -794,109 +926,127 @@ pub extern "C" fn claim() {
         ARG_TOKEN_ID,
         BridgeError::MissingArgumentTokenId,
         BridgeError::InvalidArgumentTokenId,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let source_chain: String = utils::get_named_arg_with_user_errors(
         ARG_SOURCE_CHAIN,
         BridgeError::MissingArgumentSourceChain,
         BridgeError::InvalidArgumentSourceChain,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let destination_chain: String = utils::get_named_arg_with_user_errors(
         ARG_DESTINATION_CHAIN,
         BridgeError::MissingArgumentDestinationChain,
         BridgeError::InvalidArgumentDestinationChain,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let destination_user_address: AccountHash = utils::get_named_arg_with_user_errors(
         ARG_DESTINATION_USER_ADDRESS,
         BridgeError::MissingArgumentDestinationUserAddress,
         BridgeError::InvalidArgumentDestinationUserAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let source_nft_contract_address: String = utils::get_named_arg_with_user_errors(
         ARG_SOURCE_NFT_CONTRACT_ADDRESS,
         BridgeError::MissingArgumentSourceNftContractAddress,
         BridgeError::InvalidArgumentSourceNftContractAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let name: String = utils::get_named_arg_with_user_errors(
         ARG_NAME,
         BridgeError::MissingArgumentName,
         BridgeError::InvalidArgumentName,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let symbol: String = utils::get_named_arg_with_user_errors(
         ARG_NAME,
         BridgeError::MissingArgumentSymbol,
         BridgeError::InvalidArgumentSymbol,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let royalty: U512 = utils::get_named_arg_with_user_errors(
         ARG_ROYALTY,
         BridgeError::MissingArgumentRoyalty,
         BridgeError::InvalidArgumentRoyalty,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let royalty_receiver: AccountHash = utils::get_named_arg_with_user_errors(
         ARG_ROYALTY_RECEIVER,
         BridgeError::MissingArgumentRoyaltyReceiver,
         BridgeError::InvalidArgumentRoyaltyReceiver,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let metadata: String = utils::get_named_arg_with_user_errors(
         ARG_METADATA,
         BridgeError::MissingArgumentMetadata,
         BridgeError::InvalidArgumentMetadata,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let transaction_hash: String = utils::get_named_arg_with_user_errors(
         ARG_TRANSACTION_HASH,
         BridgeError::MissingArgumentTransactionHash,
         BridgeError::InvalidArgumentTransactionHash,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let token_amount: U512 = utils::get_named_arg_with_user_errors(
         ARG_TOKEN_AMOUNT,
         BridgeError::MissingArgumentTokenAmount,
         BridgeError::InvalidArgumentTokenAmount,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let nft_type: String = utils::get_named_arg_with_user_errors(
         ARG_NFT_TYPE,
         BridgeError::MissingArgumentNftType,
         BridgeError::InvalidArgumentNftType,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let fee: U512 = utils::get_named_arg_with_user_errors(
         ARG_FEE,
         BridgeError::MissingArgumentFee,
         BridgeError::InvalidArgumentFee,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let lock_tx_chain: String = utils::get_named_arg_with_user_errors(
         ARG_LOCK_TX_CHAIN,
         BridgeError::MissingArgumentLockTxChain,
         BridgeError::InvalidArgumentLockTxChain,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let signatures: Vec<Sigs> = utils::get_named_arg_with_user_errors(
         ARG_SIGNATURES,
         BridgeError::MissingArgumentSignatures,
         BridgeError::InvalidArgumentSignatures,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let sender_purse: URef = utils::get_named_arg_with_user_errors(
         ARG_SENDER_PURSE,
         BridgeError::MissingArgumentSenderPurse,
         BridgeError::InvalidArgumentSenderPurse,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let amount: U512 = utils::get_named_arg_with_user_errors(
         ARG_AMOUNT,
         BridgeError::MissingArgumentAmount,
         BridgeError::InvalidArgumentAmount,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
     // RUNTIME ARGS END
 
     let collection_deploy_fee_ref = utils::get_uref(
@@ -975,7 +1125,10 @@ pub extern "C" fn claim() {
         BridgeError::InvalidUniqueIdentifiersDictRef,
     );
 
-    let unique_identifiers = storage::dictionary_get::<(bool, bool)>(unique_identifiers_dict_ref, unique_key).unwrap_or(Option::from((false, false))).unwrap();
+    let unique_identifiers =
+        storage::dictionary_get::<(bool, bool)>(unique_identifiers_dict_ref, unique_key)
+            .unwrap_or(Option::from((false, false)))
+            .unwrap();
 
     if unique_identifiers.0 && unique_identifiers.1 {
         runtime::revert(BridgeError::DataAlreadyProcessed);
@@ -1007,7 +1160,10 @@ pub extern "C" fn claim() {
 
     let otd_key = binding.as_str();
 
-    let duplicate_collection_address_option = storage::dictionary_get::<OriginalToDuplicateContractInfo>(original_to_duplicate_dict_ref, otd_key).unwrap_or(None);
+    let duplicate_collection_address_option = storage::dictionary_get::<
+        OriginalToDuplicateContractInfo,
+    >(original_to_duplicate_dict_ref, otd_key)
+    .unwrap_or(None);
 
     let mut duplicate_collection_address = OriginalToDuplicateContractInfo {
         chain: "".to_string(),
@@ -1029,7 +1185,10 @@ pub extern "C" fn claim() {
                 BridgeError::InvalidDSRef,
             );
 
-            let mut data_key = duplicate_collection_address.contract_address.to_bytes().unwrap();
+            let mut data_key = duplicate_collection_address
+                .contract_address
+                .to_bytes()
+                .unwrap();
 
             let self_chain_b = self_chain.to_bytes().unwrap();
 
@@ -1045,7 +1204,9 @@ pub extern "C" fn claim() {
 
             let ds_key = binding.as_str();
 
-            storage_contract_option = storage::dictionary_get::<ContractHash>(duplicate_storage_ref, ds_key).unwrap_or(None);
+            storage_contract_option =
+                storage::dictionary_get::<ContractHash>(duplicate_storage_ref, ds_key)
+                    .unwrap_or(None);
             has_duplicate = true;
         }
         None => {
@@ -1054,7 +1215,9 @@ pub extern "C" fn claim() {
                 BridgeError::MissingOSRef,
                 BridgeError::InvalidOSRef,
             );
-            storage_contract_option = storage::dictionary_get::<ContractHash>(original_storage_ref, otd_key).unwrap_or(None);
+            storage_contract_option =
+                storage::dictionary_get::<ContractHash>(original_storage_ref, otd_key)
+                    .unwrap_or(None);
         }
     }
 
@@ -1075,17 +1238,34 @@ pub extern "C" fn claim() {
 
     // ===============================/ hasDuplicate && hasStorage /=======================
     if has_duplicate && has_storage {
-        let nft_owner = owner_of(duplicate_collection_address.contract_address, TokenIdentifier::Hash(data.token_id.clone()));
+        let nft_owner = owner_of(
+            duplicate_collection_address.contract_address,
+            TokenIdentifier::Hash(data.token_id.clone()),
+        );
 
         if nft_owner == Key::from(storage_contract) {
             // UNLOCK NFT
-            let res = unlock_token(storage_contract, TokenIdentifier::Hash(data.token_id.clone()), data.destination_user_address);
+            let res = unlock_token(
+                storage_contract,
+                TokenIdentifier::Hash(data.token_id.clone()),
+                data.destination_user_address,
+            );
             match res {
                 Ok(_) => {
                     storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
 
-                    casper_event_standard::emit(UnLock::new(data.destination_user_address.to_string(), data.token_id.clone(), storage_contract.to_string()));
-                    casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, duplicate_collection_address.contract_address.to_string(), data.token_id));
+                    casper_event_standard::emit(UnLock::new(
+                        data.destination_user_address.to_string(),
+                        data.token_id.clone(),
+                        storage_contract.to_string(),
+                    ));
+                    casper_event_standard::emit(Claimed::new(
+                        data.lock_tx_chain,
+                        data.source_chain,
+                        data.transaction_hash,
+                        duplicate_collection_address.contract_address.to_string(),
+                        data.token_id,
+                    ));
                 }
                 Err(_) => {
                     runtime::revert(BridgeError::FailedToUnlockNft);
@@ -1093,11 +1273,21 @@ pub extern "C" fn claim() {
             }
         } else {
             // MINT NFT
-            let res = mint(duplicate_collection_address.contract_address, Key::from(data.destination_user_address), data.metadata);
+            let res = mint(
+                duplicate_collection_address.contract_address,
+                Key::from(data.destination_user_address),
+                data.metadata,
+            );
             match res {
                 Ok(_) => {
                     storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-                    casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, duplicate_collection_address.contract_address.to_string(), data.token_id));
+                    casper_event_standard::emit(Claimed::new(
+                        data.lock_tx_chain,
+                        data.source_chain,
+                        data.transaction_hash,
+                        duplicate_collection_address.contract_address.to_string(),
+                        data.token_id,
+                    ));
                 }
                 Err(_) => {
                     runtime::revert(BridgeError::FailedToMintNft);
@@ -1108,11 +1298,21 @@ pub extern "C" fn claim() {
     // ===============================/ hasDuplicate && NOT hasStorage /=======================
     else if has_duplicate && !has_storage {
         // MINT NFT
-        let res = mint(duplicate_collection_address.contract_address, Key::from(data.destination_user_address), data.metadata);
+        let res = mint(
+            duplicate_collection_address.contract_address,
+            Key::from(data.destination_user_address),
+            data.metadata,
+        );
         match res {
             Ok(_) => {
                 storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-                casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, duplicate_collection_address.contract_address.to_string(), data.token_id));
+                casper_event_standard::emit(Claimed::new(
+                    data.lock_tx_chain,
+                    data.source_chain,
+                    data.transaction_hash,
+                    duplicate_collection_address.contract_address.to_string(),
+                    data.token_id,
+                ));
             }
             Err(_) => {
                 runtime::revert(BridgeError::FailedToMintNft);
@@ -1142,17 +1342,32 @@ pub extern "C" fn claim() {
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
     else if !has_duplicate && has_storage {
-        let contract = ContractHash::from_formatted_str(data.source_nft_contract_address.as_str()).unwrap();
+        let contract =
+            ContractHash::from_formatted_str(data.source_nft_contract_address.as_str()).unwrap();
         let nft_owner = owner_of(contract, TokenIdentifier::Hash(data.token_id.clone()));
 
         if nft_owner == Key::from(storage_contract) {
             // UNLOCK NFT
-            let res = unlock_token(storage_contract, TokenIdentifier::Hash(data.token_id.clone()), data.destination_user_address);
+            let res = unlock_token(
+                storage_contract,
+                TokenIdentifier::Hash(data.token_id.clone()),
+                data.destination_user_address,
+            );
             match res {
                 Ok(_) => {
                     storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-                    casper_event_standard::emit(UnLock::new(data.destination_user_address.to_string(), data.token_id.clone(), storage_contract.to_string()));
-                    casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, data.source_nft_contract_address, data.token_id));
+                    casper_event_standard::emit(UnLock::new(
+                        data.destination_user_address.to_string(),
+                        data.token_id.clone(),
+                        storage_contract.to_string(),
+                    ));
+                    casper_event_standard::emit(Claimed::new(
+                        data.lock_tx_chain,
+                        data.source_chain,
+                        data.transaction_hash,
+                        data.source_nft_contract_address,
+                        data.token_id,
+                    ));
                 }
                 Err(_) => {
                     runtime::revert(BridgeError::FailedToUnlockNft);
@@ -1173,97 +1388,113 @@ pub extern "C" fn update_collection_process_claim() {
         ARG_TOKEN_ID,
         BridgeError::MissingArgumentTokenId,
         BridgeError::InvalidArgumentTokenId,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let source_chain: String = utils::get_named_arg_with_user_errors(
         ARG_SOURCE_CHAIN,
         BridgeError::MissingArgumentSourceChain,
         BridgeError::InvalidArgumentSourceChain,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let destination_chain: String = utils::get_named_arg_with_user_errors(
         ARG_DESTINATION_CHAIN,
         BridgeError::MissingArgumentDestinationChain,
         BridgeError::InvalidArgumentDestinationChain,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let destination_user_address: AccountHash = utils::get_named_arg_with_user_errors(
         ARG_DESTINATION_USER_ADDRESS,
         BridgeError::MissingArgumentDestinationUserAddress,
         BridgeError::InvalidArgumentDestinationUserAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let source_nft_contract_address: String = utils::get_named_arg_with_user_errors(
         ARG_SOURCE_NFT_CONTRACT_ADDRESS,
         BridgeError::MissingArgumentSourceNftContractAddress,
         BridgeError::InvalidArgumentSourceNftContractAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let name: String = utils::get_named_arg_with_user_errors(
         ARG_NAME,
         BridgeError::MissingArgumentName,
         BridgeError::InvalidArgumentName,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let symbol: String = utils::get_named_arg_with_user_errors(
         ARG_NAME,
         BridgeError::MissingArgumentSymbol,
         BridgeError::InvalidArgumentSymbol,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let royalty: U512 = utils::get_named_arg_with_user_errors(
         ARG_ROYALTY,
         BridgeError::MissingArgumentRoyalty,
         BridgeError::InvalidArgumentRoyalty,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let royalty_receiver: AccountHash = utils::get_named_arg_with_user_errors(
         ARG_ROYALTY_RECEIVER,
         BridgeError::MissingArgumentRoyaltyReceiver,
         BridgeError::InvalidArgumentRoyaltyReceiver,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let metadata: String = utils::get_named_arg_with_user_errors(
         ARG_METADATA,
         BridgeError::MissingArgumentMetadata,
         BridgeError::InvalidArgumentMetadata,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let transaction_hash: String = utils::get_named_arg_with_user_errors(
         ARG_TRANSACTION_HASH,
         BridgeError::MissingArgumentTransactionHash,
         BridgeError::InvalidArgumentTransactionHash,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let token_amount: U512 = utils::get_named_arg_with_user_errors(
         ARG_TOKEN_AMOUNT,
         BridgeError::MissingArgumentTokenAmount,
         BridgeError::InvalidArgumentTokenAmount,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let nft_type: String = utils::get_named_arg_with_user_errors(
         ARG_NFT_TYPE,
         BridgeError::MissingArgumentNftType,
         BridgeError::InvalidArgumentNftType,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let fee: U512 = utils::get_named_arg_with_user_errors(
         ARG_FEE,
         BridgeError::MissingArgumentFee,
         BridgeError::InvalidArgumentFee,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let lock_tx_chain: String = utils::get_named_arg_with_user_errors(
         ARG_LOCK_TX_CHAIN,
         BridgeError::MissingArgumentLockTxChain,
         BridgeError::InvalidArgumentLockTxChain,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let collection_address: ContractHash = utils::get_named_arg_with_user_errors(
         ARG_COLLECTION_ADDRESS,
         BridgeError::MissingArgumentCollectionAddress,
         BridgeError::InvalidArgumentCollectionAddress,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
     // RUNTIME ARGS END
 
     let data = ClaimData {
@@ -1335,7 +1566,10 @@ pub extern "C" fn update_collection_process_claim() {
         BridgeError::InvalidUniqueIdentifiersDictRef,
     );
 
-    let unique_identifiers = storage::dictionary_get::<(bool, bool)>(unique_identifiers_dict_ref, unique_key).unwrap_or(Option::from((false, false))).unwrap();
+    let unique_identifiers =
+        storage::dictionary_get::<(bool, bool)>(unique_identifiers_dict_ref, unique_key)
+            .unwrap_or(Option::from((false, false)))
+            .unwrap();
 
     if unique_identifiers.0 && unique_identifiers.1 {
         runtime::revert(BridgeError::DataAlreadyProcessed);
@@ -1369,7 +1603,10 @@ pub extern "C" fn update_collection_process_claim() {
 
     let otd_key = binding.as_str();
 
-    let duplicate_collection_address_option = storage::dictionary_get::<OriginalToDuplicateContractInfo>(original_to_duplicate_dict_ref, otd_key).unwrap_or(None);
+    let duplicate_collection_address_option = storage::dictionary_get::<
+        OriginalToDuplicateContractInfo,
+    >(original_to_duplicate_dict_ref, otd_key)
+    .unwrap_or(None);
 
     let mut duplicate_collection_address = OriginalToDuplicateContractInfo {
         chain: "".to_string(),
@@ -1391,7 +1628,10 @@ pub extern "C" fn update_collection_process_claim() {
                 BridgeError::InvalidDSRef,
             );
 
-            let mut data_key = duplicate_collection_address.contract_address.to_bytes().unwrap();
+            let mut data_key = duplicate_collection_address
+                .contract_address
+                .to_bytes()
+                .unwrap();
 
             let self_chain_b = self_chain.to_bytes().unwrap();
 
@@ -1407,7 +1647,9 @@ pub extern "C" fn update_collection_process_claim() {
 
             let ds_key = binding.as_str();
 
-            storage_contract_option = storage::dictionary_get::<ContractHash>(duplicate_storage_ref, ds_key).unwrap_or(None);
+            storage_contract_option =
+                storage::dictionary_get::<ContractHash>(duplicate_storage_ref, ds_key)
+                    .unwrap_or(None);
             has_duplicate = true;
         }
         None => {
@@ -1417,7 +1659,9 @@ pub extern "C" fn update_collection_process_claim() {
                 BridgeError::InvalidOSRef,
             );
 
-            storage_contract_option = storage::dictionary_get::<ContractHash>(original_storage_ref, otd_key).unwrap_or(None);
+            storage_contract_option =
+                storage::dictionary_get::<ContractHash>(original_storage_ref, otd_key)
+                    .unwrap_or(None);
         }
     }
 
@@ -1431,17 +1675,34 @@ pub extern "C" fn update_collection_process_claim() {
 
     // ===============================/ hasDuplicate && hasStorage /=======================
     if has_duplicate && has_storage {
-        let nft_owner = owner_of(duplicate_collection_address.contract_address, TokenIdentifier::Hash(data.token_id.clone()));
+        let nft_owner = owner_of(
+            duplicate_collection_address.contract_address,
+            TokenIdentifier::Hash(data.token_id.clone()),
+        );
 
         if nft_owner == Key::from(storage_contract) {
             // UNLOCK NFT
-            let res = unlock_token(storage_contract, TokenIdentifier::Hash(data.token_id.clone()), data.destination_user_address);
+            let res = unlock_token(
+                storage_contract,
+                TokenIdentifier::Hash(data.token_id.clone()),
+                data.destination_user_address,
+            );
             match res {
                 Ok(_) => {
                     storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
 
-                    casper_event_standard::emit(UnLock::new(data.destination_user_address.to_string(), data.token_id.clone(), storage_contract.to_string()));
-                    casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, duplicate_collection_address.contract_address.to_string(), data.token_id));
+                    casper_event_standard::emit(UnLock::new(
+                        data.destination_user_address.to_string(),
+                        data.token_id.clone(),
+                        storage_contract.to_string(),
+                    ));
+                    casper_event_standard::emit(Claimed::new(
+                        data.lock_tx_chain,
+                        data.source_chain,
+                        data.transaction_hash,
+                        duplicate_collection_address.contract_address.to_string(),
+                        data.token_id,
+                    ));
                 }
                 Err(_) => {
                     runtime::revert(BridgeError::FailedToUnlockNft);
@@ -1449,11 +1710,21 @@ pub extern "C" fn update_collection_process_claim() {
             }
         } else {
             // MINT NFT
-            let res = mint(duplicate_collection_address.contract_address, Key::from(data.destination_user_address), data.metadata);
+            let res = mint(
+                duplicate_collection_address.contract_address,
+                Key::from(data.destination_user_address),
+                data.metadata,
+            );
             match res {
                 Ok(_) => {
                     storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-                    casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, duplicate_collection_address.contract_address.to_string(), data.token_id));
+                    casper_event_standard::emit(Claimed::new(
+                        data.lock_tx_chain,
+                        data.source_chain,
+                        data.transaction_hash,
+                        duplicate_collection_address.contract_address.to_string(),
+                        data.token_id,
+                    ));
                 }
                 Err(_) => {
                     runtime::revert(BridgeError::FailedToMintNft);
@@ -1464,11 +1735,21 @@ pub extern "C" fn update_collection_process_claim() {
     // ===============================/ hasDuplicate && NOT hasStorage /=======================
     else if has_duplicate && !has_storage {
         // MINT NFT
-        let res = mint(duplicate_collection_address.contract_address, Key::from(data.destination_user_address), data.metadata);
+        let res = mint(
+            duplicate_collection_address.contract_address,
+            Key::from(data.destination_user_address),
+            data.metadata,
+        );
         match res {
             Ok(_) => {
                 storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-                casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, duplicate_collection_address.contract_address.to_string(), data.token_id));
+                casper_event_standard::emit(Claimed::new(
+                    data.lock_tx_chain,
+                    data.source_chain,
+                    data.transaction_hash,
+                    duplicate_collection_address.contract_address.to_string(),
+                    data.token_id,
+                ));
             }
             Err(_) => {
                 runtime::revert(BridgeError::FailedToMintNft);
@@ -1477,7 +1758,14 @@ pub extern "C" fn update_collection_process_claim() {
     }
     // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
     else if !has_duplicate && !has_storage {
-        storage::dictionary_put(original_to_duplicate_dict_ref, otd_key, OriginalToDuplicateContractInfo { chain: self_chain.clone(), contract_address: collection_address });
+        storage::dictionary_put(
+            original_to_duplicate_dict_ref,
+            otd_key,
+            OriginalToDuplicateContractInfo {
+                chain: self_chain.clone(),
+                contract_address: collection_address,
+            },
+        );
 
         let mut data_key = collection_address.to_bytes().unwrap();
 
@@ -1495,14 +1783,31 @@ pub extern "C" fn update_collection_process_claim() {
 
         let dto_key = binding.as_str();
 
-        storage::dictionary_put(duplicate_to_original_dict_ref, dto_key, DuplicateToOriginalContractInfo { chain: data.source_chain.clone(), contract_address: data.source_nft_contract_address });
+        storage::dictionary_put(
+            duplicate_to_original_dict_ref,
+            dto_key,
+            DuplicateToOriginalContractInfo {
+                chain: data.source_chain.clone(),
+                contract_address: data.source_nft_contract_address,
+            },
+        );
 
         // MINT NFT
-        let res = mint(collection_address, Key::from(data.destination_user_address), data.metadata);
+        let res = mint(
+            collection_address,
+            Key::from(data.destination_user_address),
+            data.metadata,
+        );
         match res {
             Ok(_) => {
                 storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-                casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, collection_address.to_string(), data.token_id));
+                casper_event_standard::emit(Claimed::new(
+                    data.lock_tx_chain,
+                    data.source_chain,
+                    data.transaction_hash,
+                    collection_address.to_string(),
+                    data.token_id,
+                ));
             }
             Err(_) => {
                 runtime::revert(BridgeError::FailedToMintNft);
@@ -1511,17 +1816,32 @@ pub extern "C" fn update_collection_process_claim() {
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
     else if !has_duplicate && has_storage {
-        let contract = ContractHash::from_formatted_str(data.source_nft_contract_address.as_str()).unwrap();
+        let contract =
+            ContractHash::from_formatted_str(data.source_nft_contract_address.as_str()).unwrap();
         let nft_owner = owner_of(contract, TokenIdentifier::Hash(data.token_id.clone()));
 
         if nft_owner == Key::from(storage_contract) {
             // UNLOCK NFT
-            let res = unlock_token(storage_contract, TokenIdentifier::Hash(data.token_id.clone()), data.destination_user_address);
+            let res = unlock_token(
+                storage_contract,
+                TokenIdentifier::Hash(data.token_id.clone()),
+                data.destination_user_address,
+            );
             match res {
                 Ok(_) => {
                     storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-                    casper_event_standard::emit(UnLock::new(data.destination_user_address.to_string(), data.token_id.clone(), storage_contract.to_string()));
-                    casper_event_standard::emit(Claimed::new(data.lock_tx_chain, data.source_chain, data.transaction_hash, data.source_nft_contract_address, data.token_id));
+                    casper_event_standard::emit(UnLock::new(
+                        data.destination_user_address.to_string(),
+                        data.token_id.clone(),
+                        storage_contract.to_string(),
+                    ));
+                    casper_event_standard::emit(Claimed::new(
+                        data.lock_tx_chain,
+                        data.source_chain,
+                        data.transaction_hash,
+                        data.source_nft_contract_address,
+                        data.token_id,
+                    ));
                 }
                 Err(_) => {
                     runtime::revert(BridgeError::FailedToUnlockNft);
@@ -1560,7 +1880,13 @@ fn generate_entry_points() -> EntryPoints {
         ENTRY_POINT_BRIDGE_ADD_VALIDATOR,
         vec![
             Parameter::new(ARG_NEW_VALIDATOR_PUBLIC_KEY, CLType::ByteArray(32)),
-            Parameter::new(ARG_SIGNATURES, CLType::List(Box::new(CLType::Tuple2([Box::new(CLType::PublicKey), Box::new(CLType::ByteArray(64))])))),
+            Parameter::new(
+                ARG_SIGNATURES,
+                CLType::List(Box::new(CLType::Tuple2([
+                    Box::new(CLType::PublicKey),
+                    Box::new(CLType::ByteArray(64)),
+                ]))),
+            ),
         ],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -1571,7 +1897,13 @@ fn generate_entry_points() -> EntryPoints {
         ENTRY_POINT_BRIDGE_BLACKLIST_VALIDATOR,
         vec![
             Parameter::new(ARG_VALIDATOR_PUBLIC_KEY, CLType::ByteArray(32)),
-            Parameter::new(ARG_SIGNATURES, CLType::List(Box::new(CLType::Tuple2([Box::new(CLType::PublicKey), Box::new(CLType::ByteArray(64))])))),
+            Parameter::new(
+                ARG_SIGNATURES,
+                CLType::List(Box::new(CLType::Tuple2([
+                    Box::new(CLType::PublicKey),
+                    Box::new(CLType::ByteArray(64)),
+                ]))),
+            ),
         ],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -1580,9 +1912,10 @@ fn generate_entry_points() -> EntryPoints {
 
     let claim_reward_validator = EntryPoint::new(
         ENTRY_POINT_BRIDGE_CLAIM_REWARD_VALIDATOR,
-        vec![
-            Parameter::new(ARG_VALIDATOR_PUBLIC_KEY, CLType::ByteArray(32)),
-        ],
+        vec![Parameter::new(
+            ARG_VALIDATOR_PUBLIC_KEY,
+            CLType::ByteArray(32),
+        )],
         CLType::Unit,
         EntryPointAccess::Public,
         EntryPointType::Contract,
@@ -1597,7 +1930,7 @@ fn generate_entry_points() -> EntryPoints {
             Parameter::new(ARG_SOURCE_NFT_CONTRACT_ADDRESS, CLType::ByteArray(32)),
             Parameter::new(ARG_METADATA, CLType::String),
             Parameter::new(ARG_SENDER_PURSE, CLType::URef),
-            Parameter::new(ARG_AMOUNT, CLType::U512)
+            Parameter::new(ARG_AMOUNT, CLType::U512),
         ],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -1620,7 +1953,6 @@ fn generate_entry_points() -> EntryPoints {
         EntryPointType::Contract,
     );
 
-
     let claim = EntryPoint::new(
         ENTRY_POINT_BRIDGE_CLAIM,
         vec![
@@ -1639,9 +1971,15 @@ fn generate_entry_points() -> EntryPoints {
             Parameter::new(ARG_NFT_TYPE, CLType::String),
             Parameter::new(ARG_FEE, CLType::U512),
             Parameter::new(ARG_LOCK_TX_CHAIN, CLType::String),
-            Parameter::new(ARG_SIGNATURES, CLType::List(Box::new(CLType::Tuple2([Box::new(CLType::PublicKey), Box::new(CLType::ByteArray(64))])))),
+            Parameter::new(
+                ARG_SIGNATURES,
+                CLType::List(Box::new(CLType::Tuple2([
+                    Box::new(CLType::PublicKey),
+                    Box::new(CLType::ByteArray(64)),
+                ]))),
+            ),
             Parameter::new(ARG_SENDER_PURSE, CLType::URef),
-            Parameter::new(ARG_AMOUNT, CLType::U512)
+            Parameter::new(ARG_AMOUNT, CLType::U512),
         ],
         CLType::Unit,
         EntryPointAccess::Public,
