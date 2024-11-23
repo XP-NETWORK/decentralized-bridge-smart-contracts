@@ -134,7 +134,7 @@ pub mod collection {
     }
 
     pub fn register(nft_contract: ContractHash, target_key: Key) {
-        runtime::call_contract::<(String, URef)>(
+        let (_collection_name, _) = runtime::call_contract::<(String, URef)>(
             nft_contract,
             ENTRY_POINT_REGISTER_OWNER,
             runtime_args! {

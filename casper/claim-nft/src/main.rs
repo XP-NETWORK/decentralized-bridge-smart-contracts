@@ -7,19 +7,13 @@ compile_error!("target arch should be wasm32: compile with '--target wasm32-unkn
 
 extern crate alloc;
 use crate::errors::ClaimError;
-use alloc::string::{String, ToString};
-use alloc::vec;
+use alloc::string::String;
 use alloc::vec::Vec;
+use casper_contract::contract_api::account;
 use casper_contract::contract_api::system::{create_purse, transfer_from_purse_to_purse};
-use casper_contract::contract_api::{account, storage};
 use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
 use casper_types::account::AccountHash;
-use casper_types::bytesrepr::ToBytes;
-use casper_types::{
-    runtime_args, ContractHash, PublicKey as CPublicKey, RuntimeArgs, Signature, U512,
-};
-use core::convert::TryInto;
-use core::ops::Index;
+use casper_types::{runtime_args, ContractHash, PublicKey as CPublicKey, RuntimeArgs, U512};
 
 type Sigs = (CPublicKey, [u8; 64]);
 const ARG_BRIDGE_CONTRACT: &str = "bridge_contract";

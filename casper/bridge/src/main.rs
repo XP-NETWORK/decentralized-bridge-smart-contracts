@@ -23,7 +23,6 @@ use alloc::{
     vec::Vec,
 };
 // Importing aspects of the Casper platform.
-use casper_contract::contract_api::account;
 use casper_contract::contract_api::system::{
     create_purse, get_purse_balance, transfer_from_purse_to_account,
     transfer_from_purse_to_public_key, transfer_from_purse_to_purse,
@@ -236,9 +235,9 @@ fn transfer_to_storage(
         from_address = Key::from(runtime::get_caller());
     }
 
-    // register(source_nft_contract_address, from_address);
+    register(source_nft_contract_address, from_address);
 
-    // register(source_nft_contract_address, Key::from(storage_address));
+    register(source_nft_contract_address, Key::from(storage_address));
 
     transfer(
         source_nft_contract_address,
