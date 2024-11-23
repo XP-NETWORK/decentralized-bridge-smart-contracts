@@ -3,14 +3,14 @@ use casper_types::ApiError;
 #[repr(u16)]
 #[derive(Clone, Copy)]
 pub enum BridgeError {
-    AlreadyInitialized, // 0
+    AlreadyInitialized,      // 0
     InvalidDestinationChain, // 1
 
-    MissingArgumentNewValidator,  // 2
-    InvalidArgumentNewValidator,  // 3
+    MissingArgumentNewValidator, // 2
+    InvalidArgumentNewValidator, // 3
 
-    MissingArgumentSignatures,  // 4
-    InvalidArgumentSignatures,  // 5
+    MissingArgumentSignatures, // 4
+    InvalidArgumentSignatures, // 5
 
     MissingValidatorsDictRef, // 6
     InvalidValidatorsDictRef, // 7
@@ -25,16 +25,16 @@ pub enum BridgeError {
     MissingValidatorsCountRef, // 13
     InvalidValidatorsCountRef, // 14
 
-    ThresholdNotReached, // 15
-    FailedToGetArgBytes, // 16
-    UnexpectedKeyVariant, // 17
+    ThresholdNotReached,   // 15
+    FailedToGetArgBytes,   // 16
+    UnexpectedKeyVariant,  // 17
     FeeLessThanSentAmount, //18
 
-    MissingArgumentTokenId,  // 19
-    InvalidArgumentTokenId,  // 20
+    MissingArgumentTokenId, // 19
+    InvalidArgumentTokenId, // 20
 
-    MissingArgumentDestinationChain,  // 21
-    InvalidArgumentDestinationChain,  // 22
+    MissingArgumentDestinationChain, // 21
+    InvalidArgumentDestinationChain, // 22
 
     MissingArgumentDestinationUserAddress, // 23
     InvalidArgumentDestinationUserAddress, // 24
@@ -79,8 +79,8 @@ pub enum BridgeError {
 
     FailedToRegisterOwnerToCollection, // 49
 
-    MissingArgumentSourceChain,  // 50
-    InvalidArgumentSourceChain,  // 51
+    MissingArgumentSourceChain, // 50
+    InvalidArgumentSourceChain, // 51
 
     MissingArgumentName, // 52
     InvalidArgumentName, // 53
@@ -139,8 +139,8 @@ pub enum BridgeError {
 
     CantBeThere, // 86
 
-    MissingArgumentValidator,  // 87
-    InvalidArgumentValidator,  // 88
+    MissingArgumentValidator, // 87
+    InvalidArgumentValidator, // 88
 
     ValidatorNotAdded, // 89
 
@@ -170,9 +170,17 @@ pub enum BridgeError {
 
     CollectionFeeLessThanSentAmount, // 105
 
-    Gando, // 106
+    MissingTypeErc721Ref, // 106
+    InvalidTypeErc721Ref, // 107
 
-    Gando1, // 107
+    ClaimDataConversionError, // 108
+    Gando,                    // 109
+    Gando1,                   // 110
+    Gando2,                   // 111
+    Gando3,                   // 112
+    Gando4,                   // 113
+    NoPurse,                  // 114
+    NoClaimInfoFound,         // 115
 }
 
 impl From<BridgeError> for ApiError {

@@ -13,6 +13,7 @@ use casper_contract::contract_api::account;
 use casper_contract::contract_api::system::{create_purse, transfer_from_purse_to_purse};
 use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
 use casper_types::{runtime_args, ContractHash, RuntimeArgs, U512};
+const ARG_BRIDGE_CONTRACT: &str = "bridge_contract";
 const ARG_TOKEN_ID: &str = "token_id_arg";
 const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
 const ARG_DESTINATION_USER_ADDRESS: &str = "destination_user_address_arg";
@@ -22,10 +23,7 @@ const ARG_AMOUNT: &str = "amount";
 const ARG_SENDER_PURSE: &str = "sender_purse";
 #[no_mangle]
 pub extern "C" fn call() {
-    let bridge_contract_hash = ContractHash::from_formatted_str(
-        "contract-1c525fb8d64bf8eaefb652dcc30734a9c409fc8377e24776c74f5806ff52b16e",
-    )
-    .unwrap();
+    let bridge_contract_hash = runtime::get_named_arg(ARG_BRIDGE_CONTRACT);
     let token_id: String = runtime::get_named_arg(ARG_TOKEN_ID);
     let destination_chain: String = runtime::get_named_arg(ARG_DESTINATION_CHAIN);
     let destination_user_address: String = runtime::get_named_arg(ARG_DESTINATION_USER_ADDRESS);

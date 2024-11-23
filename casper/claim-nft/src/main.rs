@@ -2,20 +2,27 @@
 #![no_main]
 
 mod errors;
-
 #[cfg(not(target_arch = "wasm32"))]
 compile_error!("target arch should be wasm32: compile with '--target wasm32-unknown-unknown'");
 
 extern crate alloc;
 use crate::errors::ClaimError;
-use alloc::string::String;
+use alloc::string::{String, ToString};
+use alloc::vec;
 use alloc::vec::Vec;
-use casper_contract::contract_api::account;
 use casper_contract::contract_api::system::{create_purse, transfer_from_purse_to_purse};
+use casper_contract::contract_api::{account, storage};
 use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
 use casper_types::account::AccountHash;
-use casper_types::{runtime_args, ContractHash, PublicKey, RuntimeArgs, U512};
-type Sigs = (PublicKey, [u8; 64]);
+use casper_types::bytesrepr::ToBytes;
+use casper_types::{
+    runtime_args, ContractHash, PublicKey as CPublicKey, RuntimeArgs, Signature, U512,
+};
+use core::convert::TryInto;
+use core::ops::Index;
+
+type Sigs = (CPublicKey, [u8; 64]);
+const ARG_BRIDGE_CONTRACT: &str = "bridge_contract";
 const ARG_TOKEN_ID: &str = "token_id_arg";
 const ARG_SOURCE_CHAIN: &str = "source_chain_arg";
 const ARG_DESTINATION_CHAIN: &str = "destination_chain_arg";
@@ -41,10 +48,7 @@ fn has_correct_fee(fee: U512, msg_value: U512) {
 }
 #[no_mangle]
 pub extern "C" fn call() {
-    let bridge_contract_hash = ContractHash::from_formatted_str(
-        "contract-1c525fb8d64bf8eaefb652dcc30734a9c409fc8377e24776c74f5806ff52b16e",
-    )
-    .unwrap();
+    let bridge_contract_hash: ContractHash = runtime::get_named_arg(ARG_BRIDGE_CONTRACT);
     let token_id: String = runtime::get_named_arg(ARG_TOKEN_ID);
     let source_chain: String = runtime::get_named_arg(ARG_SOURCE_CHAIN);
     let destination_chain: String = runtime::get_named_arg(ARG_DESTINATION_CHAIN);

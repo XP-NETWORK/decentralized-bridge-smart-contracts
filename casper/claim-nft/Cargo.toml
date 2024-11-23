@@ -6,7 +6,6 @@ edition = "2018"
 [dependencies]
 casper-contract = { workspace = true }
 casper-types = { workspace = true }
-hex = { workspace = true }
 
 [[bin]]
 name = "claim_call"

@@ -2,8 +2,8 @@
 pub mod collection {
     use alloc::string::{String, ToString};
     use casper_contract::contract_api::runtime;
-    use casper_types::{runtime_args, CLType, CLTyped, ContractHash, Key, URef, RuntimeArgs};
     use casper_types::bytesrepr::{FromBytes, ToBytes};
+    use casper_types::{runtime_args, CLType, CLTyped, ContractHash, Key, RuntimeArgs, URef};
 
     #[derive(PartialEq, Eq, Clone, Debug)]
     pub enum TokenIdentifier {
@@ -41,7 +41,6 @@ pub mod collection {
         }
     }
 
-
     const ENTRY_POINT_MINT: &str = "mint";
     const ARG_TOKEN_OWNER: &str = "token_owner";
     const ARG_TOKEN_META_DATA: &str = "token_meta_data";
@@ -55,8 +54,8 @@ pub mod collection {
     pub const ENTRY_POINT_REGISTER_OWNER: &str = "register_owner";
     const ENTRY_POINT_OWNER_OF: &str = "owner_of";
 
-    pub fn mint(nft_contract: ContractHash, token_owner: Key, token_metadata: String) -> Result<bool, bool> {
-        let call_result: Result<(_, _, _), bool> = runtime::call_contract::<Result<(String, Key, String), bool>>(
+    pub fn mint(nft_contract: ContractHash, token_owner: Key, token_metadata: String) {
+        let (_, _, _token_id_string) = runtime::call_contract::<(String, Key, String)>(
             nft_contract,
             ENTRY_POINT_MINT,
             runtime_args! {
@@ -64,39 +63,27 @@ pub mod collection {
                 ARG_TOKEN_META_DATA => token_metadata,
             },
         );
-
-        match call_result {
-            Ok(_v) => {
-                // Successful call
-                Ok(true)
-            }
-            Err(_) => {
-                // Handle error gracefully
-                Err(false)
-            }
-        }
     }
 
-    pub fn _metadata(nft_contract: ContractHash, tid: TokenIdentifier) -> String {
-        let (meta, ) = match tid {
-            TokenIdentifier::Index(token_idx) => runtime::call_contract::<(String,)>(
-                nft_contract,
-                ENTRY_POINT_METADATA,
-                runtime_args! {
-                ARG_TOKEN_ID => token_idx,
-                                },
-            ),
-            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<(String,)>(
-                nft_contract,
-                ENTRY_POINT_METADATA,
-                runtime_args! {
-                ARG_TOKEN_HASH => token_hash,
-                                },
-            ),
-        };
-        meta
-    }
-
+    // pub fn _metadata(nft_contract: ContractHash, tid: TokenIdentifier) -> String {
+    //     let (meta,) = match tid {
+    //         TokenIdentifier::Index(token_idx) => runtime::call_contract::<(String,)>(
+    //             nft_contract,
+    //             ENTRY_POINT_METADATA,
+    //             runtime_args! {
+    //             ARG_TOKEN_ID => token_idx,
+    //                             },
+    //         ),
+    //         TokenIdentifier::Hash(token_hash) => runtime::call_contract::<(String,)>(
+    //             nft_contract,
+    //             ENTRY_POINT_METADATA,
+    //             runtime_args! {
+    //             ARG_TOKEN_HASH => token_hash,
+    //                             },
+    //         ),
+    //     };
+    //     meta
+    // }
 
     pub fn owner_of(nft_contract: ContractHash, tid: TokenIdentifier) -> Key {
         let key = match tid {
@@ -146,25 +133,22 @@ pub mod collection {
         };
     }
 
-    pub fn register(
-        nft_contract: ContractHash,
-        target_key: Key,
-    ) {
+    pub fn register(nft_contract: ContractHash, target_key: Key) {
         runtime::call_contract::<(String, URef)>(
             nft_contract,
             ENTRY_POINT_REGISTER_OWNER,
             runtime_args! {
-                    ARG_TOKEN_OWNER => target_key,
-                },
+                ARG_TOKEN_OWNER => target_key,
+            },
         );
     }
 }
 
 pub mod storage {
-    use casper_contract::contract_api::runtime;
-    use casper_types::{runtime_args, ContractHash, RuntimeArgs};
-    use casper_types::account::AccountHash;
     use crate::collection::TokenIdentifier;
+    use casper_contract::contract_api::runtime;
+    use casper_types::account::AccountHash;
+    use casper_types::{runtime_args, ContractHash, RuntimeArgs, U512};
 
     const ENTRY_POINT_STORAGE_UNLOCK_TOKEN: &str = "unlock_token";
     const ARG_TOKEN_ID: &str = "token_id";
@@ -174,32 +158,24 @@ pub mod storage {
         storage_contract: ContractHash,
         token_id: TokenIdentifier,
         to: AccountHash,
-    ) -> Result<bool, bool> {
-        let call_result = match token_id {
-            TokenIdentifier::Index(token_idx) => runtime::call_contract::<Result<bool, bool>>(
+    ) {
+        match token_id {
+            TokenIdentifier::Index(token_idx) => runtime::call_contract::<U512>(
                 storage_contract,
-                ENTRY_POINT_STORAGE_UNLOCK_TOKEN, runtime_args! {
+                ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
+                runtime_args! {
                     ARG_TOKEN_ID => token_idx,
                     ARG_TO => to
                 },
             ),
-            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<Result<bool, bool>>(
+            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<U512>(
                 storage_contract,
-                ENTRY_POINT_STORAGE_UNLOCK_TOKEN, runtime_args! {
+                ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
+                runtime_args! {
                     ARG_TOKEN_ID => token_hash,
                     ARG_TO => to
                 },
             ),
         };
-        match call_result {
-            Ok(_) => {
-                // Successful call
-                Ok(true)
-            }
-            Err(_) => {
-                // Handle error gracefully
-                Err(false)
-            }
-        }
     }
 }

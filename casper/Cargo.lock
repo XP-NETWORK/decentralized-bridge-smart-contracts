@@ -162,7 +162,6 @@ version = "1.3.0"
 dependencies = [
  "casper-contract",
  "casper-types",
- "hex",
 ]
 
 [[package]]
