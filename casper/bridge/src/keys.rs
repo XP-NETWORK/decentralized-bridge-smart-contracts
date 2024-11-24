@@ -1,3 +1,6 @@
+pub const ARG_DATA_HASH: &str = "data_hash_arg";
+pub const ARG_DATA_TYPE: &str = "data_type_arg";
+pub const ARG_SIGNATURES: &str = "signatures_arg";
 // RUNTIME ARGS INITIALIZE
 pub const ARG_VALIDATOR: &str = "bootstrap_validator_arg";
 pub const ARG_CHAIN_TYPE: &str = "chain_type_arg";
@@ -11,7 +14,6 @@ pub const ARG_CLAIM_FEE: &str = "claim_fee_arg";
 
 // RUNTIME ARGS ADD VALIDATOR
 pub const ARG_NEW_VALIDATOR_PUBLIC_KEY: &str = "new_validator_public_key_arg";
-pub const ARG_SIGNATURES: &str = "signatures_arg";
 
 // RUNTIME ARGS BLACKLIST VALIDATOR
 pub const ARG_VALIDATOR_PUBLIC_KEY: &str = "validator_public_key_arg";
@@ -70,3 +72,4 @@ pub const KEY_ORIGINAL_TO_DUPLICATE_DICT: &str = "original_to_duplicate_dict";
 pub const KEY_DUPLICATE_TO_ORIGINAL_DICT: &str = "duplicate_to_original_dict";
 pub const KEY_ORIGINAL_STORAGE_DICT: &str = "original_storage_dict";
 pub const KEY_DUPLICATE_STORAGE_DICT: &str = "duplicate_storage_dict";
+pub const KEY_SUBMITTED_SIGNATURES_DICT: &str = "submitted_signatures_dict";

@@ -174,13 +174,23 @@ pub enum BridgeError {
     InvalidTypeErc721Ref, // 107
 
     ClaimDataConversionError, // 108
-    Gando,                    // 109
-    Gando1,                   // 110
-    Gando2,                   // 111
-    Gando3,                   // 112
-    Gando4,                   // 113
-    NoPurse,                  // 114
-    NoClaimInfoFound,         // 115
+    NoClaimInfoFound,         // 109
+    InvalidBridgeState1,      // 110
+    InvalidBridgeState2,      // 111
+    InvalidBridgeState3,      // 112
+
+    MissingSubmittedSignaturesDictRef, // 113
+    InvalidSubmittedSignaturesDictRef, // 114
+    MoreSignaturesNeeded,              // 115
+
+    MissingArgumentDataHash, // 116
+    InvalidArgumentDataHash, // 117
+
+    MissingArgumentDataType, // 118
+    InvalidArgumentDataType, // 119
+
+    InvalidDataType, // 120
+    NothingFound,    // 121
 }
 
 impl From<BridgeError> for ApiError {

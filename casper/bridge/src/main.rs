@@ -12,7 +12,6 @@ mod events;
 mod keys;
 mod structs;
 mod utils;
-
 use core::convert::TryInto;
 
 // Importing Rust types.
@@ -39,7 +38,8 @@ use crate::events::{
     BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked, RewardValidator, UnLock,
 };
 use crate::structs::{
-    ClaimData, DuplicateToOriginalContractInfo, OriginalToDuplicateContractInfo, Receiver,
+    ClaimData, DataType, DoneInfo, DuplicateToOriginalContractInfo,
+    OriginalToDuplicateContractInfo, Receiver, Sigs,
 };
 use casper_types::account::AccountHash;
 use casper_types::{
@@ -56,8 +56,6 @@ use events::AddNewValidator;
 use keys::*;
 use sha2::{Digest, Sha256, Sha512};
 use structs::Validator;
-
-type Sigs = (CPublicKey, [u8; 64]);
 
 pub fn get_service_acc_hash() -> AccountHash {
     let service_ref = utils::get_uref(
@@ -95,12 +93,92 @@ fn matches_current_chain(destination_chain: String, self_chain: String) {
         runtime::revert(BridgeError::InvalidDestinationChain);
     }
 }
-/// Ed25519 Signature verification logic.
-fn verify_signatures(data: Vec<u8>, signatures: Vec<Sigs>) -> Vec<CPublicKey> {
+
+fn save_done_info(data: (Vec<Sigs>, DoneInfo), ss_key: &str) {
+    let submitted_signatures_dict_ref = utils::get_uref(
+        KEY_SUBMITTED_SIGNATURES_DICT,
+        BridgeError::MissingSubmittedSignaturesDictRef,
+        BridgeError::InvalidSubmittedSignaturesDictRef,
+    );
+
+    storage::dictionary_put(submitted_signatures_dict_ref, ss_key, data);
+}
+fn get_done_info(data: Vec<u8>) -> (Vec<Sigs>, DoneInfo, String) {
+    let mut hasher = Sha256::new();
+    hasher.update(data.clone());
+    let hash = hasher.finalize();
+    let binding = hex::encode(hash);
+    let ss_key = binding.as_str();
+
+    let submitted_signatures_dict_ref = utils::get_uref(
+        KEY_SUBMITTED_SIGNATURES_DICT,
+        BridgeError::MissingSubmittedSignaturesDictRef,
+        BridgeError::InvalidSubmittedSignaturesDictRef,
+    );
+
+    let submitted_signatures_data =
+        storage::dictionary_get::<(Vec<Sigs>, DoneInfo)>(submitted_signatures_dict_ref, ss_key)
+            .unwrap_or_revert_with(BridgeError::NothingFound)
+            .unwrap_or_revert_with(BridgeError::NothingFound);
+
+    (
+        submitted_signatures_data.0,
+        submitted_signatures_data.1,
+        ss_key.to_string(),
+    )
+}
+fn submit_sigs(data: Vec<u8>, data_type: DataType, signatures: Vec<Sigs>) {
+    let mut hasher = Sha256::new();
+    hasher.update(data.clone());
+    let hash = hasher.finalize();
+    let binding = hex::encode(hash);
+    let key = binding.as_str();
+
+    let submitted_signatures_dict_ref = utils::get_uref(
+        KEY_SUBMITTED_SIGNATURES_DICT,
+        BridgeError::MissingSubmittedSignaturesDictRef,
+        BridgeError::InvalidSubmittedSignaturesDictRef,
+    );
+
+    let existing_signatures_option =
+        storage::dictionary_get::<(Vec<Sigs>, DoneInfo)>(submitted_signatures_dict_ref, key)
+            .unwrap_or(None);
+
+    verify_signatures(
+        data,
+        data_type,
+        signatures,
+        existing_signatures_option,
+        submitted_signatures_dict_ref,
+        key,
+    );
+}
+fn verify_signatures(
+    data: Vec<u8>,
+    data_type: DataType,
+    signatures: Vec<Sigs>,
+    existing_signatures_option: Option<(Vec<Sigs>, DoneInfo)>,
+    submitted_signatures_dict_ref: URef,
+    ss_key: &str,
+) {
     let mut percentage: u64 = 0;
 
-    let mut validators_to_reward: Vec<CPublicKey> = vec![];
     let mut uv: Vec<CPublicKey> = [].to_vec();
+    let mut valid_signatures: Vec<Sigs> = vec![];
+
+    let mut done_info = DoneInfo {
+        done: false,
+        can_do: false,
+        data_type,
+    };
+    match existing_signatures_option {
+        Some(v) => {
+            done_info = v.1;
+            valid_signatures = v.0.clone();
+            percentage = v.0.len() as u64;
+        }
+        None => {}
+    }
 
     let validators_dict_ref = utils::get_uref(
         KEY_VALIDATORS_DICT,
@@ -108,9 +186,11 @@ fn verify_signatures(data: Vec<u8>, signatures: Vec<Sigs>) -> Vec<CPublicKey> {
         BridgeError::InvalidValidatorsDictRef,
     );
 
+    // HASH FOR SIGNATURE VERIFICATION START
     let mut hasher = Sha512::new();
     hasher.update(data);
     let hash = hasher.finalize();
+    // HASH FOR SIGNATURE VERIFICATION END
 
     for arg in signatures.into_iter() {
         let key = arg
@@ -144,9 +224,11 @@ fn verify_signatures(data: Vec<u8>, signatures: Vec<Sigs>) -> Vec<CPublicKey> {
             match validator_exists {
                 Some(v) => {
                     if v.added && !uv.contains(&arg.0) {
-                        percentage = percentage + 1;
-                        uv.push(arg.0.clone());
-                        validators_to_reward.push(arg.0);
+                        if !valid_signatures.contains(&(arg.0.clone(), arg.1)) {
+                            percentage = percentage + 1;
+                            valid_signatures.push((arg.0.clone(), arg.1));
+                        }
+                        uv.push(arg.0);
                     }
                 }
                 None => {}
@@ -161,9 +243,20 @@ fn verify_signatures(data: Vec<u8>, signatures: Vec<Sigs>) -> Vec<CPublicKey> {
     let validators_count: u64 = storage::read_or_revert(validators_count_ref);
 
     if percentage >= (((validators_count * 2) / 3) + 1) {
-        validators_to_reward
+        done_info.can_do = true;
+        storage::dictionary_put(
+            submitted_signatures_dict_ref,
+            ss_key,
+            (valid_signatures, done_info),
+        );
     } else {
-        runtime::revert(BridgeError::ThresholdNotReached);
+        done_info.can_do = false;
+        storage::dictionary_put(
+            submitted_signatures_dict_ref,
+            ss_key,
+            (valid_signatures, done_info),
+        );
+        // runtime::revert(BridgeError::ThresholdNotReached);
     }
 }
 fn check_storage(
@@ -373,6 +466,10 @@ pub extern "C" fn init() {
     storage::new_dictionary(KEY_DUPLICATE_STORAGE_DICT)
         .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
 
+    // INITIALIZING DUPLICATE STORAGE DICT
+    storage::new_dictionary(KEY_SUBMITTED_SIGNATURES_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+
     utils::init_events();
 }
 #[no_mangle]
@@ -381,13 +478,6 @@ pub extern "C" fn add_validator() {
         ARG_NEW_VALIDATOR_PUBLIC_KEY,
         BridgeError::MissingArgumentNewValidator,
         BridgeError::InvalidArgumentNewValidator,
-    )
-    .unwrap_or_revert();
-
-    let signatures: Vec<Sigs> = utils::get_named_arg_with_user_errors(
-        ARG_SIGNATURES,
-        BridgeError::MissingArgumentSignatures,
-        BridgeError::InvalidArgumentSignatures,
     )
     .unwrap_or_revert();
 
@@ -405,27 +495,29 @@ pub extern "C" fn add_validator() {
         .cloned()
         .collect::<Vec<u8>>();
 
-    verify_signatures(data, signatures);
+    let res = verify_signatures(data, signatures);
 
-    let validators_count_ref = utils::get_uref(
-        KEY_VALIDATORS_COUNT,
-        BridgeError::MissingValidatorsCountRef,
-        BridgeError::InvalidValidatorsCountRef,
-    );
-    let validators_count: u64 = storage::read_or_revert(validators_count_ref);
+    if res.len() > 0 {
+        let validators_count_ref = utils::get_uref(
+            KEY_VALIDATORS_COUNT,
+            BridgeError::MissingValidatorsCountRef,
+            BridgeError::InvalidValidatorsCountRef,
+        );
+        let validators_count: u64 = storage::read_or_revert(validators_count_ref);
 
-    storage::dictionary_put(
-        validators_dict_ref,
-        &new_validator_public_key.to_string(),
-        Validator {
-            added: true,
-            pending_rewards: U512::from(0),
-        },
-    );
+        storage::dictionary_put(
+            validators_dict_ref,
+            &new_validator_public_key.to_string(),
+            Validator {
+                added: true,
+                pending_rewards: U512::from(0),
+            },
+        );
 
-    storage::write(validators_count_ref, validators_count + 1);
+        storage::write(validators_count_ref, validators_count + 1);
 
-    casper_event_standard::emit(AddNewValidator::new(new_validator_public_key));
+        casper_event_standard::emit(AddNewValidator::new(new_validator_public_key));
+    }
 }
 #[no_mangle]
 pub extern "C" fn blacklist_validator() {
@@ -478,29 +570,31 @@ pub extern "C" fn blacklist_validator() {
         .cloned()
         .collect::<Vec<u8>>();
 
-    verify_signatures(data, signatures);
+    let res = verify_signatures(data, signatures);
 
-    let validators_count_ref = utils::get_uref(
-        KEY_VALIDATORS_COUNT,
-        BridgeError::MissingValidatorsCountRef,
-        BridgeError::InvalidValidatorsCountRef,
-    );
-    let validators_count: u64 = storage::read_or_revert(validators_count_ref);
+    if res.len() > 0 {
+        let validators_count_ref = utils::get_uref(
+            KEY_VALIDATORS_COUNT,
+            BridgeError::MissingValidatorsCountRef,
+            BridgeError::InvalidValidatorsCountRef,
+        );
+        let validators_count: u64 = storage::read_or_revert(validators_count_ref);
 
-    storage::dictionary_put(
-        validators_dict_ref,
-        &validator_public_key.to_string(),
-        Option::<String>::None,
-    );
+        storage::dictionary_put(
+            validators_dict_ref,
+            &validator_public_key.to_string(),
+            Option::<String>::None,
+        );
 
-    storage::dictionary_put(
-        blacklist_validators_dict_ref,
-        &validator_public_key.to_string(),
-        true,
-    );
-    storage::write(validators_count_ref, validators_count - 1);
+        storage::dictionary_put(
+            blacklist_validators_dict_ref,
+            &validator_public_key.to_string(),
+            true,
+        );
+        storage::write(validators_count_ref, validators_count - 1);
 
-    casper_event_standard::emit(BlackListValidator::new(validator_public_key));
+        casper_event_standard::emit(BlackListValidator::new(validator_public_key));
+    }
 }
 #[no_mangle]
 pub extern "C" fn claim_reward_validator() {
@@ -1032,13 +1126,6 @@ pub extern "C" fn claim() {
     )
     .unwrap_or_revert();
 
-    let signatures: Vec<Sigs> = utils::get_named_arg_with_user_errors(
-        ARG_SIGNATURES,
-        BridgeError::MissingArgumentSignatures,
-        BridgeError::InvalidArgumentSignatures,
-    )
-    .unwrap_or_revert();
-
     let sender_purse: URef = utils::get_named_arg_with_user_errors(
         ARG_SENDER_PURSE,
         BridgeError::MissingArgumentSenderPurse,
@@ -1097,62 +1184,42 @@ pub extern "C" fn claim() {
         BridgeError::MissingChainTypeRef,
         BridgeError::InvalidChainTypeRef,
     );
-
     let self_chain: String = storage::read_or_revert(self_chain_ref);
+    matches_current_chain(data.destination_chain.clone(), self_chain.clone());
 
     let nft_type_ref = utils::get_uref(
         KEY_TYPE_ERC721,
         BridgeError::MissingTypeErc721Ref,
         BridgeError::InvalidTypeErc721Ref,
     );
-
     let self_nft_type: String = storage::read_or_revert(nft_type_ref);
-
-    matches_current_chain(data.destination_chain.clone(), self_chain.clone());
-
     if data.nft_type != self_nft_type {
         runtime::revert(BridgeError::InvalidNftType);
     }
-
-    let mut hasher = Sha256::new();
 
     let claim_data_vec = data
         .to_bytes()
         .unwrap_or_revert_with(BridgeError::ClaimDataConversionError);
 
-    hasher.update(claim_data_vec);
+    let mut submitted_sigs_data = get_done_info(claim_data_vec);
 
-    let hash = hasher.finalize();
+    let validators_to_rewards = submitted_sigs_data
+        .clone()
+        .0
+        .into_iter()
+        .map(|(first, _)| first)
+        .collect::<Vec<_>>();
+    let mut done_info = submitted_sigs_data.clone().1;
 
-    let binding = hex::encode(hash);
-
-    let unique_key = binding.as_str();
-
-    let unique_identifiers_dict_ref = utils::get_uref(
-        KEY_UNIQUE_IDENTIFIERS_DICT,
-        BridgeError::MissingUniqueIdentifiersDictRef,
-        BridgeError::InvalidUniqueIdentifiersDictRef,
-    );
-
-    let mut unique_identifiers = (false, false);
-    let unique_identifiers_option =
-        storage::dictionary_get::<(bool, bool)>(unique_identifiers_dict_ref, unique_key)
-            .unwrap_or(None);
-
-    match unique_identifiers_option {
-        Some(v) => {
-            unique_identifiers = v;
-        }
-        None => {}
-    }
-
-    if unique_identifiers.0 && unique_identifiers.1 {
+    if done_info.done && done_info.data_type == DataType::Claim {
         runtime::revert(BridgeError::DataAlreadyProcessed);
     }
-    if !unique_identifiers.0 && !unique_identifiers.1 {
-        let validators_to_rewards = verify_signatures(data.to_bytes().unwrap(), signatures);
-        transfer_tx_fees(claim_fee, sender_purse, Receiver::Bridge);
+    if !done_info.done && done_info.can_do {
         reward_validators(data.fee, validators_to_rewards);
+        transfer_tx_fees(claim_fee, sender_purse, Receiver::Bridge);
+    }
+    if !done_info.can_do {
+        runtime::revert(BridgeError::MoreSignaturesNeeded);
     }
 
     let original_to_duplicate_dict_ref = utils::get_uref(
@@ -1162,19 +1229,12 @@ pub extern "C" fn claim() {
     );
 
     let mut data_key = data.source_nft_contract_address.to_bytes().unwrap();
-
     let source_chain_b = data.source_chain.to_bytes().unwrap();
-
     data_key.extend(source_chain_b);
-
     let mut hasher = Sha256::new();
-
     hasher.update(data_key);
-
     let hash = hasher.finalize();
-
     let binding = hex::encode(hash);
-
     let otd_key = binding.as_str();
 
     let duplicate_collection_address_option = storage::dictionary_get::<
@@ -1212,13 +1272,9 @@ pub extern "C" fn claim() {
             data_key.extend(self_chain_b);
 
             let mut hasher = Sha256::new();
-
             hasher.update(data_key);
-
             let hash = hasher.finalize();
-
             let binding = hex::encode(hash);
-
             let ds_key = binding.as_str();
 
             storage_contract_option =
@@ -1266,7 +1322,9 @@ pub extern "C" fn claim() {
                 TokenIdentifier::Hash(data.token_id.clone()),
                 data.destination_user_address,
             );
-            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
+            submitted_sigs_data.1.done = true;
+            save_done_info(submitted_sigs_data);
+            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, unique_identifiers);
 
             casper_event_standard::emit(UnLock::new(
                 data.destination_user_address.to_string(),
@@ -1282,12 +1340,17 @@ pub extern "C" fn claim() {
             ));
         } else {
             // MINT NFT
+            register(
+                duplicate_collection_address.contract_address,
+                Key::from(data.destination_user_address),
+            );
             mint(
                 duplicate_collection_address.contract_address,
                 Key::from(data.destination_user_address),
                 data.metadata,
             );
-            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
+            unique_identifiers.done = true;
+            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, unique_identifiers);
             casper_event_standard::emit(Claimed::new(
                 data.lock_tx_chain,
                 data.source_chain,
@@ -1300,12 +1363,17 @@ pub extern "C" fn claim() {
     // ===============================/ hasDuplicate && NOT hasStorage /=======================
     else if has_duplicate && !has_storage {
         // MINT NFT
+        register(
+            duplicate_collection_address.contract_address,
+            Key::from(data.destination_user_address),
+        );
         mint(
             duplicate_collection_address.contract_address,
             Key::from(data.destination_user_address),
             data.metadata,
         );
-        storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
+        unique_identifiers.done = true;
+        storage::dictionary_put(unique_identifiers_dict_ref, unique_key, unique_identifiers);
         casper_event_standard::emit(Claimed::new(
             data.lock_tx_chain,
             data.source_chain,
@@ -1316,7 +1384,8 @@ pub extern "C" fn claim() {
     }
     // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
     else if !has_duplicate && !has_storage {
-        storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, false));
+        unique_identifiers.done = true;
+        storage::dictionary_put(unique_identifiers_dict_ref, unique_key, unique_identifiers);
         casper_event_standard::emit(DeployCollection::new(
             TokenIdentifier::Hash(data.token_id),
             data.source_chain,
@@ -1348,7 +1417,8 @@ pub extern "C" fn claim() {
                 TokenIdentifier::Hash(data.token_id.clone()),
                 data.destination_user_address,
             );
-            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
+            unique_identifiers.done = true;
+            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, unique_identifiers);
             casper_event_standard::emit(UnLock::new(
                 data.destination_user_address.to_string(),
                 data.token_id.clone(),
@@ -1521,35 +1591,26 @@ pub extern "C" fn update_collection_process_claim() {
         BridgeError::MissingChainTypeRef,
         BridgeError::InvalidChainTypeRef,
     );
-
     let self_chain: String = storage::read_or_revert(self_chain_ref);
+    matches_current_chain(data.destination_chain.clone(), self_chain.clone());
 
     let nft_type_ref = utils::get_uref(
         KEY_TYPE_ERC721,
         BridgeError::MissingTypeErc721Ref,
         BridgeError::InvalidTypeErc721Ref,
     );
-
     let self_nft_type: String = storage::read_or_revert(nft_type_ref);
-
-    matches_current_chain(data.destination_chain.clone(), self_chain.clone());
-
     if data.nft_type != self_nft_type {
         runtime::revert(BridgeError::InvalidNftType);
     }
 
-    let mut hasher = Sha256::new();
-
     let claim_data_vec = data
         .to_bytes()
         .unwrap_or_revert_with(BridgeError::ClaimDataConversionError);
-
+    let mut hasher = Sha256::new();
     hasher.update(claim_data_vec);
-
     let hash = hasher.finalize();
-
     let binding = hex::encode(hash);
-
     let unique_key = binding.as_str();
 
     let unique_identifiers_dict_ref = utils::get_uref(
@@ -1558,9 +1619,13 @@ pub extern "C" fn update_collection_process_claim() {
         BridgeError::InvalidUniqueIdentifiersDictRef,
     );
 
-    let mut unique_identifiers = (false, false);
+    let mut unique_identifiers = UniqueIdentifiers {
+        is_unique: false,
+        done: false,
+        can_do: false,
+    };
     let unique_identifiers_option =
-        storage::dictionary_get::<(bool, bool)>(unique_identifiers_dict_ref, unique_key)
+        storage::dictionary_get::<UniqueIdentifiers>(unique_identifiers_dict_ref, unique_key)
             .unwrap_or(None);
 
     match unique_identifiers_option {
@@ -1570,11 +1635,15 @@ pub extern "C" fn update_collection_process_claim() {
         None => {}
     }
 
-    if !unique_identifiers.0 {
+    if !unique_identifiers.is_unique {
         runtime::revert(BridgeError::NoClaimInfoFound)
     }
-    if unique_identifiers.0 && unique_identifiers.1 {
+    if unique_identifiers.is_unique && unique_identifiers.done {
         runtime::revert(BridgeError::DataAlreadyProcessed);
+    }
+
+    if !unique_identifiers.can_do {
+        runtime::revert(BridgeError::MoreSignaturesNeeded);
     }
 
     let original_to_duplicate_dict_ref = utils::get_uref(
@@ -1590,19 +1659,12 @@ pub extern "C" fn update_collection_process_claim() {
     );
 
     let mut data_key = data.source_nft_contract_address.to_bytes().unwrap();
-
     let source_chain_b = data.source_chain.to_bytes().unwrap();
-
     data_key.extend(source_chain_b);
-
     let mut hasher = Sha256::new();
-
     hasher.update(data_key);
-
     let hash = hasher.finalize();
-
     let binding = hex::encode(hash);
-
     let otd_key = binding.as_str();
 
     let duplicate_collection_address_option = storage::dictionary_get::<
@@ -1610,7 +1672,7 @@ pub extern "C" fn update_collection_process_claim() {
     >(original_to_duplicate_dict_ref, otd_key)
     .unwrap_or(None);
 
-    let mut duplicate_collection_address = OriginalToDuplicateContractInfo {
+    let duplicate_collection_address = OriginalToDuplicateContractInfo {
         chain: "".to_string(),
         contract_address: Default::default(),
     };
@@ -1619,11 +1681,9 @@ pub extern "C" fn update_collection_process_claim() {
     let mut has_storage: bool = false;
 
     let storage_contract_option;
-    let mut storage_contract: ContractHash = Default::default();
 
     match duplicate_collection_address_option {
-        Some(v) => {
-            duplicate_collection_address = v;
+        Some(_v) => {
             let duplicate_storage_ref = utils::get_uref(
                 KEY_DUPLICATE_STORAGE_DICT,
                 BridgeError::MissingDSRef,
@@ -1668,8 +1728,7 @@ pub extern "C" fn update_collection_process_claim() {
     }
 
     match storage_contract_option {
-        Some(v) => {
-            storage_contract = v;
+        Some(_v) => {
             has_storage = true;
         }
         None => {}
@@ -1677,65 +1736,13 @@ pub extern "C" fn update_collection_process_claim() {
 
     // ===============================/ hasDuplicate && hasStorage /=======================
     if has_duplicate && has_storage {
-        let nft_owner = owner_of(
-            duplicate_collection_address.contract_address,
-            TokenIdentifier::Hash(data.token_id.clone()),
-        );
-
-        if nft_owner == Key::from(storage_contract) {
-            // UNLOCK NFT
-            unlock_token(
-                storage_contract,
-                TokenIdentifier::Hash(data.token_id.clone()),
-                data.destination_user_address,
-            );
-            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-
-            casper_event_standard::emit(UnLock::new(
-                data.destination_user_address.to_string(),
-                data.token_id.clone(),
-                storage_contract.to_string(),
-            ));
-            casper_event_standard::emit(Claimed::new(
-                data.lock_tx_chain,
-                data.source_chain,
-                data.transaction_hash,
-                duplicate_collection_address.contract_address.to_string(),
-                data.token_id,
-            ));
-        } else {
-            // MINT NFT
-            mint(
-                duplicate_collection_address.contract_address,
-                Key::from(data.destination_user_address),
-                data.metadata,
-            );
-            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-            casper_event_standard::emit(Claimed::new(
-                data.lock_tx_chain,
-                data.source_chain,
-                data.transaction_hash,
-                duplicate_collection_address.contract_address.to_string(),
-                data.token_id,
-            ));
-        }
+        // INVALID STATE
+        runtime::revert(BridgeError::InvalidBridgeState1);
     }
     // ===============================/ hasDuplicate && NOT hasStorage /=======================
     else if has_duplicate && !has_storage {
-        // MINT NFT
-        mint(
-            duplicate_collection_address.contract_address,
-            Key::from(data.destination_user_address),
-            data.metadata,
-        );
-        storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-        casper_event_standard::emit(Claimed::new(
-            data.lock_tx_chain,
-            data.source_chain,
-            data.transaction_hash,
-            duplicate_collection_address.contract_address.to_string(),
-            data.token_id,
-        ));
+        // INVALID STATE
+        runtime::revert(BridgeError::InvalidBridgeState2);
     }
     // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
     else if !has_duplicate && !has_storage {
@@ -1749,19 +1756,12 @@ pub extern "C" fn update_collection_process_claim() {
         );
 
         let mut data_key = collection_address.to_bytes().unwrap();
-
         let self_chain_b = self_chain.clone().to_bytes().unwrap();
-
         data_key.extend(self_chain_b);
-
         let mut hasher = Sha256::new();
-
         hasher.update(data_key);
-
         let hash = hasher.finalize();
-
         let binding = hex::encode(hash);
-
         let dto_key = binding.as_str();
 
         storage::dictionary_put(
@@ -1779,7 +1779,8 @@ pub extern "C" fn update_collection_process_claim() {
             Key::from(data.destination_user_address),
             data.metadata,
         );
-        storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
+        unique_identifiers.done = true;
+        storage::dictionary_put(unique_identifiers_dict_ref, unique_key, unique_identifiers);
         casper_event_standard::emit(Claimed::new(
             data.lock_tx_chain,
             data.source_chain,
@@ -1790,37 +1791,38 @@ pub extern "C" fn update_collection_process_claim() {
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
     else if !has_duplicate && has_storage {
-        let contract =
-            ContractHash::from_formatted_str(data.source_nft_contract_address.as_str()).unwrap();
-        let nft_owner = owner_of(contract, TokenIdentifier::Hash(data.token_id.clone()));
-
-        if nft_owner == Key::from(storage_contract) {
-            // UNLOCK NFT
-            unlock_token(
-                storage_contract,
-                TokenIdentifier::Hash(data.token_id.clone()),
-                data.destination_user_address,
-            );
-            storage::dictionary_put(unique_identifiers_dict_ref, unique_key, (true, true));
-            casper_event_standard::emit(UnLock::new(
-                data.destination_user_address.to_string(),
-                data.token_id.clone(),
-                storage_contract.to_string(),
-            ));
-            casper_event_standard::emit(Claimed::new(
-                data.lock_tx_chain,
-                data.source_chain,
-                data.transaction_hash,
-                data.source_nft_contract_address,
-                data.token_id,
-            ));
-        } else {
-            // CANT BE THERE
-            runtime::revert(BridgeError::CantBeThere);
-        }
+        // INVALID STATE
+        runtime::revert(BridgeError::InvalidBridgeState3);
     } else {
         runtime::revert(BridgeError::InvalidBridgeState);
     };
+}
+#[no_mangle]
+pub extern "C" fn submit_signatures() {
+    // RUNTIME ARGS START
+    let data_hash: [u8; 64] = utils::get_named_arg_with_user_errors(
+        ARG_DATA_HASH,
+        BridgeError::MissingArgumentDataHash,
+        BridgeError::InvalidArgumentDataHash,
+    )
+    .unwrap_or_revert();
+
+    let data_type: DataType = utils::get_named_arg_with_user_errors(
+        ARG_DATA_TYPE,
+        BridgeError::MissingArgumentDataType,
+        BridgeError::InvalidArgumentDataType,
+    )
+    .unwrap_or_revert();
+
+    let signatures: Vec<Sigs> = utils::get_named_arg_with_user_errors(
+        ARG_SIGNATURES,
+        BridgeError::MissingArgumentSignatures,
+        BridgeError::InvalidArgumentSignatures,
+    )
+    .unwrap_or_revert();
+    // RUNTIME ARGS END
+
+    submit_sigs(data_hash.to_bytes().unwrap(), data_type, signatures);
 }
 fn generate_entry_points() -> EntryPoints {
     let mut entrypoints = EntryPoints::new();
@@ -1938,13 +1940,13 @@ fn generate_entry_points() -> EntryPoints {
             Parameter::new(ARG_NFT_TYPE, CLType::String),
             Parameter::new(ARG_FEE, CLType::U512),
             Parameter::new(ARG_LOCK_TX_CHAIN, CLType::String),
-            Parameter::new(
-                ARG_SIGNATURES,
-                CLType::List(Box::new(CLType::Tuple2([
-                    Box::new(CLType::PublicKey),
-                    Box::new(CLType::ByteArray(64)),
-                ]))),
-            ),
+            // Parameter::new(
+            //     ARG_SIGNATURES,
+            //     CLType::List(Box::new(CLType::Tuple2([
+            //         Box::new(CLType::PublicKey),
+            //         Box::new(CLType::ByteArray(64)),
+            //     ]))),
+            // ),
             Parameter::new(ARG_SENDER_PURSE, CLType::URef),
             Parameter::new(ARG_AMOUNT, CLType::U512),
         ],
@@ -1978,6 +1980,24 @@ fn generate_entry_points() -> EntryPoints {
         EntryPointType::Contract,
     );
 
+    let submit_signatures = EntryPoint::new(
+        ENTRY_POINT_SUBMIT_SIGNATURES,
+        vec![
+            Parameter::new(ARG_DATA_HASH, CLType::ByteArray(64)),
+            Parameter::new(ARG_DATA_TYPE, CLType::U8),
+            Parameter::new(
+                ARG_SIGNATURES,
+                CLType::List(Box::new(CLType::Tuple2([
+                    Box::new(CLType::PublicKey),
+                    Box::new(CLType::ByteArray(64)),
+                ]))),
+            ),
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    );
+
     entrypoints.add_entry_point(init);
     entrypoints.add_entry_point(add_validator);
     entrypoints.add_entry_point(blacklist_validator);
@@ -1986,6 +2006,7 @@ fn generate_entry_points() -> EntryPoints {
     entrypoints.add_entry_point(update_storage_and_process_lock);
     entrypoints.add_entry_point(claim);
     entrypoints.add_entry_point(update_collection_process_claim);
+    entrypoints.add_entry_point(submit_signatures);
     entrypoints
 }
 fn install_bridge() {
