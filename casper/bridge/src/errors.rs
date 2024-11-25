@@ -189,8 +189,10 @@ pub enum BridgeError {
     MissingArgumentDataType, // 118
     InvalidArgumentDataType, // 119
 
-    InvalidDataType, // 120
-    NothingFound,    // 121
+    InvalidDataType,       // 120
+    NoSignaturesSubmitted, // 121
+
+    ValidatorAlreadyExists, // 122
 }
 
 impl From<BridgeError> for ApiError {

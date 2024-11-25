@@ -8,14 +8,12 @@ compile_error!("target arch should be wasm32: compile with '--target wasm32-unkn
 extern crate alloc;
 use crate::errors::ClaimError;
 use alloc::string::String;
-use alloc::vec::Vec;
 use casper_contract::contract_api::account;
 use casper_contract::contract_api::system::{create_purse, transfer_from_purse_to_purse};
 use casper_contract::{contract_api::runtime, unwrap_or_revert::UnwrapOrRevert};
 use casper_types::account::AccountHash;
-use casper_types::{runtime_args, ContractHash, PublicKey as CPublicKey, RuntimeArgs, U512};
+use casper_types::{runtime_args, ContractHash, RuntimeArgs, U512};
 
-type Sigs = (CPublicKey, [u8; 64]);
 const ARG_BRIDGE_CONTRACT: &str = "bridge_contract";
 const ARG_TOKEN_ID: &str = "token_id_arg";
 const ARG_SOURCE_CHAIN: &str = "source_chain_arg";
@@ -32,7 +30,6 @@ const ARG_TOKEN_AMOUNT: &str = "token_amount_arg";
 const ARG_NFT_TYPE: &str = "nft_type_arg";
 const ARG_FEE: &str = "fee_arg";
 const ARG_LOCK_TX_CHAIN: &str = "lock_tx_chain_arg";
-const ARG_SIGNATURES: &str = "signatures_arg";
 const ARG_AMOUNT: &str = "amount";
 const ARG_SENDER_PURSE: &str = "sender_purse";
 fn has_correct_fee(fee: U512, msg_value: U512) {
@@ -60,7 +57,6 @@ pub extern "C" fn call() {
     let nft_type: String = runtime::get_named_arg(ARG_NFT_TYPE);
     let fee: U512 = runtime::get_named_arg(ARG_FEE);
     let lock_tx_chain: String = runtime::get_named_arg(ARG_LOCK_TX_CHAIN);
-    let signatures: Vec<Sigs> = runtime::get_named_arg(ARG_SIGNATURES);
     let amount: U512 = runtime::get_named_arg(ARG_AMOUNT);
     const ENTRY_POINT_CLAIM_NFT: &str = "claim";
 
@@ -90,7 +86,6 @@ pub extern "C" fn call() {
             ARG_NFT_TYPE => nft_type,
             ARG_FEE => fee,
             ARG_LOCK_TX_CHAIN => lock_tx_chain,
-            ARG_SIGNATURES => signatures,
             ARG_SENDER_PURSE => tw_purse,
             ARG_AMOUNT => amount
         },

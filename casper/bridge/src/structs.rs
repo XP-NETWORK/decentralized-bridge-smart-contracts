@@ -76,7 +76,7 @@ impl FromBytes for DoneInfo {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
         let (done, remainder) = bool::from_bytes(bytes)?;
         let (can_do, remainder) = bool::from_bytes(remainder)?;
-        let (data_type, bytes) = u8::from_bytes(remainder)?;
+        let (data_type, remainder) = u8::from_bytes(remainder)?;
         let data_type = DataType::try_from(data_type).map_err(|_| bytesrepr::Error::Formatting)?;
 
         Ok((
