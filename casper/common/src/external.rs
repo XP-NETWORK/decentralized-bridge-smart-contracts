@@ -148,7 +148,7 @@ pub mod storage {
     use crate::collection::TokenIdentifier;
     use casper_contract::contract_api::runtime;
     use casper_types::account::AccountHash;
-    use casper_types::{runtime_args, ContractHash, RuntimeArgs, U512};
+    use casper_types::{runtime_args, ContractHash, RuntimeArgs};
 
     const ENTRY_POINT_STORAGE_UNLOCK_TOKEN: &str = "unlock_token";
     const ARG_TOKEN_ID: &str = "token_id";
@@ -160,7 +160,7 @@ pub mod storage {
         to: AccountHash,
     ) {
         match token_id {
-            TokenIdentifier::Index(token_idx) => runtime::call_contract::<U512>(
+            TokenIdentifier::Index(token_idx) => runtime::call_contract::<()>(
                 storage_contract,
                 ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
                 runtime_args! {
@@ -168,7 +168,7 @@ pub mod storage {
                     ARG_TO => to
                 },
             ),
-            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<U512>(
+            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<()>(
                 storage_contract,
                 ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
                 runtime_args! {
