@@ -41,6 +41,7 @@ use crate::structs::{
     ClaimData, DataType, DoneInfo, DuplicateToOriginalContractInfo,
     OriginalToDuplicateContractInfo, Receiver, Sigs,
 };
+use crate::utils::encode_dictionary_item_key;
 use casper_types::account::AccountHash;
 use casper_types::{
     bytesrepr::ToBytes,
@@ -56,6 +57,7 @@ use events::AddNewValidator;
 use keys::*;
 use sha2::{Digest, Sha256};
 use structs::Validator;
+
 fn get_service_acc_hash() -> AccountHash {
     let service_ref = utils::get_uref(
         KEY_SERVICE_ADDRESS,
@@ -164,6 +166,7 @@ fn verify_signatures(
     let mut done_info = DoneInfo {
         done: false,
         can_do: false,
+        is_present: false,
         data_type,
     };
     match existing_signatures_option {
@@ -423,11 +426,11 @@ pub extern "C" fn init() {
     let validators_dict = storage::new_dictionary(KEY_VALIDATORS_DICT)
         .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
 
-    let validator_public_key = &validator.to_string();
+    let validator_key = encode_dictionary_item_key(Key::from(validator.to_account_hash()));
 
     storage::dictionary_put(
         validators_dict,
-        &validator_public_key,
+        validator_key.as_str(),
         Validator {
             added: true,
             pending_rewards: U512::from(0),
@@ -439,10 +442,6 @@ pub extern "C" fn init() {
 
     // INITIALIZING BLACKLIST VALIDATORS DICT
     storage::new_dictionary(KEY_BLACKLIST_VALIDATORS_DICT)
-        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
-
-    // INITIALIZING UNIQUE IDENTIFIERS DICT
-    storage::new_dictionary(KEY_UNIQUE_IDENTIFIERS_DICT)
         .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
 
     // INITIALIZING ORIGINAL TO DUPLICATE DICT
@@ -528,9 +527,11 @@ pub extern "C" fn add_validator() {
         );
         let validators_count: u64 = storage::read_or_revert(validators_count_ref);
 
+        let validator_key =
+            encode_dictionary_item_key(Key::from(new_validator_public_key.to_account_hash()));
         storage::dictionary_put(
             validators_dict_ref,
-            &new_validator_public_key.to_string(),
+            validator_key.as_str(),
             Validator {
                 added: true,
                 pending_rewards: U512::from(0),
@@ -615,17 +616,16 @@ pub extern "C" fn blacklist_validator() {
         );
         let validators_count: u64 = storage::read_or_revert(validators_count_ref);
 
+        let validator_key =
+            encode_dictionary_item_key(Key::from(validator_public_key.to_account_hash()));
+
         storage::dictionary_put(
             validators_dict_ref,
-            &validator_public_key.to_string(),
+            validator_key.as_str(),
             Option::<String>::None,
         );
 
-        storage::dictionary_put(
-            blacklist_validators_dict_ref,
-            &validator_public_key.to_string(),
-            true,
-        );
+        storage::dictionary_put(blacklist_validators_dict_ref, validator_key.as_str(), true);
         storage::write(validators_count_ref, validators_count - 1);
 
         submitted_sigs_data.1.done = true;
@@ -678,9 +678,12 @@ pub extern "C" fn claim_reward_validator() {
                 );
                 match res {
                     Ok(_) => {
+                        let validator_key = encode_dictionary_item_key(Key::from(
+                            validator_public_key.to_account_hash(),
+                        ));
                         storage::dictionary_put(
                             validators_dict_ref,
-                            &validator_public_key.to_string(),
+                            validator_key.as_str(),
                             Validator {
                                 added: true,
                                 pending_rewards: U512::from(0),
@@ -1172,7 +1175,7 @@ pub extern "C" fn claim() {
     );
 
     let data = ClaimData {
-        token_id,
+        token_id: token_id.clone(),
         source_chain,
         destination_chain,
         destination_user_address,
@@ -1234,8 +1237,8 @@ pub extern "C" fn claim() {
         runtime::revert(BridgeError::DataAlreadyProcessed);
     }
     if !done_info.done && done_info.can_do {
-        reward_validators(data.fee, validators_to_rewards);
         transfer_tx_fees(claim_fee, sender_purse, Receiver::Bridge);
+        reward_validators(data.fee, validators_to_rewards);
     }
     if !done_info.can_do {
         runtime::revert(BridgeError::MoreSignaturesNeeded);
@@ -1355,6 +1358,7 @@ pub extern "C" fn claim() {
             );
             mint(
                 duplicate_collection_address.contract_address,
+                token_id,
                 Key::from(data.destination_user_address),
                 data.metadata,
             );
@@ -1378,6 +1382,7 @@ pub extern "C" fn claim() {
         );
         mint(
             duplicate_collection_address.contract_address,
+            token_id,
             Key::from(data.destination_user_address),
             data.metadata,
         );
@@ -1393,7 +1398,7 @@ pub extern "C" fn claim() {
     }
     // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
     else if !has_duplicate && !has_storage {
-        submitted_sigs_data.1.done = true;
+        submitted_sigs_data.1.is_present = true;
         save_done_info(submitted_sigs_data, ss_key);
         casper_event_standard::emit(DeployCollection::new(
             TokenIdentifier::Hash(data.token_id),
@@ -1565,7 +1570,7 @@ pub extern "C" fn update_collection_process_claim() {
     // RUNTIME ARGS END
 
     let data = ClaimData {
-        token_id,
+        token_id: token_id.clone(),
         source_chain,
         destination_chain,
         destination_user_address,
@@ -1620,7 +1625,7 @@ pub extern "C" fn update_collection_process_claim() {
     let mut submitted_sigs_data = get_done_info(ss_key.clone());
     let done_info = submitted_sigs_data.clone().1;
 
-    if !done_info.can_do {
+    if !done_info.is_present {
         runtime::revert(BridgeError::NoClaimInfoFound)
     }
     if done_info.done {
@@ -1742,8 +1747,10 @@ pub extern "C" fn update_collection_process_claim() {
         );
 
         // MINT NFT
+        register(collection_address, Key::from(data.destination_user_address));
         mint(
             collection_address,
+            token_id,
             Key::from(data.destination_user_address),
             data.metadata,
         );

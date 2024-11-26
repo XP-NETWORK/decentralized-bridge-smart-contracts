@@ -67,7 +67,6 @@ pub const KEY_CLAIM_FEE: &str = "claim_fee";
 // DICTIONARIES
 pub const KEY_VALIDATORS_DICT: &str = "validators_dict";
 pub const KEY_BLACKLIST_VALIDATORS_DICT: &str = "blacklist_validators_dict";
-pub const KEY_UNIQUE_IDENTIFIERS_DICT: &str = "unique_identifiers_dict";
 pub const KEY_ORIGINAL_TO_DUPLICATE_DICT: &str = "original_to_duplicate_dict";
 pub const KEY_DUPLICATE_TO_ORIGINAL_DICT: &str = "duplicate_to_original_dict";
 pub const KEY_ORIGINAL_STORAGE_DICT: &str = "original_storage_dict";

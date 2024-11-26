@@ -1,10 +1,11 @@
 use crate::errors::BridgeError;
+use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use casper_types::account::AccountHash;
 use casper_types::bytesrepr::U8_SERIALIZED_LENGTH;
 use casper_types::{
-    bytesrepr::{self, Bytes, FromBytes, ToBytes},
+    bytesrepr::{self, FromBytes, ToBytes},
     CLType, CLTyped, ContractHash, PublicKey, U512,
 };
 use core::convert::TryFrom;
@@ -70,12 +71,14 @@ impl ToBytes for DataType {
 pub struct DoneInfo {
     pub done: bool,
     pub can_do: bool,
+    pub is_present: bool,
     pub data_type: DataType,
 }
 impl FromBytes for DoneInfo {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
         let (done, remainder) = bool::from_bytes(bytes)?;
         let (can_do, remainder) = bool::from_bytes(remainder)?;
+        let (is_present, remainder) = bool::from_bytes(remainder)?;
         let (data_type, remainder) = u8::from_bytes(remainder)?;
         let data_type = DataType::try_from(data_type).map_err(|_| bytesrepr::Error::Formatting)?;
 
@@ -83,6 +86,7 @@ impl FromBytes for DoneInfo {
             Self {
                 done,
                 can_do,
+                is_present,
                 data_type,
             },
             remainder,
@@ -94,6 +98,7 @@ impl ToBytes for DoneInfo {
         let mut result = bytesrepr::allocate_buffer(self)?;
         result.extend(self.done.to_bytes()?);
         result.extend(self.can_do.to_bytes()?);
+        result.extend(self.is_present.to_bytes()?);
 
         match self.data_type {
             DataType::Claim => {
@@ -110,7 +115,10 @@ impl ToBytes for DoneInfo {
         Ok(result)
     }
     fn serialized_length(&self) -> usize {
-        self.done.serialized_length() + self.can_do.serialized_length() + U8_SERIALIZED_LENGTH
+        self.done.serialized_length()
+            + self.can_do.serialized_length()
+            + self.is_present.serialized_length()
+            + U8_SERIALIZED_LENGTH
     }
 }
 impl CLTyped for DoneInfo {
@@ -157,73 +165,7 @@ impl ToBytes for Validator {
 }
 impl CLTyped for Validator {
     fn cl_type() -> CLType {
-        CLType::Any
-    }
-}
-
-pub struct SignerAndSignature {
-    pub public_key: PublicKey,
-    pub signature: Bytes,
-}
-impl FromBytes for SignerAndSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
-        let (public_key, remainder) = PublicKey::from_bytes(bytes)?;
-        let (signature, remainder) = Bytes::from_bytes(remainder)?;
-
-        Ok((
-            Self {
-                public_key,
-                signature,
-            },
-            remainder,
-        ))
-    }
-}
-impl ToBytes for SignerAndSignature {
-    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
-        let mut result = bytesrepr::allocate_buffer(self)?;
-        result.extend(self.public_key.to_bytes()?);
-        result.extend(self.signature.to_bytes()?);
-        Ok(result)
-    }
-
-    fn serialized_length(&self) -> usize {
-        self.public_key.serialized_length() + self.signature.serialized_length()
-    }
-}
-pub struct AddValidator {
-    pub new_validator_public_key: PublicKey,
-    pub signatures: Vec<SignerAndSignature>,
-}
-impl FromBytes for AddValidator {
-    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
-        let (new_validator_public_key, remainder) = PublicKey::from_bytes(bytes)?;
-        let (signatures, remainder) = Vec::from_bytes(remainder)?;
-
-        Ok((
-            Self {
-                new_validator_public_key,
-                signatures,
-            },
-            remainder,
-        ))
-    }
-}
-impl ToBytes for AddValidator {
-    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
-        let mut result = bytesrepr::allocate_buffer(self)?;
-        result.extend(self.new_validator_public_key.to_bytes()?);
-        result.extend(self.signatures.to_bytes()?);
-        Ok(result)
-    }
-
-    fn serialized_length(&self) -> usize {
-        self.new_validator_public_key.serialized_length() + self.signatures.serialized_length()
-    }
-}
-impl CLTyped for AddValidator {
-    fn cl_type() -> CLType {
-        CLType::Any
+        CLType::Tuple2([Box::new(CLType::Bool), Box::new(CLType::U512)])
     }
 }
 
@@ -259,7 +201,7 @@ impl ToBytes for OriginalToDuplicateContractInfo {
 }
 impl CLTyped for OriginalToDuplicateContractInfo {
     fn cl_type() -> CLType {
-        CLType::Any
+        CLType::Tuple2([Box::new(CLType::String), Box::new(CLType::Key)])
     }
 }
 
@@ -295,7 +237,7 @@ impl ToBytes for DuplicateToOriginalContractInfo {
 }
 impl CLTyped for DuplicateToOriginalContractInfo {
     fn cl_type() -> CLType {
-        CLType::Any
+        CLType::Tuple2([Box::new(CLType::String), Box::new(CLType::Key)])
     }
 }
 

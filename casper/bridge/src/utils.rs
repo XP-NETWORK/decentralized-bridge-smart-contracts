@@ -1,3 +1,4 @@
+use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use casper_contract::{
@@ -9,11 +10,14 @@ use casper_event_standard::Schemas;
 use casper_types::{
     api_error,
     bytesrepr::{self, FromBytes, ToBytes},
-    ApiError, Key, URef,
+    ApiError, ContractHash, Key, URef,
 };
 
 use crate::errors::BridgeError;
-use crate::events::{AddNewValidator, BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked, RewardValidator};
+use crate::events::{
+    AddNewValidator, BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked,
+    RewardValidator,
+};
 
 // Initializes events-related named keys and records all event schemas.
 pub fn init_events() {
@@ -131,4 +135,11 @@ pub fn get_uref(name: &str, missing: BridgeError, invalid: BridgeError) -> URef 
     let key = get_key_with_user_errors(name, missing, invalid);
     key.into_uref()
         .unwrap_or_revert_with(BridgeError::UnexpectedKeyVariant)
+}
+pub fn encode_dictionary_item_key(key: Key) -> String {
+    match key {
+        Key::Account(account_hash) => account_hash.to_string(),
+        Key::Hash(hash_addr) => ContractHash::new(hash_addr).to_string(),
+        _ => runtime::revert(BridgeError::InvalidKey),
+    }
 }

@@ -54,11 +54,12 @@ pub mod collection {
     pub const ENTRY_POINT_REGISTER_OWNER: &str = "register_owner";
     const ENTRY_POINT_OWNER_OF: &str = "owner_of";
 
-    pub fn mint(nft_contract: ContractHash, token_owner: Key, token_metadata: String) {
+    pub fn mint(nft_contract: ContractHash, tid: String, token_owner: Key, token_metadata: String) {
         let (_, _, _token_id_string) = runtime::call_contract::<(String, Key, String)>(
             nft_contract,
             ENTRY_POINT_MINT,
             runtime_args! {
+                ARG_TOKEN_HASH => tid,
                 ARG_TOKEN_OWNER => token_owner,
                 ARG_TOKEN_META_DATA => token_metadata,
             },
