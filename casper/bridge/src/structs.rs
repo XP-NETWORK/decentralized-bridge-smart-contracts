@@ -237,7 +237,7 @@ impl ToBytes for DuplicateToOriginalContractInfo {
 }
 impl CLTyped for DuplicateToOriginalContractInfo {
     fn cl_type() -> CLType {
-        CLType::Tuple2([Box::new(CLType::String), Box::new(CLType::Key)])
+        CLType::Tuple2([Box::new(CLType::String), Box::new(CLType::String)])
     }
 }
 
