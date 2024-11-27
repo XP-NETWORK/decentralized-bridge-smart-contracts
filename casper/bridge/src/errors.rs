@@ -193,7 +193,8 @@ pub enum BridgeError {
     NoSignaturesSubmitted, // 121
 
     ValidatorAlreadyExists, // 122
-    InvalidKey,             //123
+    InvalidKey,             // 123
+    Hello,                  // 124
 }
 
 impl From<BridgeError> for ApiError {

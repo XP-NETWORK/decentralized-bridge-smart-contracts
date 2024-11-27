@@ -215,8 +215,9 @@ fn verify_signatures(
         let valid = key.verify(&data, &signature);
 
         if valid.is_ok() {
+            let validator_key = encode_dictionary_item_key(Key::from(arg.0.to_account_hash()));
             let validator_exists =
-                storage::dictionary_get::<Validator>(validators_dict_ref, &arg.0.to_string())
+                storage::dictionary_get::<Validator>(validators_dict_ref, validator_key.as_str())
                     .unwrap_or(None);
 
             match validator_exists {
@@ -229,7 +230,9 @@ fn verify_signatures(
                         uv.push(arg.0);
                     }
                 }
-                None => {}
+                None => {
+                    runtime::revert(BridgeError::Hello);
+                }
             }
         }
     }
@@ -365,12 +368,14 @@ fn reward_validators(fee: U512, validators: Vec<CPublicKey>) {
     );
 
     for arg in validators {
+        let validator_key = encode_dictionary_item_key(Key::from(arg.to_account_hash()));
         let validator_option =
-            storage::dictionary_get::<Validator>(validators_dict_ref, &arg.to_string())
+            storage::dictionary_get::<Validator>(validators_dict_ref, validator_key.as_str())
                 .unwrap_or_revert_with(BridgeError::FailedToGetValidatorForReward);
         match validator_option {
             Some(mut v) => {
                 v.pending_rewards += fee_per_validator;
+                storage::dictionary_put(validators_dict_ref, validator_key.as_str(), v);
             }
             None => {
                 runtime::revert(BridgeError::FailedToGetValidatorForReward);
@@ -568,8 +573,9 @@ pub extern "C" fn blacklist_validator() {
         BridgeError::MissingBlackListValidatorsDictRef,
         BridgeError::InvalidBlackListValidatorsDictRef,
     );
-
-    storage::dictionary_get::<Validator>(validators_dict_ref, &validator_public_key.to_string())
+    let validator_key =
+        encode_dictionary_item_key(Key::from(validator_public_key.to_account_hash()));
+    storage::dictionary_get::<Validator>(validators_dict_ref, validator_key.as_str())
         .unwrap_or_revert_with(BridgeError::ValidatorNotAdded);
 
     let blacklist_exists = storage::dictionary_get::<bool>(
@@ -658,11 +664,11 @@ pub extern "C" fn claim_reward_validator() {
         BridgeError::MissingValidatorsDictRef,
         BridgeError::InvalidValidatorsDictRef,
     );
-    let validator_option = storage::dictionary_get::<Validator>(
-        validators_dict_ref,
-        &validator_public_key.to_string(),
-    )
-    .unwrap_or(None);
+    let validator_key =
+        encode_dictionary_item_key(Key::from(validator_public_key.to_account_hash()));
+    let validator_option =
+        storage::dictionary_get::<Validator>(validators_dict_ref, validator_key.as_str())
+            .unwrap_or(None);
     let rewards;
     match validator_option {
         Some(v) => {
