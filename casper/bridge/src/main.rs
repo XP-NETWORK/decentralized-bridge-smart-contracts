@@ -35,7 +35,8 @@ use casper_contract::{
 };
 // Importing specific Casper types.
 use crate::events::{
-    BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked, RewardValidator, UnLock,
+    BlackListValidator, Claimed, CollectionDeployFee, DeployCollection, DeployStorage, Locked,
+    RewardValidator, StorageDeployFee, UnLock,
 };
 use crate::structs::{
     ClaimData, DataType, DoneInfo, DuplicateToOriginalContractInfo,
@@ -192,14 +193,14 @@ fn verify_signatures(
 
     for arg in signatures.into_iter() {
         let key = arg
-            .0
+            .public_key
             .to_bytes()
             .unwrap()
             .iter()
             .skip(1)
             .cloned()
             .collect::<Vec<u8>>();
-        let sig = arg.1.to_bytes().unwrap();
+        let sig = arg.signature.to_bytes().unwrap();
 
         let signature = Signature::new(
             sig.as_slice()
@@ -215,23 +216,24 @@ fn verify_signatures(
         let valid = key.verify(&data, &signature);
 
         if valid.is_ok() {
-            let validator_key = encode_dictionary_item_key(Key::from(arg.0.to_account_hash()));
+            let validator_key =
+                encode_dictionary_item_key(Key::from(arg.public_key.to_account_hash()));
             let validator_exists =
                 storage::dictionary_get::<Validator>(validators_dict_ref, validator_key.as_str())
                     .unwrap_or(None);
 
             match validator_exists {
                 Some(v) => {
-                    if v.added && !uv.contains(&arg.0) {
-                        if !valid_signatures.contains(&(arg.0.clone(), arg.1)) {
+                    if v.added && !uv.contains(&arg.public_key) {
+                        if !valid_signatures.contains(&arg) {
                             percentage = percentage + 1;
-                            valid_signatures.push((arg.0.clone(), arg.1));
+                            valid_signatures.push(arg.clone());
                         }
-                        uv.push(arg.0);
+                        uv.push(arg.public_key);
                     }
                 }
                 None => {
-                    runtime::revert(BridgeError::Hello);
+                    // runtime::revert(BridgeError::Hello);
                 }
             }
         }
@@ -257,7 +259,6 @@ fn verify_signatures(
             ss_key,
             (valid_signatures, done_info),
         );
-        // runtime::revert(BridgeError::ThresholdNotReached);
     }
 }
 fn check_storage(
@@ -270,6 +271,7 @@ fn check_storage(
     destination_user_address: String,
     source_nft_contract_address: ContractHash,
     metadata_uri: String,
+    is_original: bool,
 ) -> bool {
     let storage_address_option =
         storage::dictionary_get::<ContractHash>(storage_dict_ref, key).unwrap_or(None);
@@ -280,7 +282,11 @@ fn check_storage(
                 v,
                 nft_sender_address_option,
                 source_nft_contract_address,
-                token_id,
+                if is_original {
+                    token_id
+                } else {
+                    TokenIdentifier::Hash(token_id.to_string())
+                },
             );
             true
         }
@@ -296,7 +302,11 @@ fn check_storage(
                     storage,
                     nft_sender_address_option,
                     source_nft_contract_address,
-                    token_id,
+                    if is_original {
+                        token_id
+                    } else {
+                        TokenIdentifier::Hash(token_id.to_string())
+                    },
                 );
                 true
             } else {
@@ -444,6 +454,15 @@ pub extern "C" fn init() {
 
     // INITIALIZING VALIDATOR COUNT
     runtime::put_key(KEY_VALIDATORS_COUNT, storage::new_uref(1u64).into());
+
+    // INITIALIZING STORAGE DEPLOY FEE NONCE
+    runtime::put_key(KEY_STORAGE_DEPLOY_FEE_NONCE, storage::new_uref(0u64).into());
+
+    // INITIALIZING COLLECTION DEPLOY FEE NONCE
+    runtime::put_key(
+        KEY_COLLECTION_DEPLOY_FEE_NONCE,
+        storage::new_uref(0u64).into(),
+    );
 
     // INITIALIZING BLACKLIST VALIDATORS DICT
     storage::new_dictionary(KEY_BLACKLIST_VALIDATORS_DICT)
@@ -708,6 +727,106 @@ pub extern "C" fn claim_reward_validator() {
         }
     }
 }
+
+#[no_mangle]
+pub extern "C" fn change_collection_deploy_fee() {
+    let collection_deploy_fee: U512 = utils::get_named_arg_with_user_errors(
+        ARG_COLLECTION_DEPLOY_FEE,
+        BridgeError::MissingArgumentCollectionDeployFee,
+        BridgeError::InvalidArgumentCollectionDeployFee,
+    )
+    .unwrap_or_revert();
+
+    let collection_deploy_fee_nonce_ref = utils::get_uref(
+        KEY_COLLECTION_DEPLOY_FEE_NONCE,
+        BridgeError::MissingCollectionDeployFeeNonceRef,
+        BridgeError::InvalidCollectionDeployFeeNonceRef,
+    );
+
+    let collection_deploy_fee_nonce: u64 = storage::read_or_revert(collection_deploy_fee_nonce_ref);
+
+    let mut data = collection_deploy_fee.to_bytes().unwrap();
+    data.extend(collection_deploy_fee_nonce.to_bytes().unwrap());
+
+    let key = create_hash_key(data);
+    let mut submitted_sigs_data = get_done_info(key.clone());
+    let done_info = submitted_sigs_data.clone().1;
+
+    if done_info.data_type != DataType::ChangeCollectionDeployFee {
+        runtime::revert(BridgeError::InvalidDataType);
+    }
+    if done_info.done {
+        runtime::revert(BridgeError::AlreadyExists);
+    }
+
+    if done_info.can_do {
+        let collection_deploy_fee_ref = utils::get_uref(
+            KEY_COLLECTION_DEPLOY_FEE,
+            BridgeError::MissingCollectionDeployFeeRef,
+            BridgeError::InvalidCollectionDeployFeeRef,
+        );
+        storage::write(collection_deploy_fee_ref, collection_deploy_fee);
+        storage::write(
+            collection_deploy_fee_nonce_ref,
+            collection_deploy_fee_nonce + 1,
+        );
+
+        submitted_sigs_data.1.done = true;
+        save_done_info(submitted_sigs_data, key);
+
+        casper_event_standard::emit(CollectionDeployFee::new(collection_deploy_fee));
+    } else {
+        runtime::revert(BridgeError::MoreSignaturesNeeded);
+    }
+}
+#[no_mangle]
+pub extern "C" fn change_storage_deploy_fee() {
+    let storage_deploy_fee: U512 = utils::get_named_arg_with_user_errors(
+        ARG_STORAGE_DEPLOY_FEE,
+        BridgeError::MissingArgumentStorageDeployFee,
+        BridgeError::InvalidArgumentStorageDeployFee,
+    )
+    .unwrap_or_revert();
+
+    let storage_deploy_fee_nonce_ref = utils::get_uref(
+        KEY_STORAGE_DEPLOY_FEE_NONCE,
+        BridgeError::MissingStorageDeployFeeNonceRef,
+        BridgeError::InvalidStorageDeployFeeNonceRef,
+    );
+
+    let storage_deploy_fee_nonce: u64 = storage::read_or_revert(storage_deploy_fee_nonce_ref);
+
+    let mut data = storage_deploy_fee.to_bytes().unwrap();
+    data.extend(storage_deploy_fee_nonce.to_bytes().unwrap());
+
+    let key = create_hash_key(data);
+    let mut submitted_sigs_data = get_done_info(key.clone());
+    let done_info = submitted_sigs_data.clone().1;
+
+    if done_info.data_type != DataType::ChangeStorageDeployFee {
+        runtime::revert(BridgeError::InvalidDataType);
+    }
+    if done_info.done {
+        runtime::revert(BridgeError::AlreadyExists);
+    }
+
+    if done_info.can_do {
+        let storage_deploy_fee_ref = utils::get_uref(
+            KEY_STORAGE_DEPLOY_FEE,
+            BridgeError::MissingStorageDeployFeeRef,
+            BridgeError::InvalidStorageDeployFeeRef,
+        );
+        storage::write(storage_deploy_fee_ref, storage_deploy_fee);
+        storage::write(storage_deploy_fee_nonce_ref, storage_deploy_fee_nonce + 1);
+
+        submitted_sigs_data.1.done = true;
+        save_done_info(submitted_sigs_data, key);
+
+        casper_event_standard::emit(StorageDeployFee::new(storage_deploy_fee));
+    } else {
+        runtime::revert(BridgeError::MoreSignaturesNeeded);
+    }
+}
 #[no_mangle]
 pub extern "C" fn lock() {
     // RUNTIME ARGS START
@@ -825,6 +944,7 @@ pub extern "C" fn lock() {
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone(),
+                false,
             );
             if !is_event {
                 // SEND MONEY TO SERVICE
@@ -861,6 +981,7 @@ pub extern "C" fn lock() {
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone(),
+                true,
             );
             if !is_event {
                 // SEND MONEY TO SERVICE
@@ -998,6 +1119,7 @@ pub extern "C" fn update_storage_and_process_lock() {
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone(),
+                false,
             );
             if is_event {
                 casper_event_standard::emit(Locked::new(
@@ -1029,6 +1151,7 @@ pub extern "C" fn update_storage_and_process_lock() {
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone(),
+                true,
             );
             if is_event {
                 casper_event_standard::emit(Locked::new(
@@ -1236,7 +1359,7 @@ pub extern "C" fn claim() {
         .clone()
         .0
         .into_iter()
-        .map(|(first, _)| first)
+        .map(|x| x.public_key)
         .collect::<Vec<_>>();
 
     if done_info.done && done_info.data_type == DataType::Claim {
@@ -1979,6 +2102,22 @@ fn generate_entry_points() -> EntryPoints {
         EntryPointType::Contract,
     );
 
+    let change_collection_deploy_fee = EntryPoint::new(
+        ENTRY_POINT_CHANGE_COLLECTION_DEPLOY_FEE,
+        vec![Parameter::new(ARG_COLLECTION_DEPLOY_FEE, CLType::U512)],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    );
+
+    let change_storage_deploy_fee = EntryPoint::new(
+        ENTRY_POINT_CHANGE_STORAGE_DEPLOY_FEE,
+        vec![Parameter::new(ARG_STORAGE_DEPLOY_FEE, CLType::U512)],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    );
+
     entrypoints.add_entry_point(init);
     entrypoints.add_entry_point(add_validator);
     entrypoints.add_entry_point(blacklist_validator);
@@ -1988,6 +2127,8 @@ fn generate_entry_points() -> EntryPoints {
     entrypoints.add_entry_point(claim);
     entrypoints.add_entry_point(update_collection_process_claim);
     entrypoints.add_entry_point(submit_signatures);
+    entrypoints.add_entry_point(change_collection_deploy_fee);
+    entrypoints.add_entry_point(change_storage_deploy_fee);
     entrypoints
 }
 fn install_bridge() {

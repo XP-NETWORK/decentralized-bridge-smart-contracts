@@ -10,13 +10,55 @@ use casper_types::{
 };
 use core::convert::TryFrom;
 
-pub type Sigs = (PublicKey, [u8; 64]);
+// pub type Sigs = (PublicKey, [u8; 64]);
+////////////////////////////////////////////////////////////////////////////////
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct Sigs {
+    pub public_key: PublicKey,
+    pub signature: [u8; 64],
+}
+impl FromBytes for Sigs {
+    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
+        let (public_key, remainder) = PublicKey::from_bytes(bytes)?;
+        let (signature, remainder) = <[u8; 64]>::from_bytes(remainder)?;
+
+        Ok((
+            Self {
+                public_key,
+                signature,
+            },
+            remainder,
+        ))
+    }
+}
+impl ToBytes for Sigs {
+    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
+        let mut result = bytesrepr::allocate_buffer(self)?;
+        result.extend(self.public_key.to_bytes()?);
+        result.extend(self.signature.to_bytes()?);
+        Ok(result)
+    }
+
+    fn serialized_length(&self) -> usize {
+        self.public_key.serialized_length() + self.signature.serialized_length()
+    }
+}
+impl CLTyped for Sigs {
+    fn cl_type() -> CLType {
+        CLType::Tuple2([Box::new(CLType::PublicKey), Box::new(CLType::ByteArray(64))])
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 #[derive(PartialEq, Eq, Clone, Debug)]
 #[repr(u8)]
 pub enum DataType {
     Claim = 0,
     AddValidator = 1,
     BlacklistValidator = 2,
+    ChangeCollectionDeployFee = 3,
+    ChangeStorageDeployFee = 4,
 }
 impl TryFrom<u8> for DataType {
     type Error = BridgeError;
@@ -26,13 +68,10 @@ impl TryFrom<u8> for DataType {
             0 => Ok(DataType::Claim),
             1 => Ok(DataType::AddValidator),
             2 => Ok(DataType::BlacklistValidator),
+            3 => Ok(DataType::ChangeCollectionDeployFee),
+            4 => Ok(DataType::ChangeStorageDeployFee),
             _ => Err(BridgeError::InvalidDataType),
         }
-    }
-}
-impl CLTyped for DataType {
-    fn cl_type() -> CLType {
-        CLType::U8
     }
 }
 impl FromBytes for DataType {
@@ -59,6 +98,12 @@ impl ToBytes for DataType {
             DataType::BlacklistValidator => {
                 result.extend((DataType::BlacklistValidator as u8).to_bytes()?);
             }
+            DataType::ChangeCollectionDeployFee => {
+                result.extend((DataType::ChangeCollectionDeployFee as u8).to_bytes()?);
+            }
+            DataType::ChangeStorageDeployFee => {
+                result.extend((DataType::ChangeStorageDeployFee as u8).to_bytes()?);
+            }
         };
         Ok(result)
     }
@@ -66,7 +111,11 @@ impl ToBytes for DataType {
         U8_SERIALIZED_LENGTH
     }
 }
-
+impl CLTyped for DataType {
+    fn cl_type() -> CLType {
+        CLType::U8
+    }
+}
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct DoneInfo {
     pub done: bool,
@@ -110,6 +159,12 @@ impl ToBytes for DoneInfo {
             DataType::BlacklistValidator => {
                 result.extend((DataType::BlacklistValidator as u8).to_bytes()?);
             }
+            DataType::ChangeCollectionDeployFee => {
+                result.extend((DataType::ChangeCollectionDeployFee as u8).to_bytes()?);
+            }
+            DataType::ChangeStorageDeployFee => {
+                result.extend((DataType::ChangeStorageDeployFee as u8).to_bytes()?);
+            }
         };
 
         Ok(result)
@@ -123,7 +178,16 @@ impl ToBytes for DoneInfo {
 }
 impl CLTyped for DoneInfo {
     fn cl_type() -> CLType {
-        CLType::Any
+        CLType::Tuple2([
+            Box::new(CLType::Tuple2([
+                Box::new(CLType::Bool),
+                Box::new(CLType::Bool),
+            ])),
+            Box::new(CLType::Tuple2([
+                Box::new(CLType::Bool),
+                Box::new(CLType::U8),
+            ])),
+        ])
     }
 }
 
@@ -133,6 +197,8 @@ pub enum Receiver {
     Service,
     Bridge,
 }
+
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Validator {
     pub added: bool,
     pub pending_rewards: U512,

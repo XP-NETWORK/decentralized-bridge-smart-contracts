@@ -15,8 +15,8 @@ use casper_types::{
 
 use crate::errors::BridgeError;
 use crate::events::{
-    AddNewValidator, BlackListValidator, Claimed, DeployCollection, DeployStorage, Locked,
-    RewardValidator,
+    AddNewValidator, BlackListValidator, Claimed, CollectionDeployFee, DeployCollection,
+    DeployStorage, Locked, RewardValidator, StorageDeployFee,
 };
 
 // Initializes events-related named keys and records all event schemas.
@@ -28,7 +28,9 @@ pub fn init_events() {
         .with::<DeployCollection>()
         .with::<Claimed>()
         .with::<BlackListValidator>()
-        .with::<RewardValidator>();
+        .with::<RewardValidator>()
+        .with::<CollectionDeployFee>()
+        .with::<StorageDeployFee>();
 
     casper_event_standard::init(schemas);
 }

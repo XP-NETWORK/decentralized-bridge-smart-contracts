@@ -194,7 +194,20 @@ pub enum BridgeError {
 
     ValidatorAlreadyExists, // 122
     InvalidKey,             // 123
-    Hello,                  // 124
+
+    MissingArgumentCollectionDeployFee, // 124
+    InvalidArgumentCollectionDeployFee, // 125
+
+    AlreadyExists, // 126
+
+    MissingCollectionDeployFeeNonceRef, // 127
+    InvalidCollectionDeployFeeNonceRef, // 128
+
+    MissingArgumentStorageDeployFee, // 129
+    InvalidArgumentStorageDeployFee, // 130
+
+    MissingStorageDeployFeeNonceRef, // 131
+    InvalidStorageDeployFeeNonceRef, // 132
 }
 
 impl From<BridgeError> for ApiError {

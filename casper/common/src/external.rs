@@ -40,6 +40,14 @@ pub mod collection {
             }
         }
     }
+    impl TokenIdentifier {
+        pub fn to_string(&self) -> String {
+            match self {
+                TokenIdentifier::Index(index) => index.to_string(),
+                TokenIdentifier::Hash(hash) => hash.clone(),
+            }
+        }
+    }
 
     const ENTRY_POINT_MINT: &str = "mint";
     const ARG_TOKEN_OWNER: &str = "token_owner";

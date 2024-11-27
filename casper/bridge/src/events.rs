@@ -1,7 +1,7 @@
 use alloc::string::{String, ToString};
 use casper_event_standard::Event;
-use casper_types::{PublicKey, U256, U512};
 use casper_types::account::AccountHash;
+use casper_types::{PublicKey, U256, U512};
 use common::collection::TokenIdentifier;
 
 #[derive(Event, Debug, PartialEq, Eq)]
@@ -49,14 +49,16 @@ pub struct Locked {
     pub metadata_uri: String,
 }
 impl Locked {
-    pub fn new(token_id: TokenIdentifier,
-               destination_chain: String,
-               destination_user_address: String,
-               source_nft_contract_address: String,
-               token_amount: U256,
-               nft_type: String,
-               source_chain: String,
-               metadata_uri: String) -> Self {
+    pub fn new(
+        token_id: TokenIdentifier,
+        destination_chain: String,
+        destination_user_address: String,
+        source_nft_contract_address: String,
+        token_amount: U256,
+        nft_type: String,
+        source_chain: String,
+        metadata_uri: String,
+    ) -> Self {
         Self {
             token_id,
             destination_chain,
@@ -76,9 +78,7 @@ pub struct UnLock {
     pub contract_address: String,
 }
 impl UnLock {
-    pub fn new(to: String,
-               token_id: String,
-               contract_address: String) -> Self {
+    pub fn new(to: String, token_id: String, contract_address: String) -> Self {
         Self {
             to,
             token_id,
@@ -95,11 +95,12 @@ pub struct Claimed {
     pub token_id: String,
 }
 impl Claimed {
-    pub fn new(lock_tx_chain: String,
-               source_chain: String,
-               transaction_hash: String,
-               nft_contract: String,
-               token_id: String,
+    pub fn new(
+        lock_tx_chain: String,
+        source_chain: String,
+        transaction_hash: String,
+        nft_contract: String,
+        token_id: String,
     ) -> Self {
         Self {
             lock_tx_chain,
@@ -191,5 +192,25 @@ impl DeployCollection {
             fee,
             lock_tx_chain,
         }
+    }
+}
+
+#[derive(Event, Debug, PartialEq, Eq)]
+pub struct CollectionDeployFee {
+    pub fee: U512,
+}
+impl CollectionDeployFee {
+    pub fn new(fee: U512) -> Self {
+        Self { fee }
+    }
+}
+
+#[derive(Event, Debug, PartialEq, Eq)]
+pub struct StorageDeployFee {
+    pub fee: U512,
+}
+impl StorageDeployFee {
+    pub fn new(fee: U512) -> Self {
+        Self { fee }
     }
 }
