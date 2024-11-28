@@ -25,7 +25,6 @@ use casper_contract::{
 };
 // Importing specific Casper types.
 use casper_types::account::AccountHash;
-use casper_types::bytesrepr::ToBytes;
 use casper_types::{
     contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
     CLType, ContractHash, Key, Parameter,

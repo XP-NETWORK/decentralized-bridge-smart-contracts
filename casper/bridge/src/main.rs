@@ -916,10 +916,13 @@ pub extern "C" fn lock() {
         BridgeError::InvalidOTDDictRef,
     );
 
-    let mut source_nft_contract_address_vec = source_nft_contract_address.to_bytes().unwrap();
     let self_chain_vec = self_chain.to_bytes().unwrap();
-    source_nft_contract_address_vec.extend(self_chain_vec.clone());
-    let key = create_hash_key(source_nft_contract_address_vec.clone());
+    let source_nft_contract_address_vec = source_nft_contract_address.to_bytes().unwrap();
+
+    let mut mut_source_nft_contract_address_vec = source_nft_contract_address_vec.clone();
+    mut_source_nft_contract_address_vec.extend(self_chain_vec.clone());
+
+    let key = create_hash_key(mut_source_nft_contract_address_vec);
 
     let original_collection_address_option = storage::dictionary_get::<
         DuplicateToOriginalContractInfo,
@@ -941,11 +944,11 @@ pub extern "C" fn lock() {
     );
 
     // 0 casper 0a234 ->  100 bsc 0x123
-    let mut token_id_vec = token_id.to_bytes().unwrap();
-    token_id_vec.extend(self_chain_vec.clone());
-    token_id_vec.extend(source_nft_contract_address_vec.clone());
+    let mut mut_token_id_vec = token_id.to_bytes().unwrap();
+    mut_token_id_vec.extend(self_chain_vec.clone());
+    mut_token_id_vec.extend(source_nft_contract_address_vec.clone());
 
-    let token_key = create_hash_key(token_id_vec);
+    let token_key = create_hash_key(mut_token_id_vec);
 
     let token_info_key_self_option =
         storage::dictionary_get::<OtherToken>(token_info_key_self_dict_ref, token_key.as_str())
@@ -1148,10 +1151,12 @@ pub extern "C" fn update_storage_and_process_lock() {
         BridgeError::InvalidOTDDictRef,
     );
 
-    let mut source_nft_contract_address_vec = source_nft_contract_address.to_bytes().unwrap();
     let self_chain_vec = self_chain.to_bytes().unwrap();
-    source_nft_contract_address_vec.extend(self_chain_vec.clone());
-    let key = create_hash_key(source_nft_contract_address_vec.clone());
+    let source_nft_contract_address_vec = source_nft_contract_address.to_bytes().unwrap();
+
+    let mut mut_source_nft_contract_address_vec = source_nft_contract_address_vec.clone();
+    mut_source_nft_contract_address_vec.extend(self_chain_vec.clone());
+    let key = create_hash_key(mut_source_nft_contract_address_vec);
 
     let original_collection_address_option = storage::dictionary_get::<
         DuplicateToOriginalContractInfo,
@@ -1173,11 +1178,11 @@ pub extern "C" fn update_storage_and_process_lock() {
     );
 
     // 0 casper 0a234 ->  100 bsc 0x123
-    let mut token_id_vec = token_id.to_bytes().unwrap(); // 0
-    token_id_vec.extend(self_chain_vec.clone()); // casper
-    token_id_vec.extend(source_nft_contract_address_vec.clone()); // 0as3212
+    let mut mut_token_id_vec = token_id.to_bytes().unwrap(); // 0
+    mut_token_id_vec.extend(self_chain_vec.clone()); // casper
+    mut_token_id_vec.extend(source_nft_contract_address_vec.clone()); // 0as3212
 
-    let token_key = create_hash_key(token_id_vec);
+    let token_key = create_hash_key(mut_token_id_vec);
 
     let token_info_key_self_option =
         storage::dictionary_get::<OtherToken>(token_info_key_self_dict_ref, token_key.as_str())
@@ -1492,10 +1497,13 @@ pub extern "C" fn claim() {
         BridgeError::InvalidOTDDictRef,
     );
 
-    let mut source_nft_contract_address_vec = data.source_nft_contract_address.to_bytes().unwrap();
+    let self_chain_vec = self_chain.to_bytes().unwrap();
     let source_chain_vec = data.source_chain.to_bytes().unwrap();
-    source_nft_contract_address_vec.extend(source_chain_vec);
-    let otd_key = create_hash_key(source_nft_contract_address_vec);
+    let source_nft_contract_address_vec = data.source_nft_contract_address.to_bytes().unwrap();
+
+    let mut mut_source_nft_contract_address_vec = source_nft_contract_address_vec.clone();
+    mut_source_nft_contract_address_vec.extend(source_chain_vec.clone());
+    let otd_key = create_hash_key(mut_source_nft_contract_address_vec);
 
     let duplicate_collection_address_option = storage::dictionary_get::<
         OriginalToDuplicateContractInfo,
@@ -1523,11 +1531,11 @@ pub extern "C" fn claim() {
     );
 
     // 0 casper 0a234 ->  100 bsc 0x123
-    let mut token_id_vec = data.token_id.to_bytes().unwrap();
-    token_id_vec.extend(data.source_chain.to_bytes().unwrap());
-    token_id_vec.extend(data.source_nft_contract_address.to_bytes().unwrap());
+    let mut mut_token_id_vec = data.token_id.to_bytes().unwrap();
+    mut_token_id_vec.extend(source_chain_vec);
+    mut_token_id_vec.extend(source_nft_contract_address_vec);
 
-    let token_key = create_hash_key(token_id_vec);
+    let token_key = create_hash_key(mut_token_id_vec);
 
     let is_token_exists =
         storage::dictionary_get::<SelfToken>(token_info_get_self_dict_ref, token_key.as_str())
@@ -1553,8 +1561,7 @@ pub extern "C" fn claim() {
                 .contract_address
                 .to_bytes()
                 .unwrap();
-            let self_chain_vec = self_chain.to_bytes().unwrap();
-            duplicate_collection_address_vec.extend(self_chain_vec);
+            duplicate_collection_address_vec.extend(self_chain_vec.clone());
             let ds_key = create_hash_key(duplicate_collection_address_vec);
 
             storage_contract_option =
@@ -1630,15 +1637,15 @@ pub extern "C" fn claim() {
                 submitted_sigs_data.1.done = true;
                 save_done_info(submitted_sigs_data, ss_key);
 
-                let mut self_token_id = minted_token_id.to_bytes().unwrap();
-                self_token_id.extend(self_chain.to_bytes().unwrap());
-                self_token_id.extend(
+                let mut mut_self_token_id = minted_token_id.to_bytes().unwrap();
+                mut_self_token_id.extend(self_chain_vec);
+                mut_self_token_id.extend(
                     duplicate_collection_address
                         .contract_address
                         .to_bytes()
                         .unwrap(),
                 );
-                let self_token_key = create_hash_key(self_token_id);
+                let self_token_key = create_hash_key(mut_self_token_id);
 
                 storage::dictionary_put(
                     token_info_key_self_dict_ref,
@@ -1691,15 +1698,15 @@ pub extern "C" fn claim() {
         submitted_sigs_data.1.done = true;
         save_done_info(submitted_sigs_data, ss_key);
 
-        let mut self_token_id = minted_token_id.to_bytes().unwrap();
-        self_token_id.extend(self_chain.to_bytes().unwrap());
-        self_token_id.extend(
+        let mut mut_self_token_id = minted_token_id.to_bytes().unwrap();
+        mut_self_token_id.extend(self_chain_vec);
+        mut_self_token_id.extend(
             duplicate_collection_address
                 .contract_address
                 .to_bytes()
                 .unwrap(),
         );
-        let self_token_key = create_hash_key(self_token_id);
+        let self_token_key = create_hash_key(mut_self_token_id);
         storage::dictionary_put(
             token_info_key_self_dict_ref,
             self_token_key.as_str(),
@@ -1986,10 +1993,13 @@ pub extern "C" fn update_collection_process_claim() {
         BridgeError::InvalidDTODictRef,
     );
 
-    let mut source_nft_contract_address_vec = data.source_nft_contract_address.to_bytes().unwrap();
+    let self_chain_vec = self_chain.to_bytes().unwrap();
     let source_chain_vec = data.source_chain.to_bytes().unwrap();
-    source_nft_contract_address_vec.extend(source_chain_vec);
-    let otd_key = create_hash_key(source_nft_contract_address_vec);
+    let source_nft_contract_address_vec = data.source_nft_contract_address.to_bytes().unwrap();
+
+    let mut mut_source_nft_contract_address_vec = source_nft_contract_address_vec.clone();
+    mut_source_nft_contract_address_vec.extend(source_chain_vec.clone());
+    let otd_key = create_hash_key(mut_source_nft_contract_address_vec);
 
     let duplicate_collection_address_option = storage::dictionary_get::<
         OriginalToDuplicateContractInfo,
@@ -2017,11 +2027,11 @@ pub extern "C" fn update_collection_process_claim() {
     );
 
     // 0 casper 0a234 ->  100 bsc 0x123
-    let mut token_id_vec = data.token_id.to_bytes().unwrap();
-    token_id_vec.extend(data.source_chain.to_bytes().unwrap());
-    token_id_vec.extend(data.source_nft_contract_address.to_bytes().unwrap());
+    let mut mut_token_id_vec = data.token_id.to_bytes().unwrap();
+    mut_token_id_vec.extend(source_chain_vec);
+    mut_token_id_vec.extend(source_nft_contract_address_vec);
 
-    let token_key = create_hash_key(token_id_vec);
+    let token_key = create_hash_key(mut_token_id_vec);
 
     // let token_info_get_self_option =
     //     storage::dictionary_get::<Token>(token_info_get_self_dict_ref, token_key.as_str())
@@ -2045,8 +2055,7 @@ pub extern "C" fn update_collection_process_claim() {
                 .contract_address
                 .to_bytes()
                 .unwrap();
-            let self_chain_vec = self_chain.to_bytes().unwrap();
-            duplicate_collection_address_vec.extend(self_chain_vec);
+            duplicate_collection_address_vec.extend(self_chain_vec.clone());
             let ds_key = create_hash_key(duplicate_collection_address_vec);
 
             storage_contract_option =
@@ -2095,10 +2104,9 @@ pub extern "C" fn update_collection_process_claim() {
             },
         );
 
-        let mut collection_address_vec = collection_address.to_bytes().unwrap();
-        let self_chain_vec = self_chain.clone().to_bytes().unwrap();
-        collection_address_vec.extend(self_chain_vec);
-        let dto_key = create_hash_key(collection_address_vec);
+        let mut mut_collection_address_vec = collection_address.to_bytes().unwrap();
+        mut_collection_address_vec.extend(self_chain_vec.clone());
+        let dto_key = create_hash_key(mut_collection_address_vec);
 
         storage::dictionary_put(
             duplicate_to_original_dict_ref,
@@ -2119,10 +2127,10 @@ pub extern "C" fn update_collection_process_claim() {
         submitted_sigs_data.1.done = true;
         save_done_info(submitted_sigs_data, ss_key);
 
-        let mut self_token_id = minted_token_id.to_bytes().unwrap();
-        self_token_id.extend(self_chain.to_bytes().unwrap());
-        self_token_id.extend(collection_address.to_bytes().unwrap());
-        let self_token_key = create_hash_key(self_token_id);
+        let mut mut_self_token_id = minted_token_id.to_bytes().unwrap();
+        mut_self_token_id.extend(self_chain_vec);
+        mut_self_token_id.extend(collection_address.to_bytes().unwrap());
+        let self_token_key = create_hash_key(mut_self_token_id);
         storage::dictionary_put(
             token_info_key_self_dict_ref,
             self_token_key.as_str(),
