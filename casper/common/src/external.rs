@@ -62,16 +62,17 @@ pub mod collection {
     pub const ENTRY_POINT_REGISTER_OWNER: &str = "register_owner";
     const ENTRY_POINT_OWNER_OF: &str = "owner_of";
 
-    pub fn mint(nft_contract: ContractHash, tid: String, token_owner: Key, token_metadata: String) {
-        let (_, _, _token_id_string) = runtime::call_contract::<(String, Key, String)>(
+    pub fn mint(nft_contract: ContractHash, token_owner: Key, token_metadata: String) -> String {
+        let (_, _, token_id_string) = runtime::call_contract::<(String, Key, String)>(
             nft_contract,
             ENTRY_POINT_MINT,
             runtime_args! {
-                ARG_TOKEN_HASH => tid,
+                // ARG_TOKEN_HASH => tid,
                 ARG_TOKEN_OWNER => token_owner,
                 ARG_TOKEN_META_DATA => token_metadata,
             },
         );
+        token_id_string
     }
 
     // pub fn _metadata(nft_contract: ContractHash, tid: TokenIdentifier) -> String {
@@ -160,7 +161,7 @@ pub mod storage {
     use casper_types::{runtime_args, ContractHash, RuntimeArgs};
 
     const ENTRY_POINT_STORAGE_UNLOCK_TOKEN: &str = "unlock_token";
-    const ARG_TOKEN_ID: &str = "token_id";
+    const ARG_TOKEN_ID: &str = "token_id_arg";
     const ARG_TO: &str = "to_arg";
 
     pub fn unlock_token(
@@ -168,23 +169,13 @@ pub mod storage {
         token_id: TokenIdentifier,
         to: AccountHash,
     ) {
-        match token_id {
-            TokenIdentifier::Index(token_idx) => runtime::call_contract::<()>(
-                storage_contract,
-                ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
-                runtime_args! {
-                    ARG_TOKEN_ID => token_idx,
-                    ARG_TO => to
-                },
-            ),
-            TokenIdentifier::Hash(token_hash) => runtime::call_contract::<()>(
-                storage_contract,
-                ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
-                runtime_args! {
-                    ARG_TOKEN_ID => token_hash,
-                    ARG_TO => to
-                },
-            ),
-        };
+        runtime::call_contract::<()>(
+            storage_contract,
+            ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
+            runtime_args! {
+                ARG_TOKEN_ID => token_id.to_string(),
+                ARG_TO => to
+            },
+        )
     }
 }

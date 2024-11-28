@@ -5,8 +5,8 @@ use casper_types::ApiError;
 pub enum StorageError {
     AlreadyInitialized, // 0
 
-    MissingArgumentCollection,  // 1
-    InvalidArgumentCollection,  // 2
+    MissingArgumentCollection, // 1
+    InvalidArgumentCollection, // 2
 
     MissingArgumentOwner, // 3
     InvalidArgumentOwner, // 4
@@ -20,7 +20,7 @@ pub enum StorageError {
     MissingArgumentTo, // 9
     InvalidArgumentTo, // 10
 
-    FailedToGetArgBytes, // 11
+    FailedToGetArgBytes,  // 11
     UnexpectedKeyVariant, // 12
 
     MissingCollectionRef, // 13
@@ -35,6 +35,10 @@ pub enum StorageError {
     ThisContractIsNotTheOwnerOfThisToken, // 19
 
     OnlyOwnerCanCallThisFunction, // 20
+
+    FailedToGetCallStack, // 21
+
+    FailedToParseContractHash, // 22
 }
 
 impl From<StorageError> for ApiError {

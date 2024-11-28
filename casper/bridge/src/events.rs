@@ -72,27 +72,12 @@ impl Locked {
     }
 }
 #[derive(Event, Debug, PartialEq, Eq)]
-pub struct UnLock {
-    pub to: String,
-    pub token_id: String,
-    pub contract_address: String,
-}
-impl UnLock {
-    pub fn new(to: String, token_id: String, contract_address: String) -> Self {
-        Self {
-            to,
-            token_id,
-            contract_address,
-        }
-    }
-}
-#[derive(Event, Debug, PartialEq, Eq)]
 pub struct Claimed {
     pub lock_tx_chain: String,
     pub source_chain: String,
     pub transaction_hash: String,
     pub nft_contract: String,
-    pub token_id: String,
+    pub token_id: TokenIdentifier,
 }
 impl Claimed {
     pub fn new(
@@ -100,7 +85,7 @@ impl Claimed {
         source_chain: String,
         transaction_hash: String,
         nft_contract: String,
-        token_id: String,
+        token_id: TokenIdentifier,
     ) -> Self {
         Self {
             lock_tx_chain,
@@ -141,7 +126,7 @@ impl DeployStorage {
 }
 #[derive(Event, Debug, PartialEq, Eq)]
 pub struct DeployCollection {
-    pub token_id: TokenIdentifier,
+    pub token_id: String,
     pub source_chain: String,
     pub destination_chain: String,
     pub destination_user_address: AccountHash,
@@ -159,7 +144,7 @@ pub struct DeployCollection {
 }
 impl DeployCollection {
     pub fn new(
-        token_id: TokenIdentifier,
+        token_id: String,
         source_chain: String,
         destination_chain: String,
         destination_user_address: AccountHash,

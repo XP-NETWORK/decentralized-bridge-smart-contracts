@@ -36,14 +36,15 @@ use casper_contract::{
 // Importing specific Casper types.
 use crate::events::{
     BlackListValidator, Claimed, CollectionDeployFee, DeployCollection, DeployStorage, Locked,
-    RewardValidator, StorageDeployFee, UnLock,
+    RewardValidator, StorageDeployFee,
 };
 use crate::structs::{
     ClaimData, DataType, DoneInfo, DuplicateToOriginalContractInfo,
-    OriginalToDuplicateContractInfo, Receiver, Sigs,
+    OriginalToDuplicateContractInfo, OtherToken, Receiver, SelfToken, Sigs,
 };
 use crate::utils::encode_dictionary_item_key;
 use casper_types::account::AccountHash;
+use casper_types::bytesrepr::FromBytes;
 use casper_types::{
     bytesrepr::ToBytes,
     contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
@@ -271,7 +272,6 @@ fn check_storage(
     destination_user_address: String,
     source_nft_contract_address: ContractHash,
     metadata_uri: String,
-    is_original: bool,
 ) -> bool {
     let storage_address_option =
         storage::dictionary_get::<ContractHash>(storage_dict_ref, key).unwrap_or(None);
@@ -282,11 +282,7 @@ fn check_storage(
                 v,
                 nft_sender_address_option,
                 source_nft_contract_address,
-                if is_original {
-                    token_id
-                } else {
-                    TokenIdentifier::Hash(token_id.to_string())
-                },
+                token_id,
             );
             true
         }
@@ -302,11 +298,7 @@ fn check_storage(
                     storage,
                     nft_sender_address_option,
                     source_nft_contract_address,
-                    if is_original {
-                        token_id
-                    } else {
-                        TokenIdentifier::Hash(token_id.to_string())
-                    },
+                    token_id,
                 );
                 true
             } else {
@@ -484,8 +476,16 @@ pub extern "C" fn init() {
     storage::new_dictionary(KEY_DUPLICATE_STORAGE_DICT)
         .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
 
-    // INITIALIZING DUPLICATE STORAGE DICT
+    // INITIALIZING SUBMITTED SIGNATURES DICT
     storage::new_dictionary(KEY_SUBMITTED_SIGNATURES_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+
+    // INITIALIZING TOKEN INFO GET SELF DICT
+    storage::new_dictionary(KEY_TOKEN_INFO_GET_SELF_DICT)
+        .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
+
+    // INITIALIZING TOKEN INFO KEY SELF DICT
+    storage::new_dictionary(KEY_TOKEN_INFO_KEY_SELF_DICT)
         .unwrap_or_revert_with(BridgeError::FailedToCreateDictionary);
 
     utils::init_events();
@@ -918,13 +918,71 @@ pub extern "C" fn lock() {
 
     let mut source_nft_contract_address_vec = source_nft_contract_address.to_bytes().unwrap();
     let self_chain_vec = self_chain.to_bytes().unwrap();
-    source_nft_contract_address_vec.extend(self_chain_vec);
-    let key = create_hash_key(source_nft_contract_address_vec);
+    source_nft_contract_address_vec.extend(self_chain_vec.clone());
+    let key = create_hash_key(source_nft_contract_address_vec.clone());
 
     let original_collection_address_option = storage::dictionary_get::<
         DuplicateToOriginalContractInfo,
     >(duplicate_to_original_dict_ref, key.as_str())
     .unwrap_or(None);
+
+    // TOKEN
+
+    let token_info_key_self_dict_ref = utils::get_uref(
+        KEY_TOKEN_INFO_KEY_SELF_DICT,
+        BridgeError::MissingTokenInfoKeySelfDictRef,
+        BridgeError::InvalidTokenInfoKeySelfDictRef,
+    );
+
+    let token_info_get_self_dict_ref = utils::get_uref(
+        KEY_TOKEN_INFO_GET_SELF_DICT,
+        BridgeError::MissingTokenInfoGetSelfDictRef,
+        BridgeError::InvalidTokenInfoGetSelfDictRef,
+    );
+
+    // 0 casper 0a234 ->  100 bsc 0x123
+    let mut token_id_vec = token_id.to_bytes().unwrap();
+    token_id_vec.extend(self_chain_vec.clone());
+    token_id_vec.extend(source_nft_contract_address_vec.clone());
+
+    let token_key = create_hash_key(token_id_vec);
+
+    let token_info_key_self_option =
+        storage::dictionary_get::<OtherToken>(token_info_key_self_dict_ref, token_key.as_str())
+            .unwrap_or(None);
+
+    let mut mut_token_id: Vec<u8> = vec![];
+
+    match token_info_key_self_option {
+        Some(v) => {
+            mut_token_id = v.token_id.to_bytes().unwrap();
+        }
+        None => {
+            mut_token_id = token_id.to_bytes().unwrap();
+
+            storage::dictionary_put(
+                token_info_key_self_dict_ref,
+                token_key.as_str(),
+                OtherToken {
+                    token_id: token_id.to_string(),
+                    chain: self_chain.clone(),
+                    contract_address: source_nft_contract_address.to_string(),
+                },
+            );
+
+            storage::dictionary_put(
+                token_info_get_self_dict_ref,
+                token_key.as_str(),
+                SelfToken {
+                    token_id: token_id.clone(),
+                    chain: self_chain.clone(),
+                    contract_address: source_nft_contract_address,
+                },
+            );
+        }
+    }
+    let final_token_id = TokenIdentifier::from_bytes(&*mut_token_id).unwrap().0;
+    // TOKEN
 
     match original_collection_address_option {
         Some(v) => {
@@ -939,21 +997,21 @@ pub extern "C" fn lock() {
                 key.as_str(),
                 Option::None,
                 Option::None,
-                token_id.clone(),
+                token_id,
                 destination_chain.clone(),
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone(),
-                false,
             );
             if !is_event {
                 // SEND MONEY TO SERVICE
                 transfer_tx_fees(amount, sender_purse, Receiver::Service);
             }
+
             if is_event {
                 transfer_tx_fees(amount, sender_purse, Receiver::Sender);
                 casper_event_standard::emit(Locked::new(
-                    token_id,
+                    final_token_id,
                     destination_chain,
                     destination_user_address,
                     v.contract_address.to_string(),
@@ -976,12 +1034,11 @@ pub extern "C" fn lock() {
                 key.as_str(),
                 Option::None,
                 Option::None,
-                token_id.clone(),
+                token_id,
                 destination_chain.clone(),
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone(),
-                true,
             );
             if !is_event {
                 // SEND MONEY TO SERVICE
@@ -990,7 +1047,7 @@ pub extern "C" fn lock() {
             if is_event {
                 transfer_tx_fees(amount, sender_purse, Receiver::Sender);
                 casper_event_standard::emit(Locked::new(
-                    token_id,
+                    final_token_id,
                     destination_chain,
                     destination_user_address,
                     source_nft_contract_address.to_string(),
@@ -1093,13 +1150,71 @@ pub extern "C" fn update_storage_and_process_lock() {
 
     let mut source_nft_contract_address_vec = source_nft_contract_address.to_bytes().unwrap();
     let self_chain_vec = self_chain.to_bytes().unwrap();
-    source_nft_contract_address_vec.extend(self_chain_vec);
-    let key = create_hash_key(source_nft_contract_address_vec);
+    source_nft_contract_address_vec.extend(self_chain_vec.clone());
+    let key = create_hash_key(source_nft_contract_address_vec.clone());
 
     let original_collection_address_option = storage::dictionary_get::<
         DuplicateToOriginalContractInfo,
     >(duplicate_to_original_dict_ref, key.as_str())
     .unwrap_or(None);
+
+    // TOKEN
+
+    let token_info_key_self_dict_ref = utils::get_uref(
+        KEY_TOKEN_INFO_KEY_SELF_DICT,
+        BridgeError::MissingTokenInfoKeySelfDictRef,
+        BridgeError::InvalidTokenInfoKeySelfDictRef,
+    );
+
+    let token_info_get_self_dict_ref = utils::get_uref(
+        KEY_TOKEN_INFO_GET_SELF_DICT,
+        BridgeError::MissingTokenInfoGetSelfDictRef,
+        BridgeError::InvalidTokenInfoGetSelfDictRef,
+    );
+
+    // 0 casper 0a234 ->  100 bsc 0x123
+    let mut token_id_vec = token_id.to_bytes().unwrap(); // 0
+    token_id_vec.extend(self_chain_vec.clone()); // casper
+    token_id_vec.extend(source_nft_contract_address_vec.clone()); // 0as3212
+
+    let token_key = create_hash_key(token_id_vec);
+
+    let token_info_key_self_option =
+        storage::dictionary_get::<OtherToken>(token_info_key_self_dict_ref, token_key.as_str())
+            .unwrap_or(None);
+
+    let mut mut_token_id: Vec<u8> = vec![];
+
+    match token_info_key_self_option {
+        Some(v) => {
+            mut_token_id = v.token_id.to_bytes().unwrap();
+        }
+        None => {
+            mut_token_id = token_id.to_bytes().unwrap();
+
+            storage::dictionary_put(
+                token_info_key_self_dict_ref,
+                token_key.as_str(),
+                OtherToken {
+                    token_id: token_id.to_string(),
+                    chain: self_chain.clone(),
+                    contract_address: source_nft_contract_address.to_string(),
+                },
+            );
+
+            storage::dictionary_put(
+                token_info_get_self_dict_ref,
+                token_key.as_str(),
+                SelfToken {
+                    token_id: token_id.clone(),
+                    chain: self_chain.clone(),
+                    contract_address: source_nft_contract_address,
+                },
+            );
+        }
+    }
+    let final_token_id = TokenIdentifier::from_bytes(&*mut_token_id).unwrap().0;
+    // TOKEN
 
     match original_collection_address_option {
         Some(v) => {
@@ -1114,16 +1229,15 @@ pub extern "C" fn update_storage_and_process_lock() {
                 key.as_str(),
                 Some(storage_address_option),
                 Some(nft_sender_address_option),
-                token_id.clone(),
+                token_id,
                 destination_chain.clone(),
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone(),
-                false,
             );
             if is_event {
                 casper_event_standard::emit(Locked::new(
-                    token_id,
+                    final_token_id,
                     destination_chain,
                     destination_user_address,
                     v.contract_address.to_string(),
@@ -1146,16 +1260,15 @@ pub extern "C" fn update_storage_and_process_lock() {
                 key.as_str(),
                 Some(storage_address_option),
                 Some(nft_sender_address_option),
-                token_id.clone(),
+                token_id,
                 destination_chain.clone(),
                 destination_user_address.clone(),
                 source_nft_contract_address,
                 metadata_uri.clone(),
-                true,
             );
             if is_event {
                 casper_event_standard::emit(Locked::new(
-                    token_id,
+                    final_token_id,
                     destination_chain,
                     destination_user_address,
                     source_nft_contract_address.to_string(),
@@ -1396,6 +1509,31 @@ pub extern "C" fn claim() {
         contract_address: Default::default(),
     };
 
+    // TOKEN
+    let token_info_key_self_dict_ref = utils::get_uref(
+        KEY_TOKEN_INFO_KEY_SELF_DICT,
+        BridgeError::MissingTokenInfoKeySelfDictRef,
+        BridgeError::InvalidTokenInfoKeySelfDictRef,
+    );
+
+    let token_info_get_self_dict_ref = utils::get_uref(
+        KEY_TOKEN_INFO_GET_SELF_DICT,
+        BridgeError::MissingTokenInfoGetSelfDictRef,
+        BridgeError::InvalidTokenInfoGetSelfDictRef,
+    );
+
+    // 0 casper 0a234 ->  100 bsc 0x123
+    let mut token_id_vec = data.token_id.to_bytes().unwrap();
+    token_id_vec.extend(data.source_chain.to_bytes().unwrap());
+    token_id_vec.extend(data.source_nft_contract_address.to_bytes().unwrap());
+
+    let token_key = create_hash_key(token_id_vec);
+
+    let is_token_exists =
+        storage::dictionary_get::<SelfToken>(token_info_get_self_dict_ref, token_key.as_str())
+            .unwrap_or(None);
+    // TOKEN
+
     let mut has_duplicate: bool = false;
     let mut has_storage: bool = false;
 
@@ -1452,54 +1590,90 @@ pub extern "C" fn claim() {
 
     // ===============================/ hasDuplicate && hasStorage /=======================
     if has_duplicate && has_storage {
-        let nft_owner = owner_of(
-            duplicate_collection_address.contract_address,
-            TokenIdentifier::Hash(data.token_id.clone()),
-        );
+        match is_token_exists {
+            Some(v) => {
+                let nft_owner = owner_of(
+                    duplicate_collection_address.contract_address,
+                    v.token_id.clone(),
+                );
 
-        if nft_owner == Key::from(storage_contract) {
-            // UNLOCK NFT
-            unlock_token(
-                storage_contract,
-                TokenIdentifier::Hash(data.token_id.clone()),
-                data.destination_user_address,
-            );
-            submitted_sigs_data.1.done = true;
-            save_done_info(submitted_sigs_data, ss_key);
+                if nft_owner == Key::from(storage_contract) {
+                    // UNLOCK NFT
+                    unlock_token(
+                        storage_contract,
+                        v.token_id.clone(),
+                        data.destination_user_address,
+                    );
+                    submitted_sigs_data.1.done = true;
+                    save_done_info(submitted_sigs_data, ss_key);
 
-            casper_event_standard::emit(UnLock::new(
-                data.destination_user_address.to_string(),
-                data.token_id.clone(),
-                storage_contract.to_string(),
-            ));
-            casper_event_standard::emit(Claimed::new(
-                data.lock_tx_chain,
-                data.source_chain,
-                data.transaction_hash,
-                duplicate_collection_address.contract_address.to_string(),
-                data.token_id,
-            ));
-        } else {
-            // MINT NFT
-            register(
-                duplicate_collection_address.contract_address,
-                Key::from(data.destination_user_address),
-            );
-            mint(
-                duplicate_collection_address.contract_address,
-                token_id,
-                Key::from(data.destination_user_address),
-                data.metadata,
-            );
-            submitted_sigs_data.1.done = true;
-            save_done_info(submitted_sigs_data, ss_key);
-            casper_event_standard::emit(Claimed::new(
-                data.lock_tx_chain,
-                data.source_chain,
-                data.transaction_hash,
-                duplicate_collection_address.contract_address.to_string(),
-                data.token_id,
-            ));
+                    casper_event_standard::emit(Claimed::new(
+                        data.lock_tx_chain,
+                        data.source_chain,
+                        data.transaction_hash,
+                        duplicate_collection_address.contract_address.to_string(),
+                        v.token_id,
+                    ));
+                }
+            }
+            None => {
+                // MINT NFT
+                register(
+                    duplicate_collection_address.contract_address,
+                    Key::from(data.destination_user_address),
+                );
+                let minted_token_id = mint(
+                    duplicate_collection_address.contract_address,
+                    Key::from(data.destination_user_address),
+                    data.metadata,
+                );
+                submitted_sigs_data.1.done = true;
+                save_done_info(submitted_sigs_data, ss_key);
+
+                let mut self_token_id = minted_token_id.to_bytes().unwrap();
+                self_token_id.extend(self_chain.to_bytes().unwrap());
+                self_token_id.extend(
+                    duplicate_collection_address
+                        .contract_address
+                        .to_bytes()
+                        .unwrap(),
+                );
+                let self_token_key = create_hash_key(self_token_id);
+
+                storage::dictionary_put(
+                    token_info_key_self_dict_ref,
+                    self_token_key.as_str(),
+                    OtherToken {
+                        token_id: data.token_id.clone(),
+                        chain: data.source_chain.clone(),
+                        contract_address: data.source_nft_contract_address,
+                    },
+                );
+
+                storage::dictionary_put(
+                    token_info_get_self_dict_ref,
+                    token_key.as_str(),
+                    SelfToken {
+                        token_id: TokenIdentifier::from_bytes(
+                            &*minted_token_id.to_bytes().unwrap(),
+                        )
+                        .unwrap()
+                        .0,
+                        chain: self_chain,
+                        contract_address: duplicate_collection_address.contract_address,
+                    },
+                );
+
+                casper_event_standard::emit(Claimed::new(
+                    data.lock_tx_chain,
+                    data.source_chain,
+                    data.transaction_hash,
+                    duplicate_collection_address.contract_address.to_string(),
+                    TokenIdentifier::from_bytes(&*minted_token_id.to_bytes().unwrap())
+                        .unwrap()
+                        .0,
+                ));
+            }
         }
     }
     // ===============================/ hasDuplicate && NOT hasStorage /=======================
@@ -1509,20 +1683,53 @@ pub extern "C" fn claim() {
             duplicate_collection_address.contract_address,
             Key::from(data.destination_user_address),
         );
-        mint(
+        let minted_token_id = mint(
             duplicate_collection_address.contract_address,
-            token_id,
             Key::from(data.destination_user_address),
             data.metadata,
         );
         submitted_sigs_data.1.done = true;
         save_done_info(submitted_sigs_data, ss_key);
+
+        let mut self_token_id = minted_token_id.to_bytes().unwrap();
+        self_token_id.extend(self_chain.to_bytes().unwrap());
+        self_token_id.extend(
+            duplicate_collection_address
+                .contract_address
+                .to_bytes()
+                .unwrap(),
+        );
+        let self_token_key = create_hash_key(self_token_id);
+        storage::dictionary_put(
+            token_info_key_self_dict_ref,
+            self_token_key.as_str(),
+            OtherToken {
+                token_id: data.token_id.clone(),
+                chain: data.source_chain.clone(),
+                contract_address: data.source_nft_contract_address,
+            },
+        );
+
+        storage::dictionary_put(
+            token_info_get_self_dict_ref,
+            token_key.as_str(),
+            SelfToken {
+                token_id: TokenIdentifier::from_bytes(&*minted_token_id.to_bytes().unwrap())
+                    .unwrap()
+                    .0,
+                chain: self_chain,
+                contract_address: duplicate_collection_address.contract_address,
+            },
+        );
+
         casper_event_standard::emit(Claimed::new(
             data.lock_tx_chain,
             data.source_chain,
             data.transaction_hash,
             duplicate_collection_address.contract_address.to_string(),
-            data.token_id,
+            TokenIdentifier::from_bytes(&*minted_token_id.to_bytes().unwrap())
+                .unwrap()
+                .0,
         ));
     }
     // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
@@ -1530,7 +1737,7 @@ pub extern "C" fn claim() {
         submitted_sigs_data.1.is_present = true;
         save_done_info(submitted_sigs_data, ss_key);
         casper_event_standard::emit(DeployCollection::new(
-            TokenIdentifier::Hash(data.token_id),
+            data.token_id,
             data.source_chain,
             data.destination_chain,
             data.destination_user_address,
@@ -1549,34 +1756,36 @@ pub extern "C" fn claim() {
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
     else if !has_duplicate && has_storage {
-        let contract =
-            ContractHash::from_formatted_str(data.source_nft_contract_address.as_str()).unwrap();
-        let nft_owner = owner_of(contract, TokenIdentifier::Hash(data.token_id.clone()));
+        match is_token_exists {
+            Some(v) => {
+                let contract =
+                    ContractHash::from_formatted_str(data.source_nft_contract_address.as_str())
+                        .unwrap();
 
-        if nft_owner == Key::from(storage_contract) {
-            // UNLOCK NFT
-            unlock_token(
-                storage_contract,
-                TokenIdentifier::Hash(data.token_id.clone()),
-                data.destination_user_address,
-            );
-            submitted_sigs_data.1.done = true;
-            save_done_info(submitted_sigs_data, ss_key);
-            casper_event_standard::emit(UnLock::new(
-                data.destination_user_address.to_string(),
-                data.token_id.clone(),
-                storage_contract.to_string(),
-            ));
-            casper_event_standard::emit(Claimed::new(
-                data.lock_tx_chain,
-                data.source_chain,
-                data.transaction_hash,
-                data.source_nft_contract_address,
-                data.token_id,
-            ));
-        } else {
-            // CANT BE THERE
-            runtime::revert(BridgeError::CantBeThere);
+                let nft_owner = owner_of(contract, v.token_id.clone());
+
+                if nft_owner == Key::from(storage_contract) {
+                    // UNLOCK NFT
+                    unlock_token(
+                        storage_contract,
+                        v.token_id.clone(),
+                        data.destination_user_address,
+                    );
+                    submitted_sigs_data.1.done = true;
+                    save_done_info(submitted_sigs_data, ss_key);
+                    casper_event_standard::emit(Claimed::new(
+                        data.lock_tx_chain,
+                        data.source_chain,
+                        data.transaction_hash,
+                        data.source_nft_contract_address,
+                        v.token_id,
+                    ));
+                }
+            }
+            None => {
+                // CANT BE THERE
+                runtime::revert(BridgeError::CantBeThere);
+            }
         }
     } else {
         runtime::revert(BridgeError::InvalidBridgeState);
@@ -1794,6 +2003,31 @@ pub extern "C" fn update_collection_process_claim() {
         contract_address: Default::default(),
     };
 
+    // TOKEN
+    let token_info_key_self_dict_ref = utils::get_uref(
+        KEY_TOKEN_INFO_KEY_SELF_DICT,
+        BridgeError::MissingTokenInfoKeySelfDictRef,
+        BridgeError::InvalidTokenInfoKeySelfDictRef,
+    );
+
+    let token_info_get_self_dict_ref = utils::get_uref(
+        KEY_TOKEN_INFO_GET_SELF_DICT,
+        BridgeError::MissingTokenInfoGetSelfDictRef,
+        BridgeError::InvalidTokenInfoGetSelfDictRef,
+    );
+
+    // 0 casper 0a234 ->  100 bsc 0x123
+    let mut token_id_vec = data.token_id.to_bytes().unwrap();
+    token_id_vec.extend(data.source_chain.to_bytes().unwrap());
+    token_id_vec.extend(data.source_nft_contract_address.to_bytes().unwrap());
+
+    let token_key = create_hash_key(token_id_vec);
+
+    // let token_info_get_self_option =
+    //     storage::dictionary_get::<Token>(token_info_get_self_dict_ref, token_key.as_str())
+    //         .unwrap_or(None);
+    // TOKEN
+
     let mut has_duplicate: bool = false;
     let mut has_storage: bool = false;
 
@@ -1871,26 +2105,54 @@ pub extern "C" fn update_collection_process_claim() {
             dto_key.as_str(),
             DuplicateToOriginalContractInfo {
                 chain: data.source_chain.clone(),
-                contract_address: data.source_nft_contract_address,
+                contract_address: data.source_nft_contract_address.clone(),
             },
         );
 
         // MINT NFT
         register(collection_address, Key::from(data.destination_user_address));
-        mint(
+        let minted_token_id = mint(
             collection_address,
-            token_id,
             Key::from(data.destination_user_address),
             data.metadata,
         );
         submitted_sigs_data.1.done = true;
         save_done_info(submitted_sigs_data, ss_key);
+
+        let mut self_token_id = minted_token_id.to_bytes().unwrap();
+        self_token_id.extend(self_chain.to_bytes().unwrap());
+        self_token_id.extend(collection_address.to_bytes().unwrap());
+        let self_token_key = create_hash_key(self_token_id);
+        storage::dictionary_put(
+            token_info_key_self_dict_ref,
+            self_token_key.as_str(),
+            OtherToken {
+                token_id: data.token_id.clone(),
+                chain: data.source_chain.clone(),
+                contract_address: data.source_nft_contract_address,
+            },
+        );
+
+        storage::dictionary_put(
+            token_info_get_self_dict_ref,
+            token_key.as_str(),
+            SelfToken {
+                token_id: TokenIdentifier::from_bytes(&*minted_token_id.to_bytes().unwrap())
+                    .unwrap()
+                    .0,
+                chain: self_chain,
+                contract_address: collection_address,
+            },
+        );
+
         casper_event_standard::emit(Claimed::new(
             data.lock_tx_chain,
             data.source_chain,
             data.transaction_hash,
             collection_address.to_string(),
-            data.token_id,
+            TokenIdentifier::from_bytes(&*minted_token_id.to_bytes().unwrap())
+                .unwrap()
+                .0,
         ));
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================

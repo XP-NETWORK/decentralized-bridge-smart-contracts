@@ -8,10 +8,104 @@ use casper_types::{
     bytesrepr::{self, FromBytes, ToBytes},
     CLType, CLTyped, ContractHash, PublicKey, U512,
 };
+use common::collection::TokenIdentifier;
 use core::convert::TryFrom;
-
 // pub type Sigs = (PublicKey, [u8; 64]);
 ////////////////////////////////////////////////////////////////////////////////
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct OtherToken {
+    pub token_id: String,
+    pub chain: String,
+    pub contract_address: String,
+}
+impl FromBytes for OtherToken {
+    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
+        let (token_id, remainder) = String::from_bytes(bytes)?;
+        let (chain, remainder) = String::from_bytes(remainder)?;
+        let (contract_address, remainder) = String::from_bytes(remainder)?;
+
+        Ok((
+            Self {
+                token_id,
+                chain,
+                contract_address,
+            },
+            remainder,
+        ))
+    }
+}
+impl ToBytes for OtherToken {
+    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
+        let mut result = bytesrepr::allocate_buffer(self)?;
+        result.extend(self.token_id.to_bytes()?);
+        result.extend(self.chain.to_bytes()?);
+        result.extend(self.contract_address.to_bytes()?);
+        Ok(result)
+    }
+
+    fn serialized_length(&self) -> usize {
+        self.token_id.serialized_length()
+            + self.chain.serialized_length()
+            + self.contract_address.serialized_length()
+    }
+}
+impl CLTyped for OtherToken {
+    fn cl_type() -> CLType {
+        CLType::Tuple3([
+            Box::new(CLType::String),
+            Box::new(CLType::String),
+            Box::new(CLType::String),
+        ])
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct SelfToken {
+    pub token_id: TokenIdentifier,
+    pub chain: String,
+    pub contract_address: ContractHash,
+}
+impl FromBytes for SelfToken {
+    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
+        let (token_id, remainder) = TokenIdentifier::from_bytes(bytes)?;
+        let (chain, remainder) = String::from_bytes(remainder)?;
+        let (contract_address, remainder) = ContractHash::from_bytes(remainder)?;
+
+        Ok((
+            Self {
+                token_id,
+                chain,
+                contract_address,
+            },
+            remainder,
+        ))
+    }
+}
+impl ToBytes for SelfToken {
+    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
+        let mut result = bytesrepr::allocate_buffer(self)?;
+        result.extend(self.token_id.to_bytes()?);
+        result.extend(self.chain.to_bytes()?);
+        result.extend(self.contract_address.to_bytes()?);
+        Ok(result)
+    }
+
+    fn serialized_length(&self) -> usize {
+        self.token_id.serialized_length()
+            + self.chain.serialized_length()
+            + self.contract_address.serialized_length()
+    }
+}
+impl CLTyped for SelfToken {
+    fn cl_type() -> CLType {
+        CLType::Tuple3([
+            Box::new(CLType::String),
+            Box::new(CLType::String),
+            Box::new(CLType::ByteArray(32)),
+        ])
+    }
+}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Sigs {

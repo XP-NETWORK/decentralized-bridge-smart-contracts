@@ -208,6 +208,12 @@ pub enum BridgeError {
 
     MissingStorageDeployFeeNonceRef, // 131
     InvalidStorageDeployFeeNonceRef, // 132
+
+    MissingTokenInfoKeySelfDictRef, // 133
+    InvalidTokenInfoKeySelfDictRef, // 134
+
+    MissingTokenInfoGetSelfDictRef, // 135
+    InvalidTokenInfoGetSelfDictRef, // 136
 }
 
 impl From<BridgeError> for ApiError {

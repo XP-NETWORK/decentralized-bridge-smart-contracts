@@ -12,13 +12,9 @@ mod errors;
 mod keys;
 mod utils;
 
-
 // Importing Rust types.
-use alloc::{
-    string::{ToString},
-    vec,
-};
 use alloc::string::String;
+use alloc::{string::ToString, vec};
 // Importing aspects of the Casper platform.
 use casper_contract::{
     contract_api::{
@@ -28,12 +24,16 @@ use casper_contract::{
     unwrap_or_revert::UnwrapOrRevert,
 };
 // Importing specific Casper types.
-use casper_types::{contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, CLType, ContractHash, Key, Parameter};
 use casper_types::account::AccountHash;
+use casper_types::bytesrepr::ToBytes;
+use casper_types::{
+    contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
+    CLType, ContractHash, Key, Parameter,
+};
+use common::collection::{owner_of, transfer, TokenIdentifier};
 use endpoints::*;
 use errors::StorageError;
 use keys::*;
-use common::collection::{owner_of, transfer, TokenIdentifier};
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -45,19 +45,22 @@ pub extern "C" fn init() {
         ARG_COLLECTION,
         StorageError::MissingArgumentCollection,
         StorageError::InvalidArgumentCollection,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let owner: ContractHash = utils::get_named_arg_with_user_errors(
         ARG_OWNER,
         StorageError::MissingArgumentOwner,
         StorageError::InvalidArgumentOwner,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     let self_hash: ContractHash = utils::get_named_arg_with_user_errors(
         ARG_SELF_HASH,
         StorageError::MissingArgumentSelfHash,
         StorageError::InvalidArgumentSelfHash,
-    ).unwrap_or_revert();
+    )
+    .unwrap_or_revert();
 
     runtime::put_key(INITIALIZED, storage::new_uref(true).into());
     runtime::put_key(KEY_COLLECTION, storage::new_uref(collection).into());
@@ -71,15 +74,15 @@ pub extern "C" fn unlock_token() {
         ARG_TOKEN_ID,
         StorageError::MissingArgumentTokenId,
         StorageError::InvalidArgumentTokenId,
-    ).unwrap_or_revert();
-
+    )
+    .unwrap_or_revert();
 
     let to: AccountHash = utils::get_named_arg_with_user_errors(
         ARG_TO,
         StorageError::MissingArgumentTo,
         StorageError::InvalidArgumentTo,
-    ).unwrap_or_revert();
-
+    )
+    .unwrap_or_revert();
 
     let collection_ref = utils::get_uref(
         KEY_COLLECTION,
@@ -99,11 +102,17 @@ pub extern "C" fn unlock_token() {
         StorageError::InvalidOwnerRef,
     );
 
-    let caller = runtime::get_caller();
-
     let owner: ContractHash = storage::read_or_revert(owner_ref);
 
-    if Key::from(owner) != Key::from(caller) {
+    let caller_contract = runtime::get_call_stack()
+        .iter()
+        .nth_back(1)
+        .unwrap_or_revert_with(StorageError::FailedToGetCallStack)
+        .contract_hash()
+        .unwrap_or_revert_with(StorageError::FailedToParseContractHash)
+        .clone();
+
+    if Key::from(owner) != Key::from(caller_contract) {
         runtime::revert(StorageError::OnlyOwnerCanCallThisFunction);
     }
 
@@ -118,17 +127,11 @@ pub extern "C" fn unlock_token() {
     let to_key = Key::from(to);
 
     if nft_owner == this_contract_key {
-        transfer(
-            collection,
-            this_contract_key,
-            to_key,
-            token_id,
-        );
+        transfer(collection, this_contract_key, to_key, token_id);
     } else {
         runtime::revert(StorageError::ThisContractIsNotTheOwnerOfThisToken);
     }
 }
-
 
 fn generate_entry_points() -> EntryPoints {
     let mut entrypoints = EntryPoints::new();
@@ -148,7 +151,7 @@ fn generate_entry_points() -> EntryPoints {
     let unlock_token = EntryPoint::new(
         ENTRY_POINT_STORAGE_UNLOCK_TOKEN,
         vec![
-            Parameter::new(ARG_TOKEN_ID, CLType::U256),
+            Parameter::new(ARG_TOKEN_ID, CLType::String),
             Parameter::new(ARG_TO, CLType::ByteArray(32)),
         ],
         CLType::Unit,
@@ -179,10 +182,7 @@ fn install_storage() {
 
     let s: String = runtime::get_named_arg("source_nft_contract_address");
 
-    runtime::put_key(
-        &(THIS_CONTRACT.to_string() + &s),
-        contract_hash.into(),
-    );
+    runtime::put_key(&(THIS_CONTRACT.to_string() + &s), contract_hash.into());
 }
 
 #[no_mangle]

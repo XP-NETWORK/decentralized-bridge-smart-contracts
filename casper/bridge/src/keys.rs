@@ -74,3 +74,5 @@ pub const KEY_DUPLICATE_TO_ORIGINAL_DICT: &str = "duplicate_to_original_dict";
 pub const KEY_ORIGINAL_STORAGE_DICT: &str = "original_storage_dict";
 pub const KEY_DUPLICATE_STORAGE_DICT: &str = "duplicate_storage_dict";
 pub const KEY_SUBMITTED_SIGNATURES_DICT: &str = "submitted_signatures_dict";
+pub const KEY_TOKEN_INFO_GET_SELF_DICT: &str = "token_info_get_self_dict";
+pub const KEY_TOKEN_INFO_KEY_SELF_DICT: &str = "token_info_key_self_dict";
