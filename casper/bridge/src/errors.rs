@@ -214,6 +214,8 @@ pub enum BridgeError {
 
     MissingTokenInfoGetSelfDictRef, // 135
     InvalidTokenInfoGetSelfDictRef, // 136
+
+    InvalidContractAddress, // 137
 }
 
 impl From<BridgeError> for ApiError {

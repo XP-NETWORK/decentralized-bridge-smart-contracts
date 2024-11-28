@@ -1499,7 +1499,16 @@ pub extern "C" fn claim() {
 
     let self_chain_vec = self_chain.to_bytes().unwrap();
     let source_chain_vec = data.source_chain.to_bytes().unwrap();
-    let source_nft_contract_address_vec = data.source_nft_contract_address.to_bytes().unwrap();
+
+    let mut source_nft_contract_address_vec = vec![];
+
+    if data.source_chain == self_chain {
+        let contract =
+            ContractHash::from_formatted_str(&*data.source_nft_contract_address).unwrap();
+        source_nft_contract_address_vec = contract.to_bytes().unwrap();
+    } else {
+        source_nft_contract_address_vec = data.source_nft_contract_address.to_bytes().unwrap();
+    }
 
     let mut mut_source_nft_contract_address_vec = source_nft_contract_address_vec.clone();
     mut_source_nft_contract_address_vec.extend(source_chain_vec.clone());
@@ -1533,7 +1542,7 @@ pub extern "C" fn claim() {
     // 0 casper 0a234 ->  100 bsc 0x123
     let mut mut_token_id_vec = data.token_id.to_bytes().unwrap();
     mut_token_id_vec.extend(source_chain_vec);
-    mut_token_id_vec.extend(source_nft_contract_address_vec);
+    mut_token_id_vec.extend(source_nft_contract_address_vec.clone());
 
     let token_key = create_hash_key(mut_token_id_vec);
 
@@ -1766,8 +1775,7 @@ pub extern "C" fn claim() {
         match is_token_exists {
             Some(v) => {
                 let contract =
-                    ContractHash::from_formatted_str(data.source_nft_contract_address.as_str())
-                        .unwrap();
+                    ContractHash::from_formatted_str(&*data.source_nft_contract_address).unwrap();
 
                 let nft_owner = owner_of(contract, v.token_id.clone());
 
@@ -1995,7 +2003,16 @@ pub extern "C" fn update_collection_process_claim() {
 
     let self_chain_vec = self_chain.to_bytes().unwrap();
     let source_chain_vec = data.source_chain.to_bytes().unwrap();
-    let source_nft_contract_address_vec = data.source_nft_contract_address.to_bytes().unwrap();
+
+    let mut source_nft_contract_address_vec = vec![];
+
+    if data.source_chain == self_chain {
+        let contract =
+            ContractHash::from_formatted_str(&*data.source_nft_contract_address).unwrap();
+        source_nft_contract_address_vec = contract.to_bytes().unwrap();
+    } else {
+        source_nft_contract_address_vec = data.source_nft_contract_address.to_bytes().unwrap();
+    }
 
     let mut mut_source_nft_contract_address_vec = source_nft_contract_address_vec.clone();
     mut_source_nft_contract_address_vec.extend(source_chain_vec.clone());
