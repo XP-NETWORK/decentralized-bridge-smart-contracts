@@ -29,6 +29,7 @@ async fn initialize_bridge(
         }))
         .transact()
         .await?;
+    println!("{:?}", init_sf);
     assert!(init_sf.is_success());
 
     let init_cf = admin
@@ -38,6 +39,7 @@ async fn initialize_bridge(
         }))
         .transact()
         .await?;
+    println!("{init_cf:?}");
     assert!(init_cf.is_success());
 
     let init = admin
@@ -51,6 +53,7 @@ async fn initialize_bridge(
         }))
         .transact()
         .await?;
+    println!("{:?}", init);
     assert!(init.is_success());
     Ok((collection_factory, storage_factory, bridge))
 }

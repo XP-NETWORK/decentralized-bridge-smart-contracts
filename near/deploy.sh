@@ -10,4 +10,4 @@ near deploy xp-cf-test.testnet target/near/collection_factory/collection_factory
 
 near deploy xp-sf-test.testnet target/near/storage_factory/storage_factory.wasm --initFunction new --initArgs '{"owner": "xp-bridge-test.testnet"}'
 
-near deploy xp-bridge-test.testnet target/near/bridge/bridge.wasm --initFunction new --initArgs '{"collection_factory": "xp-cf-test.testnet", "storage_factory": "xp-sf-test.testnet", "validators": [["xp-val1.testnet", "37a03f86504c3054b375f57066051b75e1fcec1e69413f98140ca9d4996a11fb"]]}'
+near deploy xp-bridge-test.testnet target/near/bridge/bridge.wasm --initFunction new --initArgs '{"collection_factory": "xp-cf-test.testnet", "storage_factory": "xp-sf-test.testnet", "validators": [["xp-val1.testnet", "c426a2fb789a5c0541d2bbd26f8ccc9e4305b477f188a08024fcb53f20ef135b"], ["xp-val2.testnet","a19641af6cadb775bba703c81d629edaeea5fb5b0526c32b342a0b778b103504"]]}'

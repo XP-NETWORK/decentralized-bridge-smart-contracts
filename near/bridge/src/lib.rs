@@ -220,7 +220,8 @@ impl Bridge {
                     destination_address,
                     &mut self.duplicate_storage_mapping,
                     self.storage_factory.clone(),
-                    metadata_uri
+                    metadata_uri,
+                    false
                 );
             }
             None => {
@@ -232,7 +233,8 @@ impl Bridge {
                     destination_address,
                     &mut self.original_storage_mapping,
                     self.storage_factory.clone(),
-                    metadata_uri
+                    metadata_uri,
+                    true
                 );
             }
         }
@@ -247,6 +249,7 @@ impl Bridge {
         storage: &mut LookupMap<(String, String), AccountId>,
         sf: AccountId,
         metadata_uri: String,
+        original: bool
     ) -> Promise {
         let storage_address_opt =
             storage.get(&(source_nft_contract_address.to_string(), self_chain.clone()));
@@ -260,7 +263,7 @@ impl Bridge {
                     destination_address,
                     source_nft_contract_address,
                     token_id,
-                    metadata_uri
+                    metadata_uri,
                 )),
             None => external::storage_factory::ext(sf)
                 .with_attached_deposit(env::attached_deposit())
@@ -270,7 +273,8 @@ impl Bridge {
                     token_id,
                     destination_chain,
                     destination_address,
-                    metadata_uri
+                    metadata_uri,
+                    original
                 )),
         }
     }
@@ -282,10 +286,18 @@ impl Bridge {
         destination_chain: String,
         destination_user_address: String,
         metadata_uri: String,
+        original: bool,
         #[callback_result] result: Result<AccountId, PromiseError>,
     ) -> Promise {
+        let storage = if original {
+            &mut self.original_storage_mapping
+        } else {
+            &mut self.duplicate_storage_mapping
+        };
         match result {
-            Ok(storage_address) => external::ext_nft::ext(source_nft_contract_address.clone())
+            Ok(storage_address) => {
+                storage.insert(&(source_nft_contract_address.to_string(), self.chain_id.clone()), &storage_address);
+                external::ext_nft::ext(source_nft_contract_address.clone())
                 .with_attached_deposit(NearToken::from_yoctonear(1))
                 .nft_transfer(storage_address, token_id.clone(), None, None)
                 .then(Self::ext(env::current_account_id()).emit_locked_event(
@@ -294,7 +306,8 @@ impl Bridge {
                     source_nft_contract_address,
                     token_id,
                     metadata_uri
-                )),
+                ))
+            },
             Err(e) => env::panic_str(&format!("Failed to deploy Collection: {:?}", e)),
         }
     }
