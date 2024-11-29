@@ -1668,6 +1668,10 @@ pub extern "C" fn claim() {
         casper_event_standard::emit(DeployCollection::new(
             data.source_chain,
             data.source_nft_contract_address,
+            data.name,
+            data.symbol,
+            data.royalty,
+            data.royalty_receiver,
         ));
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================
@@ -1820,7 +1824,7 @@ pub extern "C" fn update_collection() {
 
             storage::dictionary_put(
                 waiting_dict_ref,
-                dto_key.as_str(),
+                otd_key.as_str(),
                 Waiting {
                     wait: false,
                     data_type: "collection".to_string(),

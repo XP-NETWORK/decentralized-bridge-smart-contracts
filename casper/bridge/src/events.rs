@@ -1,5 +1,6 @@
 use alloc::string::{String, ToString};
 use casper_event_standard::Event;
+use casper_types::account::AccountHash;
 use casper_types::{PublicKey, U256, U512};
 use common::collection::TokenIdentifier;
 
@@ -110,12 +111,27 @@ impl DeployStorage {
 pub struct DeployCollection {
     pub source_chain: String,
     pub source_nft_contract_address: String,
+    pub name: String,
+    pub symbol: String,
+    pub royalty: U512,
+    pub royalty_receiver: AccountHash,
 }
 impl DeployCollection {
-    pub fn new(source_chain: String, source_nft_contract_address: String) -> Self {
+    pub fn new(
+        source_chain: String,
+        source_nft_contract_address: String,
+        name: String,
+        symbol: String,
+        royalty: U512,
+        royalty_receiver: AccountHash,
+    ) -> Self {
         Self {
             source_chain,
             source_nft_contract_address,
+            name,
+            symbol,
+            royalty,
+            royalty_receiver,
         }
     }
 }
