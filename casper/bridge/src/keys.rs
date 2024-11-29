@@ -4,8 +4,6 @@ pub const ARG_SIGNATURES: &str = "signatures_arg";
 // RUNTIME ARGS INITIALIZE
 pub const ARG_VALIDATOR: &str = "bootstrap_validator_arg";
 pub const ARG_CHAIN_TYPE: &str = "chain_type_arg";
-pub const ARG_COLLECTION_DEPLOYER: &str = "collection_deployer_arg";
-pub const ARG_STORAGE_DEPLOYER: &str = "storage_deployer_arg";
 pub const ARG_SERVICE_ADDRESS: &str = "service_address_arg";
 pub const ARG_SELF_HASH: &str = "self_hash_arg";
 pub const ARG_STORAGE_DEPLOY_FEE: &str = "storage_deploy_fee_arg";
@@ -53,8 +51,6 @@ pub const KEY_PURSE: &str = "bridge_purse";
 pub const HASH_KEY_NAME: &str = "bridge_package";
 pub const ACCESS_KEY_NAME: &str = "access_key_name_bridge";
 pub const KEY_CHAIN_TYPE: &str = "chain_type";
-pub const KEY_COLLECTION_DEPLOYER: &str = "collection_deployer";
-pub const KEY_STORAGE_DEPLOYER: &str = "storage_deployer";
 pub const KEY_VALIDATORS_COUNT: &str = "validators_count";
 pub const KEY_STORAGE_DEPLOY_FEE_NONCE: &str = "storage_deploy_fee_nonce";
 pub const KEY_COLLECTION_DEPLOY_FEE_NONCE: &str = "collection_deploy_fee_nonce";

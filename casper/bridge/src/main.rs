@@ -393,8 +393,6 @@ pub extern "C" fn init() {
 
     let validator: CPublicKey = runtime::get_named_arg(ARG_VALIDATOR);
     let chain_type: String = runtime::get_named_arg(ARG_CHAIN_TYPE);
-    let collection_deployer: ContractHash = runtime::get_named_arg(ARG_COLLECTION_DEPLOYER);
-    let storage_deployer: ContractHash = runtime::get_named_arg(ARG_STORAGE_DEPLOYER);
     let service_account: CPublicKey = runtime::get_named_arg(ARG_SERVICE_ADDRESS);
     let self_hash: ContractHash = runtime::get_named_arg(ARG_SELF_HASH);
 
@@ -404,14 +402,6 @@ pub extern "C" fn init() {
 
     runtime::put_key(INITIALIZED, storage::new_uref(true).into());
     runtime::put_key(KEY_CHAIN_TYPE, storage::new_uref(chain_type).into());
-    runtime::put_key(
-        KEY_COLLECTION_DEPLOYER,
-        storage::new_uref(collection_deployer).into(),
-    );
-    runtime::put_key(
-        KEY_STORAGE_DEPLOYER,
-        storage::new_uref(storage_deployer).into(),
-    );
     runtime::put_key(
         KEY_SERVICE_ADDRESS,
         storage::new_uref(service_account).into(),
@@ -2223,8 +2213,6 @@ fn generate_entry_points() -> EntryPoints {
         vec![
             Parameter::new(ARG_VALIDATOR, CLType::PublicKey),
             Parameter::new(ARG_CHAIN_TYPE, CLType::String),
-            Parameter::new(ARG_COLLECTION_DEPLOYER, CLType::ByteArray(32)),
-            Parameter::new(ARG_STORAGE_DEPLOYER, CLType::ByteArray(32)),
             Parameter::new(ARG_SERVICE_ADDRESS, CLType::ByteArray(32)),
             Parameter::new(ARG_SELF_HASH, CLType::ByteArray(32)),
             Parameter::new(ARG_STORAGE_DEPLOY_FEE, CLType::U512),
