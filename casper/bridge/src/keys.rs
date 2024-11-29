@@ -25,7 +25,6 @@ pub const ARG_SENDER_PURSE: &str = "sender_purse";
 pub const ARG_AMOUNT: &str = "amount";
 
 pub const ARG_STORAGE_ADDRESS: &str = "storage_address_arg";
-pub const ARG_NFT_SENDER_ADDRESS: &str = "nft_sender_address_arg";
 
 // RUNTIME ARGS CLAIM
 pub const ARG_SOURCE_CHAIN: &str = "source_chain_arg";
@@ -72,3 +71,4 @@ pub const KEY_DUPLICATE_STORAGE_DICT: &str = "duplicate_storage_dict";
 pub const KEY_SUBMITTED_SIGNATURES_DICT: &str = "submitted_signatures_dict";
 pub const KEY_TOKEN_INFO_GET_SELF_DICT: &str = "token_info_get_self_dict";
 pub const KEY_TOKEN_INFO_KEY_SELF_DICT: &str = "token_info_key_self_dict";
+pub const KEY_WAITING_DICT: &str = "waiting_dict";

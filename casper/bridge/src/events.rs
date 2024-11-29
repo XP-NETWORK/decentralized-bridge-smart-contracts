@@ -1,6 +1,5 @@
 use alloc::string::{String, ToString};
 use casper_event_standard::Event;
-use casper_types::account::AccountHash;
 use casper_types::{PublicKey, U256, U512};
 use common::collection::TokenIdentifier;
 
@@ -98,84 +97,25 @@ impl Claimed {
 }
 #[derive(Event, Debug, PartialEq, Eq)]
 pub struct DeployStorage {
-    pub token_id: TokenIdentifier,
-    pub destination_chain: String,
-    pub destination_user_address: String,
     pub source_nft_contract_address: String,
-    pub metadata: String,
-    pub sender_address: String,
 }
 impl DeployStorage {
-    pub fn new(
-        token_id: TokenIdentifier,
-        destination_chain: String,
-        destination_user_address: String,
-        source_nft_contract_address: String,
-        metadata: String,
-        sender_address: String,
-    ) -> Self {
+    pub fn new(source_nft_contract_address: String) -> Self {
         Self {
-            token_id,
-            destination_chain,
-            destination_user_address,
             source_nft_contract_address,
-            metadata,
-            sender_address,
         }
     }
 }
 #[derive(Event, Debug, PartialEq, Eq)]
 pub struct DeployCollection {
-    pub token_id: String,
     pub source_chain: String,
-    pub destination_chain: String,
-    pub destination_user_address: AccountHash,
     pub source_nft_contract_address: String,
-    pub name: String,
-    pub symbol: String,
-    pub royalty: U512,
-    pub royalty_receiver: AccountHash,
-    pub metadata: String,
-    pub transaction_hash: String,
-    pub token_amount: U512,
-    pub nft_type: String,
-    pub fee: U512,
-    pub lock_tx_chain: String,
 }
 impl DeployCollection {
-    pub fn new(
-        token_id: String,
-        source_chain: String,
-        destination_chain: String,
-        destination_user_address: AccountHash,
-        source_nft_contract_address: String,
-        name: String,
-        symbol: String,
-        royalty: U512,
-        royalty_receiver: AccountHash,
-        metadata: String,
-        transaction_hash: String,
-        token_amount: U512,
-        nft_type: String,
-        fee: U512,
-        lock_tx_chain: String,
-    ) -> Self {
+    pub fn new(source_chain: String, source_nft_contract_address: String) -> Self {
         Self {
-            token_id,
             source_chain,
-            destination_chain,
-            destination_user_address,
             source_nft_contract_address,
-            name,
-            symbol,
-            royalty,
-            royalty_receiver,
-            metadata,
-            transaction_hash,
-            token_amount,
-            nft_type,
-            fee,
-            lock_tx_chain,
         }
     }
 }

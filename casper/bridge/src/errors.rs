@@ -216,6 +216,17 @@ pub enum BridgeError {
     InvalidTokenInfoGetSelfDictRef, // 136
 
     InvalidContractAddress, // 137
+
+    DuplicateStorageAlreadyExists, // 138
+    OriginalStorageAlreadyExists,  // 139
+
+    CollectionAlreadyExists, // 140
+
+    MissingWaitingDictRef, // 141
+    InvalidWaitingDictRef, // 142
+
+    WaitingForStorage,    // 143
+    WaitingForCollection, // 144
 }
 
 impl From<BridgeError> for ApiError {

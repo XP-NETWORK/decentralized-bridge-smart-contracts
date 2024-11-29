@@ -14,6 +14,37 @@ use core::convert::TryFrom;
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+pub struct Waiting {
+    pub wait: bool,
+    pub data_type: String,
+}
+impl FromBytes for Waiting {
+    fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
+        let (wait, remainder) = bool::from_bytes(bytes)?;
+        let (data_type, remainder) = String::from_bytes(remainder)?;
+
+        Ok((Self { wait, data_type }, remainder))
+    }
+}
+impl ToBytes for Waiting {
+    fn to_bytes(&self) -> Result<Vec<u8>, bytesrepr::Error> {
+        let mut result = bytesrepr::allocate_buffer(self)?;
+        result.extend(self.wait.to_bytes()?);
+        result.extend(self.data_type.to_bytes()?);
+        Ok(result)
+    }
+
+    fn serialized_length(&self) -> usize {
+        self.wait.serialized_length() + self.data_type.serialized_length()
+    }
+}
+impl CLTyped for Waiting {
+    fn cl_type() -> CLType {
+        CLType::Tuple2([Box::new(CLType::Bool), Box::new(CLType::String)])
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct OtherToken {
     pub token_id: String,
     pub chain: String,
@@ -214,14 +245,12 @@ impl CLTyped for DataType {
 pub struct DoneInfo {
     pub done: bool,
     pub can_do: bool,
-    pub is_present: bool,
     pub data_type: DataType,
 }
 impl FromBytes for DoneInfo {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
         let (done, remainder) = bool::from_bytes(bytes)?;
         let (can_do, remainder) = bool::from_bytes(remainder)?;
-        let (is_present, remainder) = bool::from_bytes(remainder)?;
         let (data_type, remainder) = u8::from_bytes(remainder)?;
         let data_type = DataType::try_from(data_type).map_err(|_| bytesrepr::Error::Formatting)?;
 
@@ -229,7 +258,6 @@ impl FromBytes for DoneInfo {
             Self {
                 done,
                 can_do,
-                is_present,
                 data_type,
             },
             remainder,
@@ -241,7 +269,6 @@ impl ToBytes for DoneInfo {
         let mut result = bytesrepr::allocate_buffer(self)?;
         result.extend(self.done.to_bytes()?);
         result.extend(self.can_do.to_bytes()?);
-        result.extend(self.is_present.to_bytes()?);
 
         match self.data_type {
             DataType::Claim => {
@@ -264,10 +291,7 @@ impl ToBytes for DoneInfo {
         Ok(result)
     }
     fn serialized_length(&self) -> usize {
-        self.done.serialized_length()
-            + self.can_do.serialized_length()
-            + self.is_present.serialized_length()
-            + U8_SERIALIZED_LENGTH
+        self.done.serialized_length() + self.can_do.serialized_length() + U8_SERIALIZED_LENGTH
     }
 }
 impl CLTyped for DoneInfo {
