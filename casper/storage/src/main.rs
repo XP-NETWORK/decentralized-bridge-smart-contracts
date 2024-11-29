@@ -11,7 +11,7 @@ mod endpoints;
 mod errors;
 mod keys;
 mod utils;
-
+use crate::runtime_args::RuntimeArgs;
 // Importing Rust types.
 use alloc::string::String;
 use alloc::{string::ToString, vec};
@@ -27,7 +27,7 @@ use casper_contract::{
 use casper_types::account::AccountHash;
 use casper_types::{
     contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
-    CLType, ContractHash, Key, Parameter,
+    runtime_args, CLType, ContractHash, Key, Parameter,
 };
 use common::collection::{owner_of, transfer, TokenIdentifier};
 use endpoints::*;
@@ -179,9 +179,24 @@ fn install_storage() {
         Some(ACCESS_KEY_NAME.to_string()),
     );
 
-    let s: String = runtime::get_named_arg("source_nft_contract_address");
+    let source_nft_contract_address: String =
+        runtime::get_named_arg(ARG_SOURCE_NFT_CONTRACT_ADDRESS);
+    let collection: ContractHash = runtime::get_named_arg(ARG_COLLECTION);
+    let owner: ContractHash = runtime::get_named_arg(ARG_OWNER);
 
-    runtime::put_key(&(THIS_CONTRACT.to_string() + &s), contract_hash.into());
+    runtime::put_key(
+        &(THIS_CONTRACT.to_string() + &source_nft_contract_address),
+        contract_hash.into(),
+    );
+
+    let args = runtime_args! {
+        ARG_COLLECTION => collection,
+        ARG_OWNER => owner,
+        ARG_SELF_HASH => contract_hash,
+    };
+
+    // Call contract to initialize it
+    runtime::call_contract::<()>(contract_hash, ENTRY_POINT_STORAGE_INITIALIZE, args);
 }
 
 #[no_mangle]

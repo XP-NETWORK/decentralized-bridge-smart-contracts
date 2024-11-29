@@ -1,4 +1,5 @@
 // RUNTIME ARGS INITIALIZE
+pub const ARG_SOURCE_NFT_CONTRACT_ADDRESS: &str = "source_nft_contract_address";
 pub const ARG_COLLECTION: &str = "collection_arg";
 pub const ARG_OWNER: &str = "owner_arg";
 pub const ARG_SELF_HASH: &str = "self_hash_arg";
