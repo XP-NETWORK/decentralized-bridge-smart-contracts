@@ -872,9 +872,9 @@ pub extern "C" fn lock() {
     let self_chain: String = storage::read_or_revert(self_chain_ref);
 
     let nft_type_ref = utils::get_uref(
-        KEY_CHAIN_TYPE,
-        BridgeError::MissingChainTypeRef,
-        BridgeError::InvalidChainTypeRef,
+        KEY_TYPE_ERC721,
+        BridgeError::MissingTypeErc721Ref,
+        BridgeError::InvalidTypeErc721Ref,
     );
 
     let nft_type: String = storage::read_or_revert(nft_type_ref);

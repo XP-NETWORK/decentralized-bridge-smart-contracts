@@ -301,10 +301,7 @@ impl CLTyped for DoneInfo {
                 Box::new(CLType::Bool),
                 Box::new(CLType::Bool),
             ])),
-            Box::new(CLType::Tuple2([
-                Box::new(CLType::Bool),
-                Box::new(CLType::U8),
-            ])),
+            Box::new(CLType::Tuple1([Box::new(CLType::U8)])),
         ])
     }
 }
