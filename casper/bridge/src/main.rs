@@ -168,6 +168,7 @@ fn verify_signatures(
     let mut done_info = DoneInfo {
         done: false,
         can_do: false,
+        fee_taken: false,
         data_type,
     };
     match existing_signatures_option {
@@ -336,7 +337,7 @@ fn reward_validators(fee: U512, validators: Vec<CPublicKey>) {
         runtime::revert(BridgeError::NoRewardsAvailable);
     }
 
-    let fee_per_validator = total_rewards / validators.len();
+    let fee_per_validator = fee / validators.len();
 
     let validators_dict_ref = utils::get_uref(
         KEY_VALIDATORS_DICT,
@@ -1372,8 +1373,10 @@ pub extern "C" fn claim() {
         runtime::revert(BridgeError::DataAlreadyProcessed);
     }
     if !done_info.done && done_info.can_do {
-        transfer_tx_fees(claim_fee, sender_purse, Receiver::Bridge);
-        reward_validators(data.fee, validators_to_rewards);
+        if !done_info.fee_taken {
+            transfer_tx_fees(claim_fee, sender_purse, Receiver::Bridge);
+            reward_validators(data.fee, validators_to_rewards);
+        }
     }
     if !done_info.can_do {
         runtime::revert(BridgeError::MoreSignaturesNeeded);
@@ -1507,7 +1510,11 @@ pub extern "C" fn claim() {
     if !has_duplicate && !has_storage {
         transfer_tx_fees(amount - claim_fee, sender_purse, Receiver::Service);
     } else {
-        transfer_tx_fees(amount - claim_fee, sender_purse, Receiver::Sender);
+        if done_info.fee_taken {
+            transfer_tx_fees(amount, sender_purse, Receiver::Sender);
+        } else {
+            transfer_tx_fees(amount - claim_fee, sender_purse, Receiver::Sender);
+        }
     }
 
     // ===============================/ hasDuplicate && hasStorage /=======================
@@ -1527,6 +1534,7 @@ pub extern "C" fn claim() {
                         data.destination_user_address,
                     );
                     submitted_sigs_data.1.done = true;
+                    submitted_sigs_data.1.fee_taken = true;
                     save_done_info(submitted_sigs_data, ss_key);
 
                     casper_event_standard::emit(Claimed::new(
@@ -1550,6 +1558,7 @@ pub extern "C" fn claim() {
                     data.metadata,
                 );
                 submitted_sigs_data.1.done = true;
+                submitted_sigs_data.1.fee_taken = true;
                 save_done_info(submitted_sigs_data, ss_key);
 
                 let mut mut_self_token_id = minted_token_id.to_bytes().unwrap();
@@ -1611,6 +1620,7 @@ pub extern "C" fn claim() {
             data.metadata,
         );
         submitted_sigs_data.1.done = true;
+        submitted_sigs_data.1.fee_taken = true;
         save_done_info(submitted_sigs_data, ss_key);
 
         let mut mut_self_token_id = minted_token_id.to_bytes().unwrap();
@@ -1656,6 +1666,9 @@ pub extern "C" fn claim() {
     }
     // ===============================/ NOT hasDuplicate && NOT hasStorage /=======================
     else if !has_duplicate && !has_storage {
+        submitted_sigs_data.1.fee_taken = true;
+        save_done_info(submitted_sigs_data, ss_key);
+
         storage::dictionary_put(
             waiting_dict_ref,
             otd_key.as_str(),
@@ -1691,6 +1704,7 @@ pub extern "C" fn claim() {
                         data.destination_user_address,
                     );
                     submitted_sigs_data.1.done = true;
+                    submitted_sigs_data.1.fee_taken = true;
                     save_done_info(submitted_sigs_data, ss_key);
                     casper_event_standard::emit(Claimed::new(
                         data.lock_tx_chain,

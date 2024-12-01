@@ -245,12 +245,14 @@ impl CLTyped for DataType {
 pub struct DoneInfo {
     pub done: bool,
     pub can_do: bool,
+    pub fee_taken: bool,
     pub data_type: DataType,
 }
 impl FromBytes for DoneInfo {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), bytesrepr::Error> {
         let (done, remainder) = bool::from_bytes(bytes)?;
         let (can_do, remainder) = bool::from_bytes(remainder)?;
+        let (fee_taken, remainder) = bool::from_bytes(remainder)?;
         let (data_type, remainder) = u8::from_bytes(remainder)?;
         let data_type = DataType::try_from(data_type).map_err(|_| bytesrepr::Error::Formatting)?;
 
@@ -258,6 +260,7 @@ impl FromBytes for DoneInfo {
             Self {
                 done,
                 can_do,
+                fee_taken,
                 data_type,
             },
             remainder,
@@ -269,6 +272,7 @@ impl ToBytes for DoneInfo {
         let mut result = bytesrepr::allocate_buffer(self)?;
         result.extend(self.done.to_bytes()?);
         result.extend(self.can_do.to_bytes()?);
+        result.extend(self.fee_taken.to_bytes()?);
 
         match self.data_type {
             DataType::Claim => {
@@ -291,13 +295,17 @@ impl ToBytes for DoneInfo {
         Ok(result)
     }
     fn serialized_length(&self) -> usize {
-        self.done.serialized_length() + self.can_do.serialized_length() + U8_SERIALIZED_LENGTH
+        self.done.serialized_length()
+            + self.can_do.serialized_length()
+            + self.fee_taken.serialized_length()
+            + U8_SERIALIZED_LENGTH
     }
 }
 impl CLTyped for DoneInfo {
     fn cl_type() -> CLType {
         CLType::Tuple2([
-            Box::new(CLType::Tuple2([
+            Box::new(CLType::Tuple3([
+                Box::new(CLType::Bool),
                 Box::new(CLType::Bool),
                 Box::new(CLType::Bool),
             ])),
