@@ -8,7 +8,6 @@ pub const ARG_SERVICE_ADDRESS: &str = "service_address_arg";
 pub const ARG_SELF_HASH: &str = "self_hash_arg";
 pub const ARG_STORAGE_DEPLOY_FEE: &str = "storage_deploy_fee_arg";
 pub const ARG_COLLECTION_DEPLOY_FEE: &str = "collection_deploy_fee_arg";
-pub const ARG_CLAIM_FEE: &str = "claim_fee_arg";
 
 // RUNTIME ARGS ADD VALIDATOR
 pub const ARG_NEW_VALIDATOR_PUBLIC_KEY: &str = "new_validator_public_key_arg";
@@ -59,7 +58,6 @@ pub const KEY_SELF_HASH: &str = "self_hash";
 
 pub const KEY_STORAGE_DEPLOY_FEE: &str = "storage_deploy_fee";
 pub const KEY_COLLECTION_DEPLOY_FEE: &str = "collection_deploy_fee";
-pub const KEY_CLAIM_FEE: &str = "claim_fee";
 
 // DICTIONARIES
 pub const KEY_VALIDATORS_DICT: &str = "validators_dict";

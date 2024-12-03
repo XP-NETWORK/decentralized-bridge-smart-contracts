@@ -374,7 +374,6 @@ pub extern "C" fn init() {
 
     let storage_deploy_fee: U512 = runtime::get_named_arg(ARG_STORAGE_DEPLOY_FEE);
     let collection_deploy_fee: U512 = runtime::get_named_arg(ARG_COLLECTION_DEPLOY_FEE);
-    let claim_fee: U512 = runtime::get_named_arg(ARG_CLAIM_FEE);
 
     runtime::put_key(INITIALIZED, storage::new_uref(true).into());
     runtime::put_key(KEY_CHAIN_TYPE, storage::new_uref(chain_type).into());
@@ -393,7 +392,6 @@ pub extern "C" fn init() {
         KEY_COLLECTION_DEPLOY_FEE,
         storage::new_uref(collection_deploy_fee).into(),
     );
-    runtime::put_key(KEY_CLAIM_FEE, storage::new_uref(claim_fee).into());
 
     // INITIALIZING BOOTSTRAP VALIDATOR
     let validators_dict = storage::new_dictionary(KEY_VALIDATORS_DICT)
@@ -1304,12 +1302,6 @@ pub extern "C" fn claim() {
         BridgeError::InvalidCollectionDeployFeeRef,
     );
 
-    let claim_fee_ref = utils::get_uref(
-        KEY_CLAIM_FEE,
-        BridgeError::MissingClaimFeeRef,
-        BridgeError::InvalidClaimFeeRef,
-    );
-
     let data = ClaimData {
         token_id: token_id.clone(),
         source_chain,
@@ -1329,7 +1321,6 @@ pub extern "C" fn claim() {
     };
 
     let collection_deploy_fee: U512 = storage::read_or_revert(collection_deploy_fee_ref);
-    let claim_fee: U512 = storage::read_or_revert(claim_fee_ref);
 
     // CHECK COLLECTION DEPLOY FEE
     if amount < collection_deploy_fee {
@@ -1374,7 +1365,7 @@ pub extern "C" fn claim() {
     }
     if !done_info.done && done_info.can_do {
         if !done_info.fee_taken {
-            transfer_tx_fees(claim_fee, sender_purse, Receiver::Bridge);
+            transfer_tx_fees(data.fee, sender_purse, Receiver::Bridge);
             reward_validators(data.fee, validators_to_rewards);
         }
     }
@@ -1508,12 +1499,12 @@ pub extern "C" fn claim() {
     }
 
     if !has_duplicate && !has_storage {
-        transfer_tx_fees(amount - claim_fee, sender_purse, Receiver::Service);
+        transfer_tx_fees(amount - data.fee, sender_purse, Receiver::Service);
     } else {
         if done_info.fee_taken {
             transfer_tx_fees(amount, sender_purse, Receiver::Sender);
         } else {
-            transfer_tx_fees(amount - claim_fee, sender_purse, Receiver::Sender);
+            transfer_tx_fees(amount - data.fee, sender_purse, Receiver::Sender);
         }
     }
 
@@ -1886,7 +1877,6 @@ fn generate_entry_points() -> EntryPoints {
             Parameter::new(ARG_SELF_HASH, CLType::ByteArray(32)),
             Parameter::new(ARG_STORAGE_DEPLOY_FEE, CLType::U512),
             Parameter::new(ARG_COLLECTION_DEPLOY_FEE, CLType::U512),
-            Parameter::new(ARG_CLAIM_FEE, CLType::U512),
         ],
         CLType::Unit,
         EntryPointAccess::Public,
