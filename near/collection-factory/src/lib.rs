@@ -1,12 +1,14 @@
 use std::str::FromStr;
 
-use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
+use near_sdk::{env, near, AccountId, Promise, PromiseError};
 
 mod external;
 #[near(contract_state)]
 pub struct CollectionFactory {
     owner: AccountId,
 }
+
+pub const COLLECTION: &'static [u8; 331273] = include_bytes!("../../target/near/nft/nft.wasm");
 
 impl Default for CollectionFactory {
     fn default() -> Self {
@@ -36,13 +38,15 @@ impl CollectionFactory {
             env::current_account_id().to_string()
         ))
         .unwrap();
+        let cost = env::storage_byte_cost()
+            .saturating_mul(COLLECTION.len() as u128)
+            .saturating_mul(5)
+            .saturating_div(4);
         let ctr = Promise::new(collection_id.clone())
             .create_account()
-            .transfer(NearToken::from_near(5)) // 5e24yN, 5N
+            .transfer(cost)
             .add_full_access_key(env::signer_account_pk())
-            .deploy_contract(
-                include_bytes!("../../target/near/nft/nft.wasm").to_vec(),
-            )
+            .deploy_contract(include_bytes!("../../target/near/nft/nft.wasm").to_vec())
             .then(external::collection::ext(collection_id.clone()).new(
                 self.owner.clone(),
                 external::NFTContractMetadata {
@@ -60,7 +64,7 @@ impl CollectionFactory {
     }
 
     #[private]
-     pub fn reply_collection_aid(
+    pub fn reply_collection_aid(
         &self,
         collection: AccountId,
         #[callback_result] result: Result<(), PromiseError>,
