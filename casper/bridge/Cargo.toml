@@ -1,0 +1,25 @@
+[package]
+name = "bridge"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+casper-contract = { workspace = true }
+casper-types = { workspace = true }
+casper-event-standard = { workspace = true }
+ed25519-dalek = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+common = { path = "../common" }
+
+[[bin]]
+name = "bridge"
+path = "src/main.rs"
+bench = false
+doctest = false
+test = false
+
+[profile.release]
+codegen-units = 1
+lto = true
+

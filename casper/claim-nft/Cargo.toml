@@ -1,0 +1,19 @@
+[package]
+name = "claim_session"
+version = "1.3.0"
+edition = "2018"
+
+[dependencies]
+casper-contract = { workspace = true }
+casper-types = { workspace = true }
+
+[[bin]]
+name = "claim_call"
+path = "src/main.rs"
+bench = false
+doctest = false
+test = false
+
+[profile.release]
+codegen-units = 1
+lto = true

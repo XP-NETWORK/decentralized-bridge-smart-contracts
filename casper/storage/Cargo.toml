@@ -1,0 +1,21 @@
+[package]
+name = "storage"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+casper-contract = { workspace = true }
+casper-types = { workspace = true }
+common = { path = "../common" }
+
+[[bin]]
+name = "storage"
+path = "src/main.rs"
+bench = false
+doctest = false
+test = false
+
+[profile.release]
+codegen-units = 1
+lto = true
+

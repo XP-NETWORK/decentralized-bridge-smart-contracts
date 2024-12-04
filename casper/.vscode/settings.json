@@ -1,0 +1,7 @@
+{
+  "rust-analyzer.linkedProjects": [
+    "bridge/Cargo.toml",
+    "storage/Cargo.toml"
+  ],
+  "terminal.explorerKind": "external"
+}
