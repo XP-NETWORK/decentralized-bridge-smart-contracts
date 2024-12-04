@@ -26,12 +26,12 @@ impl StorageFactory {
     pub fn deploy_nft_storage(&mut self, collection: AccountId) -> Promise {
         let coll_str = collection.to_string();
         let mut collection_shortened = coll_str.split(".").next().unwrap();
-        if collection_shortened.len() > 15 {
-            collection_shortened = &collection_shortened[..15];
+        if collection_shortened.len() > 12 {
+            collection_shortened = &collection_shortened[..12];
         }
         let aid = AccountId::from_str(&format!(
             "{}.{}",
-            collection_shortened,
+            convert_to_alphanumeric(collection_shortened),
             env::current_account_id().to_string()
         ))
         .unwrap();
@@ -83,4 +83,11 @@ mod tests {
         // this test did not call set_greeting so should return the default "Hello" greeting
         assert_eq!(contract.owner(), aid);
     }
+}
+
+fn convert_to_alphanumeric(input: &str) -> String {
+    input
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect::<String>()
 }

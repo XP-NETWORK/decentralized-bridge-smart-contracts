@@ -25,16 +25,20 @@ impl CollectionFactory {
 
     #[payable]
     pub fn deploy_nft_collection(&mut self, name: String, symbol: String) -> Promise {
-        env::log_str(&format!(
-            "{}-{}.{}",
-            name.split_whitespace().collect::<String>().to_lowercase(),
-            symbol.to_lowercase(),
-            env::current_account_id().to_string()
-        ));
+        let mut coll_str = format!(
+            "{}-{}",
+            convert_to_alphanumeric(&name),
+            convert_to_alphanumeric(&symbol)
+        );
+        if coll_str.len() > 12 {
+            coll_str.truncate(12);
+        }
+        if coll_str.chars().last().unwrap() == '-' {
+            coll_str.pop();
+        }
         let collection_id = AccountId::from_str(&format!(
-            "{}-{}.{}",
-            name.split_whitespace().collect::<String>().to_lowercase(),
-            symbol.to_lowercase(),
+            "{}.{}",
+            coll_str,
             env::current_account_id().to_string()
         ))
         .unwrap();
@@ -98,4 +102,11 @@ mod tests {
         // this test did not call set_greeting so should return the default "Hello" greeting
         assert_eq!(contract.owner(), aid);
     }
+}
+
+fn convert_to_alphanumeric(input: &str) -> String {
+    input
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect::<String>()
 }
