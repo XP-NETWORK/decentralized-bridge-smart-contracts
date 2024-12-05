@@ -45,7 +45,8 @@ pub struct ClaimedEvent {
     pub contract: AccountId,
     pub token_id: TokenId,
     pub transaction_hash: String,
-    pub source_chain: String
+    pub source_chain: String,
+    pub lock_tx_chain: String
 }
 
 

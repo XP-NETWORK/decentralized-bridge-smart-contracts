@@ -421,6 +421,7 @@ impl Bridge {
                         cd.token_id,
                         cd.transaction_hash,
                         cd.source_chain,
+                        cd.lock_tx_chain
                     ))
             }
             (false, false) => {
@@ -522,6 +523,7 @@ impl Bridge {
                 cd.token_id,
                 cd.transaction_hash,
                 cd.source_chain,
+                cd.lock_tx_chain
             ))
     }
 
@@ -532,6 +534,7 @@ impl Bridge {
         token_id: TokenId,
         transaction_hash: String,
         source_chain: String,
+        lock_tx_chain: String,
         #[callback_result] result: Result<(), PromiseError>,
     ) {
         require!(result.is_ok(), "Failed to emit claimed event");
@@ -540,6 +543,7 @@ impl Bridge {
             token_id,
             transaction_hash,
             source_chain,
+            lock_tx_chain
         }));
     }
 
@@ -593,6 +597,7 @@ impl Bridge {
                     cd.token_id,
                     cd.transaction_hash,
                     cd.source_chain,
+                    cd.lock_tx_chain
                 ))
         } else {
             let mut royalty = HashMap::new();
@@ -630,6 +635,7 @@ impl Bridge {
                     cd.token_id,
                     cd.transaction_hash,
                     cd.source_chain,
+                    cd.lock_tx_chain
                 ))
         }
     }
