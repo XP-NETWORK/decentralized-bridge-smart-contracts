@@ -38,7 +38,7 @@ impl CollectionFactory {
         }
         let collection_id = AccountId::from_str(&format!(
             "{}.{}",
-            coll_str,
+            coll_str.to_lowercase(),
             env::current_account_id().to_string()
         ))
         .unwrap();
