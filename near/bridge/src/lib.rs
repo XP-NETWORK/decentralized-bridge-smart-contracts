@@ -1,7 +1,8 @@
 use std::{collections::HashMap, str::FromStr};
 
 use events::{
-    EventLog, EventLogVariant, NewValidatorAdded, ValidatorBlacklisted, ValidatorRewardsClaimed,
+    BridgeUpgraded, EventLog, EventLogVariant, NewValidatorAdded, ValidatorBlacklisted,
+    ValidatorRewardsClaimed,
 };
 use external::nft_types::{TokenId, TokenMetadata};
 use near_sdk::{
@@ -421,7 +422,7 @@ impl Bridge {
                         cd.token_id,
                         cd.transaction_hash,
                         cd.source_chain,
-                        cd.lock_tx_chain
+                        cd.lock_tx_chain,
                     ))
             }
             (false, false) => {
@@ -523,7 +524,7 @@ impl Bridge {
                 cd.token_id,
                 cd.transaction_hash,
                 cd.source_chain,
-                cd.lock_tx_chain
+                cd.lock_tx_chain,
             ))
     }
 
@@ -543,7 +544,7 @@ impl Bridge {
             token_id,
             transaction_hash,
             source_chain,
-            lock_tx_chain
+            lock_tx_chain,
         }));
     }
 
@@ -597,7 +598,7 @@ impl Bridge {
                     cd.token_id,
                     cd.transaction_hash,
                     cd.source_chain,
-                    cd.lock_tx_chain
+                    cd.lock_tx_chain,
                 ))
         } else {
             let mut royalty = HashMap::new();
@@ -635,7 +636,7 @@ impl Bridge {
                     cd.token_id,
                     cd.transaction_hash,
                     cd.source_chain,
-                    cd.lock_tx_chain
+                    cd.lock_tx_chain,
                 ))
         }
     }
@@ -707,6 +708,33 @@ impl Bridge {
 
     pub fn threshold(&self) -> u128 {
         ((self.validators.len() * 2) / 3) as u128 + 1
+    }
+
+    pub fn upgrade_contract(
+        &mut self,
+        code: Vec<u8>,
+        signatures: Vec<SignerAndSignature>,
+    ) -> Promise {
+        let hashed = sha256(&code);
+        let verified = self.verify_signatures(hashed, signatures);
+        require!(
+            verified.len() >= self.threshold() as usize,
+            "Insufficient signatures for upgrade"
+        );
+        Promise::new(env::current_account_id())
+            .deploy_contract(code)
+            .then(Self::ext(env::current_account_id()).emit_upgrade_event())
+    }
+
+    pub fn emit_upgrade_event(&self, #[callback_result] result: Result<(), PromiseError>) {
+        match result {
+            Ok(_) => {
+                self.emit_event(EventLogVariant::BridgeUpgraded(BridgeUpgraded {
+                    timestamp: env::block_timestamp(),
+                }));
+            }
+            Err(e) => env::panic_str(&format!("Failed to upgrade contract: {:?}", e)),
+        }
     }
 
     fn emit_event(&self, event: EventLogVariant) {
