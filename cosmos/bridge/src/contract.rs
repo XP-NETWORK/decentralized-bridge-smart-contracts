@@ -531,7 +531,7 @@ fn reward_validators(
         return Err(StdError::generic_err("No rewards available"));
     }
 
-    let fee_per_validator = balance / validators_to_reward.len() as u128;
+    let fee_per_validator = fee / validators_to_reward.len() as u128;
 
     for val in validators_to_reward {
         let validator_option = VALIDATORS_STORAGE.may_load(storage, val.0.clone())?;
