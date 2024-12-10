@@ -432,12 +432,12 @@ actor class XPBridge(
       owner = me;
       subaccount = null;
     });
-    let fee_per_validator = total_rewards / validators.size();
+    let fee_per_validator = fee / Nat64.fromNat(validators.size());
     assert Nat64.fromNat(total_rewards) >= fee;
     for (v in vals.vals()) {
       let validator = o_unwrap(validators.get(v));
       let prev = validator.pending_rewards;
-      validators.put(v, { address = validator.address; pending_rewards = prev + Nat64.fromNat(fee_per_validator) });
+      validators.put(v, { address = validator.address; pending_rewards = prev + fee_per_validator });
     };
     return;
   };
