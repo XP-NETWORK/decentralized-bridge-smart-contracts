@@ -32,6 +32,7 @@ pub struct Bridge {
     original_storage_mapping: LookupMap<(String, String), AccountId>,
     duplicate_storage_mapping: LookupMap<(String, String), AccountId>,
     unique_identifiers: LookupMap<String, bool>,
+    unique_implementations: LookupMap<Vec<u8>, bool>
 }
 
 mod events;
@@ -74,6 +75,7 @@ impl Bridge {
             duplicate_storage_mapping: LookupMap::new(b"a"),
             unique_identifiers: LookupMap::new(b"u"),
             original_to_duplicate_mapping: LookupMap::new(b"r"),
+            unique_implementations: LookupMap::new(b"i")
         }
     }
 
@@ -716,22 +718,27 @@ impl Bridge {
         signatures: Vec<SignerAndSignature>,
     ) -> Promise {
         let hashed = sha256(&code);
-        let verified = self.verify_signatures(hashed, signatures);
+        if self.unique_implementations.get(&hashed).is_some() {
+            env::panic_str("Contract already upgraded");
+        }
+        let verified = self.verify_signatures(hashed.clone(), signatures);
         require!(
             verified.len() >= self.threshold() as usize,
             "Insufficient signatures for upgrade"
         );
         Promise::new(env::current_account_id())
             .deploy_contract(code)
-            .then(Self::ext(env::current_account_id()).emit_upgrade_event())
+            .then(Self::ext(env::current_account_id()).emit_upgrade_event(hashed))
     }
 
-    pub fn emit_upgrade_event(&self, #[callback_result] result: Result<(), PromiseError>) {
+    pub fn emit_upgrade_event(&mut self, hashed: Vec<u8>, #[callback_result] result: Result<(), PromiseError>) {
         match result {
             Ok(_) => {
                 self.emit_event(EventLogVariant::BridgeUpgraded(BridgeUpgraded {
                     timestamp: env::block_timestamp(),
+                    block_height: env::block_height()
                 }));
+                self.unique_implementations.insert(&hashed, &true);
             }
             Err(e) => env::panic_str(&format!("Failed to upgrade contract: {:?}", e)),
         }

@@ -3,7 +3,7 @@ use std::{error::Error, str::FromStr};
 use bridge::types::{AddValidator, BlacklistValidator, ClaimData};
 use ed25519_dalek::{ed25519::signature::SignerMut, Keypair, PublicKey};
 use helpers::{approve_nft, mint_nft};
-use near_sdk::AccountId;
+use near_sdk::{env::sha256, AccountId};
 use near_workspaces::{network::Sandbox, types::NearToken, Account, Contract, Worker};
 use serde_json::json;
 use tokio::test;
@@ -274,5 +274,33 @@ async fn claim_nft() -> Result<(), Box<dyn Error>> {
 
     eprintln!("{:#?}", claim);
     assert!(claim.is_success());
+    Ok(())
+}
+
+#[test]
+async fn upgrade_contract() -> Result<(), Box<dyn Error>> {
+    let mut sandbox = near_workspaces::sandbox().await?;
+    let admin = sandbox.dev_create_account().await?;
+    let mut rng = rand::thread_rng();
+    let mut bootstrap_validator = ed25519_dalek::Keypair::generate(&mut rng);
+
+    let (_, _, bridge) =
+        initialize_bridge(&mut sandbox, &admin, bootstrap_validator.public).await?;
+
+    let new = near_workspaces::compile_project("./").await?;
+    let hashed = sha256(&new);
+    let upgrade = admin.call(bridge.id(), "upgrade_contract")
+    .max_gas().args_json(json!({
+        "code": new,
+        "signatures": [
+             {
+                "signer": hex::encode(bootstrap_validator.public.to_bytes()),
+                "signature": bootstrap_validator.sign(&hashed).to_bytes().to_vec()
+            }
+        ]
+    })).transact().await?;
+
+    eprintln!("{:#?}", upgrade);
+    assert!(upgrade.is_success());
     Ok(())
 }
