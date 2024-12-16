@@ -756,7 +756,7 @@ contract HederaBridge is
 
         require(totalRewards >= fee, "No rewards available");
 
-        uint256 feePerValidator = totalRewards / validatorsToReward.length;
+        uint256 feePerValidator = fee / validatorsToReward.length;
         // console.log("FEE %s", feePerValidator);
         for (uint256 i = 0; i < validatorsToReward.length; i++) {
             validators[validatorsToReward[i]].pendingReward += feePerValidator;
