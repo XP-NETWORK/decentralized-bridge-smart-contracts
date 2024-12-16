@@ -2055,13 +2055,13 @@ fn register_storage_721_impl(
     if reply_info.is_original {
         let _ = ORIGINAL_STORAGE_721.insert(
             deps.storage,
-            &(reply_info.address.to_string().clone(), self_chain),
+            &(reply_info.source_nft_contract_address.to_string().clone(), self_chain),
             &(reply_info.address.clone(), reply_info.code_hash.clone()),
         );
     } else {
         let _ = DUPLICATE_STORAGE_721.insert(
             deps.storage,
-            &(reply_info.address.to_string().clone(), self_chain),
+            &(reply_info.source_nft_contract_address.to_string().clone(), self_chain),
             &(reply_info.address.clone(), reply_info.code_hash.clone()),
         );
     }
@@ -2087,13 +2087,13 @@ fn register_storage_1155_impl(
     if reply_info.is_original {
         let _ = ORIGINAL_STORAGE_1155.insert(
             deps.storage,
-            &(reply_info.address.to_string().clone(), self_chain),
+            &(reply_info.source_nft_contract_address.to_string().clone(), self_chain),
             &(reply_info.address.clone(), reply_info.code_hash.clone()),
         );
     } else {
         let _ = DUPLICATE_STORAGE_1155.insert(
             deps.storage,
-            &(reply_info.address.to_string().clone(), self_chain),
+            &(reply_info.source_nft_contract_address.to_string().clone(), self_chain),
             &(reply_info.address.clone(), reply_info.code_hash.clone()),
         );
     }
