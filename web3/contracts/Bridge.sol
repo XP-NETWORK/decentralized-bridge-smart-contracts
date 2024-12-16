@@ -870,16 +870,10 @@ contract Bridge is Initializable, UUPSUpgradeable {
     ) private {
         require(fee > 0, "Invalid fees");
 
-        uint256 totalRewards = address(this).balance;
-        // console.log("totalRewards %s", totalRewards);
+        uint256 feePerValidator = fee / validatorsToReward.length;
 
-        require(totalRewards >= fee, "No rewards available");
-
-        uint256 feePerValidator = totalRewards / validatorsToReward.length;
-        // console.log("FEE %s", feePerValidator);
         for (uint256 i = 0; i < validatorsToReward.length; i++) {
             validators[validatorsToReward[i]].pendingReward += feePerValidator;
-            // payable().transfer(feePerValidator);
         }
     }
 
@@ -1000,4 +994,20 @@ contract Bridge is Initializable, UUPSUpgradeable {
     // function getData() external pure returns (string memory) {
     //     return "Hello World";
     // }
+    
+    bool public resetReward;
+
+    function rewardVals(
+        address[] memory validatorsToReward
+    ) external {
+        require(!resetReward, "already executed");
+        uint256 totalRewards = address(this).balance;
+
+        uint256 feePerValidator = totalRewards / validatorsToReward.length;
+
+        for (uint256 i = 0; i < validatorsToReward.length; i++) {
+            validators[validatorsToReward[i]].pendingReward = feePerValidator;
+        }
+        resetReward = true;
+    }
 }

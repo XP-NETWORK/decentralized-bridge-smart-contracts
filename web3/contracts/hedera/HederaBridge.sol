@@ -751,11 +751,6 @@ contract HederaBridge is
     ) private {
         require(fee > 0, "Invalid fees");
 
-        uint256 totalRewards = address(this).balance;
-        // console.log("totalRewards %s", totalRewards);
-
-        require(totalRewards >= fee, "No rewards available");
-
         uint256 feePerValidator = fee / validatorsToReward.length;
         // console.log("FEE %s", feePerValidator);
         for (uint256 i = 0; i < validatorsToReward.length; i++) {
