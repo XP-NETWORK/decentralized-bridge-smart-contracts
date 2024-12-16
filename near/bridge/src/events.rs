@@ -29,7 +29,8 @@ pub enum EventLogVariant {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
 pub struct BridgeUpgraded {
-    pub timestamp: u64
+    pub timestamp: u64,
+    pub block_height: u64
 }
 
 #[derive(Serialize, Deserialize, Debug)]
