@@ -23,6 +23,13 @@ pub enum EventLogVariant {
     Locked(LockedEvent),
     Claimed(ClaimedEvent),
     ValidatorRewardsClaimed(ValidatorRewardsClaimed),
+    BridgeUpgraded(BridgeUpgraded),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(crate = "near_sdk::serde")]
+pub struct BridgeUpgraded {
+    pub timestamp: u64
 }
 
 #[derive(Serialize, Deserialize, Debug)]
