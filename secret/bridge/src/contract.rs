@@ -778,9 +778,11 @@ fn deploy_collection_721(
     metadata: String,
     transaction_hash: String,
     lock_tx_chain: String,
+    time: u64
 ) -> StdResult<Response> {
     let create_collection_msg =
         collection_deployer::msg::CollectionDeployerExecuteMsg::CreateCollection721 {
+            label: name.clone() + &symbol + &source_nft_contract_address + &time.to_string(),
             owner,
             name,
             symbol,
@@ -1137,6 +1139,7 @@ fn claim721(deps: DepsMut, env: Env, info: MessageInfo, msg: ClaimMsg) -> StdRes
             msg.data.metadata,
             msg.data.transaction_hash,
             msg.data.lock_tx_chain,
+            env.block.time.seconds(),
         )
     }
     // ===============================/ NOT hasDuplicate && hasStorage /=======================

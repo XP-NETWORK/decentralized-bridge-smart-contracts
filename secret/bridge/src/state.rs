@@ -29,7 +29,7 @@ pub static VALIDATORS_STORAGE: Keymap<Binary, Validator, Bincode2, WithoutIter> 
     KeymapBuilder::new(b"v_s").without_iter().build();
 
 pub static BLACKLISTED_VALIDATORS: Keymap<Binary, bool, Bincode2, WithoutIter> =
-    KeymapBuilder::new(b"v_s").without_iter().build();
+    KeymapBuilder::new(b"bv_s").without_iter().build();
 
 pub static UNIQUE_IDENTIFIER_STORAGE: Keymap<[u8; 32], bool, Bincode2, WithoutIter> =
     KeymapBuilder::new(b"ui_s").without_iter().build();

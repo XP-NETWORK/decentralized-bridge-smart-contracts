@@ -20,6 +20,7 @@ pub struct CollectionDeployerInstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum CollectionDeployerExecuteMsg {
     CreateCollection721 {
+        label: String,
         owner: String,
         name: String,
         symbol: String,
