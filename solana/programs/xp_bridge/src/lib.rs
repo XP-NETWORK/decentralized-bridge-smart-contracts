@@ -6,8 +6,9 @@ use anchor_spl::{
     self,
     token::{self, Mint, Token, TokenAccount, Transfer}, associated_token::AssociatedToken, metadata::Metadata,
 };
+use borsh::BorshSchema;
 use mpl_token_metadata::pda::{find_metadata_account, find_master_edition_account};
-use state::{Bridge, ContractInfo, OtherTokenInfo, SelfTokenInfo, SignatureThreshold, Validators};
+use state::{Bridge, ContractInfo, OtherTokenInfo, SelfTokenInfo, Validators};
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::sysvar::instructions::load_instruction_at_checked;
 use anchor_lang::solana_program::ed25519_program::ID as ED25519_ID;
@@ -42,6 +43,33 @@ pub mod xp_bridge {
 
         Ok(())
     }
+
+    pub fn submit_signatures(ctx: Context<SubmitSignatures>, data: SignatureData) -> Result<()> {
+        if data.signer_and_signatures.len() == 0 {
+            return Err(error::ErrorCode::NoSignatures.into());
+        }
+        let threshold_account = &mut ctx.accounts.threshold;
+
+        for (index, sig_info) in data.signer_and_signatures.into_iter().enumerate() {
+            let ix: Instruction = load_instruction_at_checked(index, &ctx.accounts.instruction_acc)?;
+            //Check that ix is what we expect to have been sent
+            let res = utils::verify_ed25519_ix(&ix, &sig_info.public_key.to_bytes(), &data.data.to_bytes(), &sig_info.sig)?;
+
+            if res {
+                let validator_account: Result<Account<Validators>> = Account::try_from(&ctx.remaining_accounts[index]);
+                match validator_account {
+                    Ok(v)=>{
+                        if v.added {
+                            threshold_account.threshold += 1;
+                        }
+                    },
+                    Err(_) => todo!()
+                }
+            }
+        }
+        Ok(())
+    }
+
 
     pub fn verify_add_validator_signatures(ctx: Context<VerifyAddValidatorSignatures>, data: VerifyAddValidatorSignaturesData) -> Result<()> {
         if data.signatures.len() == 0 {
@@ -1107,6 +1135,62 @@ pub struct VerifyRewardValidatorSignatures<'info> {
 pub struct VerifyRewardValidatorSignaturesData {
     validator_public_key: Pubkey,
     signatures: Vec<SignatureInfo>,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct SignatureThreshold {
+    pub threshold: u64
+}
+
+#[derive(AnchorDeserialize, AnchorSerialize)]
+enum SigType {
+    AddValidator,
+    Claim,
+    BlacklistValidator
+}
+
+#[derive(AnchorDeserialize, AnchorSerialize)]
+pub struct SignatureData {
+    pub sig_type: SigType,
+    pub data: SignableData,
+    pub signer_and_signatures: Vec<SignatureInfo>
+}
+#[derive(AnchorDeserialize, AnchorSerialize)]
+pub enum SignableData {
+    AddValidator(AddValidatorData),
+    Claim(ClaimData),
+}
+
+impl SignableData {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            SignableData::AddValidator(data) => data.try_to_vec().unwrap(),
+            SignableData::Claim(data) => data.try_to_vec().unwrap()
+        }
+    }
+    
+}
+
+#[derive(Accounts)]
+#[instruction(data: SignatureData)]
+pub struct SubmitSignatures<'info> {
+    #[account(
+        mut,
+        seeds = [BRIDGE.as_bytes()], 
+        bump
+    )]
+    pub bridge: Account<'info, Bridge>,
+    #[account(init, payer = signer,space = 8 + SignatureThreshold::INIT_SPACE, 
+        seeds = [hash(&["submit_signatures".try_to_vec().unwrap(), data.try_to_vec().unwrap()].concat()).as_ref()], 
+        bump)]
+    pub threshold: Account<'info, SignatureThreshold>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+    /// CHECK: used to get instruction data
+     #[account(address = Instructions::id())]
+     pub instruction_acc: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
