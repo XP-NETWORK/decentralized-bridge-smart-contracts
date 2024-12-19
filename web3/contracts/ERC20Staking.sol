@@ -26,7 +26,7 @@ contract ERC20Staking {
     mapping(address => uint256) public stakingBalances;
 
     // Event emitted when a user stakes tokens.
-    event Staked(uint256 amount, ValidatorAddressAndChainType[] validatorAddressAndChainType);
+    event Staked(address sender, uint256 amount, ValidatorAddressAndChainType[] validatorAddressAndChainType);
 
     /**
      * @dev Contract constructor that initializes the staking amount and token contract.
@@ -53,7 +53,7 @@ contract ERC20Staking {
         stakingBalances[msg.sender] += stakingAmount;
 
         // Emit a staking event.
-        emit Staked(stakingAmount, _validatorAddressAndChainType);
+        emit Staked(msg.sender, stakingAmount, _validatorAddressAndChainType);
     }
 
     /**
@@ -64,6 +64,6 @@ contract ERC20Staking {
 
         // @TODO chains should be unique
         // Emit a staking event.
-        emit Staked(stakingAmount, _validatorAddressAndChainType);
+        emit Staked(msg.sender, stakingAmount, _validatorAddressAndChainType);
     }
 }
