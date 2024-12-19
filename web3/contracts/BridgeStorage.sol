@@ -95,17 +95,20 @@ contract BridgeStorage {
     // royalties
     // mapping(string => Royalty) public royalties;
 
-    /**
+    /*
      * @dev bootstrap the bridge storage with a intial validator and intial fee for chains
      * @param _bootstrapValidator Address of the staker.
      * @param _bootstrapChainFee array of chain fee
      */
     constructor(
-        address _bootstrapValidator,
+        address[] memory _bootstrapValidators,
         ChainFee[] memory _bootstrapChainFee // Royalty[] memory _royalties
     ) {
-        validators[_bootstrapValidator] = true;
-        validatorCount++;
+
+        for (uint256 i = 0; i < _bootstrapValidators.length; i++) {
+            validators[_bootstrapValidators[i]] = true;
+            validatorCount++;
+        }
 
         for (uint256 i = 0; i < _bootstrapChainFee.length; i++) {
             chainFee[_bootstrapChainFee[i].chain] = _bootstrapChainFee[i].fee;
