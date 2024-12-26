@@ -260,36 +260,31 @@ actor class XPBridge(
     };
   };
 
-  public shared ({ caller }) func claim_nft(claim_data : ClaimData, sigs : [SignerAndSignature]) : async Text {
-    if (claim_data.nft_type != singular) {
-      throw Error.reject("Invalid NFT type!");
-    };
+  func refund_money(amt : Nat64, to : Principal) : async () {
     try {
-      let transferResult = await Ledger.icrc2_transfer_from({
-        from = {
-          owner = caller;
-          subaccount = null;
-        };
-        memo = null;
-        amount = Nat64.toNat(claim_data.fee) + 15010000;
-        fee = null;
-        from_subaccount = null;
-        to = {
-          owner = Principal.fromActor(self);
-          subaccount = null;
-        };
+      let rr = await Ledger.transfer({
+        from = Principal.fromActor(self);
+        to = Principal.toLedgerAccount(to, null);
+        amount = { e8s = amt };
+        fee = { e8s = 10_000 };
+        memo = 0;
         created_at_time = null;
-        spender_subaccount = null;
+        from_subaccount = null;
       });
-      // check if the transfer was successfull
-      switch (transferResult) {
+       switch (rr) {
         case (#Err(transferError)) {
-          throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
+          throw Error.reject("LedgerTransferError: Couldn't refund:\n" # debug_show (transferError));
         };
         case (_) {};
       };
     } catch (e) {
-      throw Error.reject("Failed to transfer tokens. Reject message: " # Error.message(e));
+      throw Error.reject("Failed to refund ICP to user." # Error.message(e));
+    };
+  };
+
+  public shared ({ caller }) func claim_nft(claim_data : ClaimData, sigs : [SignerAndSignature]) : async Text {
+    if (claim_data.nft_type != singular) {
+      throw Error.reject("Invalid NFT type!");
     };
     let chash = ClaimData.hash(claim_data);
     let mhash = Blob.hash(chash);
@@ -301,7 +296,7 @@ actor class XPBridge(
     let (percent, validators) = verify_signatures(Blob.toArray(chash), sigs);
     if (percent < required_threshold()) {
       throw Error.reject("Threshold not reached.");
-    };
+    };    
     await reward_validators(claim_data.fee, validators);
     let duplicate_collection_address = original_to_duplicate_mapping.get({
       source_chain = claim_data.source_chain;
@@ -323,6 +318,35 @@ actor class XPBridge(
       };
     };
     let has_storage = Option.isSome(storage);
+    let need_deployment = not has_duplicate and not has_storage;
+    let amt = if need_deployment claim_data.fee + 15010000 else claim_data.fee;
+    try {
+      let transferResult = await Ledger.icrc2_transfer_from({
+        from = {
+          owner = caller;
+          subaccount = null;
+        };
+        memo = null;
+        amount = Nat64.toNat(amt);
+        fee = null;
+        from_subaccount = null;
+        to = {
+          owner = Principal.fromActor(self);
+          subaccount = null;
+        };
+        created_at_time = null;
+        spender_subaccount = null;
+      });
+      // check if the transfer was successfull
+      switch (transferResult) {
+        case (#Err(transferError)) {
+          throw Error.reject("Couldn't transfer funds:\n" # debug_show (transferError));
+        };
+        case (_) {};
+      };
+    } catch (e) {
+      throw Error.reject("Failed to transfer tokens. Reject message: " # Error.message(e));
+    };
     if (has_duplicate and has_storage) {
       let sc = o_unwrap(storage);
       let collection = actor (Principal.toText(o_unwrap(duplicate_collection_address))) : NFT.NFT;
@@ -460,7 +484,7 @@ actor class XPBridge(
     await s.unlock_token(tid, { owner = destination_user_address; subaccount = null });
   };
 
-  private func top_up_cycles(canister: Principal) : async (Nat) {
+  private func top_up_cycles(canister : Principal) : async (Nat) {
 
     try {
       let cycle_subaccount = Blob.fromArray(Account.principalToSubAccount(canister));
