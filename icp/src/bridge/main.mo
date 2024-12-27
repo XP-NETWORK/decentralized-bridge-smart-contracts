@@ -297,7 +297,7 @@ actor class XPBridge(
     if (percent < required_threshold()) {
       throw Error.reject("Threshold not reached.");
     };    
-    await reward_validators(claim_data.fee, validators);
+    
     let duplicate_collection_address = original_to_duplicate_mapping.get({
       source_chain = claim_data.source_chain;
       source_nft_contract_address = claim_data.source_nft_contract_address;
@@ -347,6 +347,7 @@ actor class XPBridge(
     } catch (e) {
       throw Error.reject("Failed to transfer tokens. Reject message: " # Error.message(e));
     };
+    await reward_validators(claim_data.fee, validators);
     if (has_duplicate and has_storage) {
       let sc = o_unwrap(storage);
       let collection = actor (Principal.toText(o_unwrap(duplicate_collection_address))) : NFT.NFT;
